@@ -16,6 +16,12 @@ public sealed class OscToggleBinding {
 		Address = other.Address;
 		Hotkey = other.Hotkey;
 	}
+
+	public static OscToggleBinding CreateDefaultMasterMute() => new() {
+		Name = "Master mute",
+		Address = "/main/st/mix/on",
+		Hotkey = Keys.VolumeMute,
+	};
 }
 
 static class OscHotkey {
@@ -67,10 +73,6 @@ static class OscHotkey {
 		}
 		if (IsModifierKey(keyCode)) {
 			error = "Hotkey must include a non-modifier key.";
-			return false;
-		}
-		if (keyCode is Keys.VolumeUp or Keys.VolumeDown or Keys.VolumeMute) {
-			error = "Hotkey conflicts with the built-in media key handling.";
 			return false;
 		}
 		error = "";

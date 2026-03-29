@@ -14,6 +14,7 @@ public sealed class AppConfig {
 		Mixer = new MixerController.Config(Mixer),
 		TrayApp = new TrayApp.Config {
 			Bindings = TrayApp.Bindings.Select(b => new OscToggleBinding(b)).ToList(),
+			FaderBindings = TrayApp.FaderBindings.Select(f => new OscFaderBinding(f)).ToList(),
 		},
 	};
 }

@@ -17,15 +17,8 @@ namespace X32VolumeHijacker {
 		const int VK_VOLUME_DOWN = 0xAE;
 		const int VK_VOLUME_MUTE = 0xAD;
 
-		public enum VolumeKey {
-			MUTE_TOGGLE,
-			UP,
-			DOWN,
-		}
-
 		delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
-		public Action<VolumeKey> OnVolumeKeyPressed = _ => { };
 		public Action<Keys> OnConfiguredHotkeyPressed = _ => { };
 
 		readonly IntPtr _hookId;
@@ -46,11 +39,6 @@ namespace X32VolumeHijacker {
 			string moduleName = curProcess.MainModule?.ModuleName
 				?? throw new InvalidOperationException("Could not resolve the current process module name.");
 			return SetWindowsHookEx(13, proc, GetModuleHandle(moduleName), 0);
-		}
-
-		void QueueVolumeKey(VolumeKey key) {
-			var handler = OnVolumeKeyPressed;
-			ThreadPool.QueueUserWorkItem(_ => handler(key));
 		}
 
 		void QueueConfiguredHotkey(Keys hotkey) {
@@ -121,23 +109,13 @@ namespace X32VolumeHijacker {
 			// Key-up (and key-up repeat) would run the handler twice, e.g. mute toggles then toggles back.
 			if (nCode >= 0) {
 				int vkCode = Marshal.ReadInt32(lParam);
-				if (vkCode == VK_VOLUME_UP) {
-					if (IsKeyDown(wParam)) QueueVolumeKey(VolumeKey.UP);
-					return (IntPtr)1;
-				}
-				if (vkCode == VK_VOLUME_DOWN) {
-					if (IsKeyDown(wParam)) QueueVolumeKey(VolumeKey.DOWN);
-					return (IntPtr)1;
-				}
-				if (vkCode == VK_VOLUME_MUTE) {
-					if (IsKeyDown(wParam)) QueueVolumeKey(VolumeKey.MUTE_TOGGLE);
-					return (IntPtr)1;
-				}
 				if (TryHandleConfiguredHotkey(wParam, vkCode, out Keys firedHotkey)) {
 					if (firedHotkey != Keys.None)
 						QueueConfiguredHotkey(firedHotkey);
 					return (IntPtr)1;
 				}
+				if (vkCode is VK_VOLUME_UP or VK_VOLUME_DOWN or VK_VOLUME_MUTE)
+					return CallNextHookEx(_hookId, nCode, wParam, lParam);
 			}
 			return CallNextHookEx(_hookId, nCode, wParam, lParam);
 		}

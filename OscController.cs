@@ -17,14 +17,12 @@ public partial class OscController {
 		public const uint MaxQueryTimeoutMs = 10_000;
 
 		public IPEndPoint EndPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 10023);
-		public string faderAddress = "/main/st/mix/fader";
 		public uint timeoutMs = 500;
 
 		public Config() {}
 		public Config(Config other) {
 			ArgumentNullException.ThrowIfNull(other);
 			EndPoint = new IPEndPoint(other.EndPoint.Address, other.EndPoint.Port);
-			faderAddress = other.faderAddress;
 			timeoutMs = other.timeoutMs;
 		}
 	}
@@ -32,17 +30,12 @@ public partial class OscController {
 	UdpClient udpClient = null!;
 	IPEndPoint? _mixerEndPoint;
 
-	/// <summary>NormalizeOscAddress(NormalizeX32ChannelPath(fader)); refreshed when <see cref="Connection"/> is set.</summary>
-	string _oscFaderPath = "";
-	/// <summary><c>FaderPathToMixOnPath(fader)</c> when valid; otherwise <c>null</c> (mute APIs resolve/throw on use).</summary>
-	string? _oscMixOnPath;
-
 	public OscController(Config config){
 		Connection = config;
 	}
 
 	Config _config = null!;
-	/// <summary>Mixer endpoint, fader OSC address, and query timeout (get returns a copy).</summary>
+	/// <summary>Mixer endpoint and query timeout only; fader paths come from <see cref="OscFaderBinding"/> rows.</summary>
 	public Config Connection {
 		get { return new Config(_config); }
 		set {
@@ -63,13 +56,6 @@ public partial class OscController {
 			_mixerEndPoint = new IPEndPoint(value.EndPoint.Address, value.EndPoint.Port);
 			Trace.WriteLine("OSC socket local=" + udpClient.Client.LocalEndPoint + " remote=" + _mixerEndPoint);
 			_config = new Config(value);
-			_config.faderAddress = (_config.faderAddress ?? "").Trim();
-			_oscFaderPath = NormalizeOscAddress(NormalizeX32ChannelPath(_config.faderAddress));
-			try {
-				_oscMixOnPath = FaderPathToMixOnPath(_config.faderAddress);
-			} catch (InvalidOperationException) {
-				_oscMixOnPath = null;
-			}
 		}
 	}
 
@@ -82,7 +68,9 @@ public partial class OscController {
 	}
 
 	public async Task SendMessageAsync(OscMessage message) {
-		byte[] bytes = message.GetBytes();
+		string addr = NormalizeBindingAddress(message.Address);
+		var toSend = new OscMessage(addr, message.Arguments.ToArray());
+		byte[] bytes = toSend.GetBytes();
 		Trace.WriteLine("Sending " + message.Address + "," + bytes.Length);
 		await SendToMixerAsync(bytes);
 	}
@@ -121,6 +109,7 @@ public partial class OscController {
 
 	/// <summary>Sends a query message for <paramref name="address"/> and polls replies until <paramref name="tryExtract"/> returns non-null or timeout.</summary>
 	internal async Task<T?> QueryAsync<T>(string address, Func<OscMessage, T?> tryExtract) where T : class {
+		address = NormalizeBindingAddress(address);
 		await SendMessageAsync(new OscMessage(address));
 		int budgetMs = (int)Math.Max(1, _config.timeoutMs);
 		var deadline = DateTime.UtcNow.AddMilliseconds(budgetMs);
@@ -145,7 +134,7 @@ public partial class OscController {
 	}
 
 	internal async Task<float?> QueryFloatAsync(string address, bool logUnmatchedArgs) {
-		var result = await QueryAsync(address, msg => {
+		var result = await QueryAsync(NormalizeBindingAddress(address), msg => {
 			if (TryCoerceFirstNumericFromMessage(msg, out float f))
 				return new Boxed<float>(f);
 			if (logUnmatchedArgs)
@@ -155,13 +144,9 @@ public partial class OscController {
 		return result?.Value;
 	}
 
-	/// <summary>Normalized fader OSC path from connection config (X32 channel indices normalized).</summary>
-	internal string NormalizedFaderPath => _oscFaderPath;
-
-	/// <summary>Precomputed <c>/mix/on</c> path when fader address is valid for mute; otherwise <c>null</c>.</summary>
-	internal string? CachedMixOnPath => _oscMixOnPath;
-
-	internal string RawFaderAddress => _config.faderAddress;
+	/// <summary>Normalize X32 channel indices and trim path (same as queries use).</summary>
+	public static string NormalizeBindingAddress(string path) =>
+		NormalizeOscAddress(NormalizeX32ChannelPath(path));
 
 	/// <summary>Maps e.g. /main/st/mix/fader -> /main/st/mix/on for X32 mute (0 = muted, 1 = on).</summary>
 	internal static string FaderPathToMixOnPath(string faderPath) {

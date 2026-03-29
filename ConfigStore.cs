@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using System.Net;
 using System.Windows.Forms;
 
@@ -21,7 +22,6 @@ public sealed class ConfigStore {
 
 	public string ConfigPath => Path.Combine(AppContext.BaseDirectory, FileName);
 
-	/// <summary>Current aggregate; replaced by <see cref="LoadFromDisk"/>, <see cref="AdoptAppConfig"/>, or load fallbacks.</summary>
 	public AppConfig AppConfig { get; private set; }
 
 	public string LastDiskFeedback { get; private set; } = "";
@@ -32,13 +32,11 @@ public sealed class ConfigStore {
 		AppConfig = new AppConfig();
 	}
 
-	/// <summary>Replaces <see cref="AppConfig"/> with a deep copy of <paramref name="fromForm"/> (before apply and before disk).</summary>
 	public void AdoptAppConfig(AppConfig fromForm) {
 		ArgumentNullException.ThrowIfNull(fromForm);
 		AppConfig = fromForm.DeepClone();
 	}
 
-	/// <summary>Reads the config file or sets defaults; always assigns <see cref="AppConfig"/>.</summary>
 	public void LoadFromDisk() {
 		string path = ConfigPath;
 		if (!File.Exists(path)) {
@@ -51,8 +49,7 @@ public sealed class ConfigStore {
 			IReadOnlyDictionary<string, string> map = ParseKeyValueLines(File.ReadAllText(path));
 			if (!map.TryGetValue("ip", out string? ipStr)
 			    || !map.TryGetValue("port", out string? portStr)
-			    || !map.TryGetValue("faderAddress", out string? faderRaw)
-			    || !OscConnectionConfigParse.TryParse(ipStr, portStr, faderRaw, out IPAddress ip, out int port, out string fader, out _, out _, out _)) {
+			    || !OscConnectionConfigParse.TryParseIpPort(ipStr, portStr, out IPAddress ip, out int port, out _, out _)) {
 				AppConfig = new AppConfig();
 				LastDiskOutcome = AppConfigDiskOutcome.InvalidOrIncompleteFile;
 				LastDiskFeedback = "Config file exists but could not be parsed; using defaults.";
@@ -64,28 +61,31 @@ public sealed class ConfigStore {
 			    && uint.TryParse(toStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint to)
 			    && to >= OscController.Config.MinQueryTimeoutMs)
 				timeout = Math.Min(to, OscController.Config.MaxQueryTimeoutMs);
-			var faderDefaults = new MixerController.Config();
-			float volumeStep = faderDefaults.VolumeStep;
-			if (map.TryGetValue("volumeStep", out string? stepStr)
-			    && float.TryParse(stepStr.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float vs)
-			    && float.IsFinite(vs))
-				volumeStep = Math.Clamp(vs, MixerController.Config.MinVolumeStep, MixerController.Config.MaxVolumeStep);
-			uint faderCacheTtlMs = faderDefaults.FaderVolumeCacheTtlMs;
-			if (map.TryGetValue("faderVolumeCacheTtlMs", out string? ttlStr)
+			var mixerDefaults = new MixerController.Config();
+			uint valueCacheTtlMs = mixerDefaults.ValueCacheTtlMs;
+			if (map.TryGetValue("valueCacheTtlMs", out string? ttlStr)
 			    && uint.TryParse(ttlStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint ttl))
-				faderCacheTtlMs = Math.Min(ttl, MixerController.Config.MaxFaderVolumeCacheTtlMs);
+				valueCacheTtlMs = Math.Min(ttl, MixerController.Config.MaxValueCacheTtlMs);
+			List<OscFaderBinding> faders = ParseOscFaderBindings(map);
+			if (faders.Count == 0) {
+				AppConfig = new AppConfig();
+				LastDiskOutcome = AppConfigDiskOutcome.InvalidOrIncompleteFile;
+				LastDiskFeedback = "Config file exists but could not be parsed; using defaults.";
+				return;
+			}
 			List<OscToggleBinding> oscToggles = ParseOscToggleBindings(map);
 			AppConfig = new AppConfig {
 				OscController = new OscController.Config {
 					EndPoint = new IPEndPoint(ip, port),
-					faderAddress = fader,
 					timeoutMs = timeout,
 				},
 				Mixer = new MixerController.Config {
-					VolumeStep = volumeStep,
-					FaderVolumeCacheTtlMs = faderCacheTtlMs,
+					ValueCacheTtlMs = valueCacheTtlMs,
 				},
-				TrayApp = new TrayApp.Config { Bindings = oscToggles },
+				TrayApp = new TrayApp.Config {
+					FaderBindings = faders,
+					Bindings = oscToggles,
+				},
 			};
 			LastDiskOutcome = AppConfigDiskOutcome.LoadedOk;
 			LastDiskFeedback = "Loaded settings from disk.";
@@ -96,21 +96,29 @@ public sealed class ConfigStore {
 		}
 	}
 
-	/// <summary>Writes <see cref="AppConfig"/> to disk. On failure sets <see cref="AppConfigDiskOutcome.SaveFailed"/> without throwing or reverting <see cref="AppConfig"/>.</summary>
 	public void TryPersistToDisk() {
 		AppConfig cfg = AppConfig;
 		var osc = cfg.OscController;
-		var faderConfig = cfg.Mixer ?? new MixerController.Config();
+		var mixer = cfg.Mixer ?? new MixerController.Config();
 		var toggles = cfg.TrayApp?.Bindings ?? [];
-		string fader = (osc.faderAddress ?? "").Trim();
+		var faders = cfg.TrayApp?.FaderBindings ?? [];
 		var lines = new List<string> {
 			"ip=" + osc.EndPoint.Address.ToString(),
 			"port=" + osc.EndPoint.Port.ToString(CultureInfo.InvariantCulture),
-			"faderAddress=" + fader,
 			"timeoutMs=" + osc.timeoutMs.ToString(CultureInfo.InvariantCulture),
-			"volumeStep=" + faderConfig.VolumeStep.ToString(CultureInfo.InvariantCulture),
-			"faderVolumeCacheTtlMs=" + faderConfig.FaderVolumeCacheTtlMs.ToString(CultureInfo.InvariantCulture),
+			"valueCacheTtlMs=" + mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture),
 		};
+		for (int i = 0; i < faders.Count; i++) {
+			OscFaderBinding b = faders[i];
+			string p = i.ToString(CultureInfo.InvariantCulture);
+			lines.Add("oscFader." + p + ".name=" + b.Name.Trim());
+			lines.Add("oscFader." + p + ".address=" + b.Address.Trim());
+			lines.Add("oscFader." + p + ".step=" + b.Step.ToString(CultureInfo.InvariantCulture));
+			lines.Add("oscFader." + p + ".minimum=" + b.Minimum.ToString(CultureInfo.InvariantCulture));
+			lines.Add("oscFader." + p + ".maximum=" + b.Maximum.ToString(CultureInfo.InvariantCulture));
+			lines.Add("oscFader." + p + ".hotkeyMinus=" + OscHotkey.Format(b.HotkeyMinus));
+			lines.Add("oscFader." + p + ".hotkeyPlus=" + OscHotkey.Format(b.HotkeyPlus));
+		}
 		for (int i = 0; i < toggles.Count; i++) {
 			OscToggleBinding binding = toggles[i];
 			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".name=" + binding.Name.Trim());
@@ -142,6 +150,73 @@ public sealed class ConfigStore {
 				map[key] = value;
 		}
 		return map;
+	}
+
+	static List<OscFaderBinding> ParseOscFaderBindings(IReadOnlyDictionary<string, string> map) {
+		var rows = new Dictionary<int, OscFaderBinding>();
+		foreach ((string key, string value) in map) {
+			if (!key.StartsWith("oscFader.", StringComparison.OrdinalIgnoreCase))
+				continue;
+			string rest = key["oscFader.".Length..];
+			int dot = rest.IndexOf('.');
+			if (dot <= 0)
+				continue;
+			if (!int.TryParse(rest[..dot], NumberStyles.Integer, CultureInfo.InvariantCulture, out int index) || index < 0)
+				continue;
+			string field = rest[(dot + 1)..];
+			if (!rows.TryGetValue(index, out OscFaderBinding? row)) {
+				row = new OscFaderBinding();
+				rows[index] = row;
+			}
+			switch (field.ToLowerInvariant()) {
+				case "name":
+					row.Name = value.Trim();
+					break;
+				case "address":
+					row.Address = value.Trim();
+					break;
+				case "step":
+					if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float st) && float.IsFinite(st))
+						row.Step = st;
+					break;
+				case "minimum":
+					if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float mn) && float.IsFinite(mn))
+						row.Minimum = mn;
+					break;
+				case "maximum":
+					if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float mx) && float.IsFinite(mx))
+						row.Maximum = mx;
+					break;
+				case "hotkeyminus":
+					if (OscHotkey.TryParse(value, out var hm))
+						row.HotkeyMinus = hm;
+					break;
+				case "hotkeyplus":
+					if (OscHotkey.TryParse(value, out var hp))
+						row.HotkeyPlus = hp;
+					break;
+			}
+		}
+
+		var result = new List<OscFaderBinding>(rows.Count);
+		foreach (int index in rows.Keys.OrderBy(i => i)) {
+			OscFaderBinding row = rows[index];
+			if (string.IsNullOrWhiteSpace(row.Name) || string.IsNullOrWhiteSpace(row.Address))
+				continue;
+			if (!float.IsFinite(row.Step) || !float.IsFinite(row.Minimum) || !float.IsFinite(row.Maximum) || row.Minimum > row.Maximum)
+				continue;
+			row.Step = Math.Clamp(row.Step, MixerController.Config.MinFaderStep, MixerController.Config.MaxFaderStep);
+			result.Add(new OscFaderBinding {
+				Name = row.Name.Trim(),
+				Address = row.Address.Trim(),
+				Step = row.Step,
+				Minimum = row.Minimum,
+				Maximum = row.Maximum,
+				HotkeyMinus = OscHotkey.Normalize(row.HotkeyMinus),
+				HotkeyPlus = OscHotkey.Normalize(row.HotkeyPlus),
+			});
+		}
+		return result;
 	}
 
 	static List<OscToggleBinding> ParseOscToggleBindings(IReadOnlyDictionary<string, string> map) {

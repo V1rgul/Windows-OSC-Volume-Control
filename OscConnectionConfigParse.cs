@@ -50,4 +50,27 @@ static class OscConnectionConfigParse {
 		}
 		return true;
 	}
+
+	/// <summary>IP and UDP port only (OSC addresses come from fader/toggle grids).</summary>
+	public static bool TryParseIpPort(
+		string? ipRaw, string? portRaw,
+		out IPAddress ip, out int port,
+		out string? ipError, out string? portError) {
+		ip = default!;
+		port = 0;
+		ipError = null;
+		portError = null;
+		if (string.IsNullOrWhiteSpace(ipRaw) || !IPAddress.TryParse(ipRaw.Trim(), out IPAddress? parsedIp)) {
+			ipError = "Invalid IP address.";
+			return false;
+		}
+		ip = parsedIp;
+		if (string.IsNullOrWhiteSpace(portRaw)
+		    || !int.TryParse(portRaw.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out port)
+		    || port is < 1 or > 65535) {
+			portError = "Port must be between 1 and 65535.";
+			return false;
+		}
+		return true;
+	}
 }

@@ -59,13 +59,18 @@ namespace X32VolumeHijacker
 			tableLayoutOscBase = new TableLayoutPanel();
 			groupBoxFader = new GroupBox();
 			tableLayoutFader = new TableLayoutPanel();
-			tableLayoutVolumeStep = new TableLayoutPanel();
 			tableLayoutVolumeCache = new TableLayoutPanel();
-			textBoxFaderAddress = new TextBox();
-			labelFaderAddress = new Label();
-			labelVolumeStep = new Label();
-			trackBarVolumeStep = new TrackBar();
-			numericUpDownVolumeStep = new NumericUpDown();
+			dataGridViewOscFaders = new DataGridView();
+			columnOscFaderName = new DataGridViewTextBoxColumn();
+			columnOscFaderAddress = new DataGridViewTextBoxColumn();
+			columnOscFaderStep = new DataGridViewTextBoxColumn();
+			columnOscFaderMinimum = new DataGridViewTextBoxColumn();
+			columnOscFaderMaximum = new DataGridViewTextBoxColumn();
+			columnOscFaderHotkeyMinus = new DataGridViewTextBoxColumn();
+			columnOscFaderClearMinus = new DataGridViewImageColumn();
+			columnOscFaderHotkeyPlus = new DataGridViewTextBoxColumn();
+			columnOscFaderClearPlus = new DataGridViewImageColumn();
+			columnOscFaderRemove = new DataGridViewImageColumn();
 			labelFaderVolumeCacheTtlMs = new Label();
 			numericUpDownFaderVolumeCacheTtlMs = new NumericUpDown();
 			labelFaderVolumeCacheUnitMs = new Label();
@@ -91,8 +96,8 @@ namespace X32VolumeHijacker
 			tableLayoutOscBase.SuspendLayout();
 			groupBoxFader.SuspendLayout();
 			tableLayoutFader.SuspendLayout();
-			tableLayoutVolumeStep.SuspendLayout();
 			tableLayoutVolumeCache.SuspendLayout();
+			((System.ComponentModel.ISupportInitialize)dataGridViewOscFaders).BeginInit();
 			groupBoxOscToggles.SuspendLayout();
 			tableLayoutOscToggles.SuspendLayout();
 			((System.ComponentModel.ISupportInitialize)dataGridViewOscToggles).BeginInit();
@@ -502,27 +507,7 @@ namespace X32VolumeHijacker
 			groupBoxFader.Size = new Size(413, 140);
 			groupBoxFader.TabIndex = 8;
 			groupBoxFader.TabStop = false;
-			groupBoxFader.Text = "OSC Fader";
-			// 
-			// tableLayoutVolumeStep
-			// 
-			tableLayoutVolumeStep.AutoSize = true;
-			tableLayoutVolumeStep.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-			tableLayoutVolumeStep.ColumnCount = 3;
-			tableLayoutVolumeStep.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-			tableLayoutVolumeStep.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-			tableLayoutVolumeStep.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-			tableLayoutVolumeStep.Controls.Add(labelVolumeStep, 0, 0);
-			tableLayoutVolumeStep.Controls.Add(trackBarVolumeStep, 1, 0);
-			tableLayoutVolumeStep.Controls.Add(numericUpDownVolumeStep, 2, 0);
-			tableLayoutVolumeStep.Dock = DockStyle.Fill;
-			tableLayoutVolumeStep.Location = new Point(0, 33);
-			tableLayoutVolumeStep.Margin = new Padding(0);
-			tableLayoutVolumeStep.Name = "tableLayoutVolumeStep";
-			tableLayoutVolumeStep.RowCount = 1;
-			tableLayoutVolumeStep.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-			tableLayoutVolumeStep.Size = new Size(407, 56);
-			tableLayoutVolumeStep.TabIndex = 1;
+			groupBoxFader.Text = "OSC Faders";
 			// 
 			// tableLayoutVolumeCache
 			// 
@@ -536,106 +521,145 @@ namespace X32VolumeHijacker
 			tableLayoutVolumeCache.Controls.Add(numericUpDownFaderVolumeCacheTtlMs, 1, 0);
 			tableLayoutVolumeCache.Controls.Add(labelFaderVolumeCacheUnitMs, 2, 0);
 			tableLayoutVolumeCache.Dock = DockStyle.Fill;
-			tableLayoutVolumeCache.Location = new Point(0, 89);
+			tableLayoutVolumeCache.Location = new Point(0, 0);
 			tableLayoutVolumeCache.Margin = new Padding(0);
 			tableLayoutVolumeCache.Name = "tableLayoutVolumeCache";
 			tableLayoutVolumeCache.RowCount = 1;
 			tableLayoutVolumeCache.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 			tableLayoutVolumeCache.Size = new Size(407, 33);
-			tableLayoutVolumeCache.TabIndex = 2;
+			tableLayoutVolumeCache.TabIndex = 0;
 			// 
 			// tableLayoutFader
 			// 
 			tableLayoutFader.AutoSize = true;
 			tableLayoutFader.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-			tableLayoutFader.ColumnCount = 2;
-			tableLayoutFader.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+			tableLayoutFader.ColumnCount = 1;
 			tableLayoutFader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-			tableLayoutFader.Controls.Add(labelFaderAddress, 0, 0);
-			tableLayoutFader.Controls.Add(textBoxFaderAddress, 1, 0);
-			tableLayoutFader.Controls.Add(tableLayoutVolumeStep, 0, 1);
-			tableLayoutFader.Controls.Add(tableLayoutVolumeCache, 0, 2);
-			tableLayoutFader.Controls.Add(labelFaderTestResult, 0, 3);
+			tableLayoutFader.Controls.Add(tableLayoutVolumeCache, 0, 0);
+			tableLayoutFader.Controls.Add(dataGridViewOscFaders, 0, 1);
+			tableLayoutFader.Controls.Add(labelFaderTestResult, 0, 2);
 			tableLayoutFader.Dock = DockStyle.Top;
 			tableLayoutFader.Location = new Point(3, 23);
 			tableLayoutFader.Name = "tableLayoutFader";
-			tableLayoutFader.RowCount = 4;
+			tableLayoutFader.RowCount = 3;
 			tableLayoutFader.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+			tableLayoutFader.RowStyles.Add(new RowStyle(SizeType.Absolute, 140F));
 			tableLayoutFader.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-			tableLayoutFader.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-			tableLayoutFader.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-			tableLayoutFader.Size = new Size(407, 99);
+			tableLayoutFader.Size = new Size(407, 200);
 			tableLayoutFader.TabIndex = 0;
-			tableLayoutFader.SetColumnSpan(tableLayoutVolumeStep, 2);
-			tableLayoutFader.SetColumnSpan(tableLayoutVolumeCache, 2);
-			tableLayoutFader.SetColumnSpan(labelFaderTestResult, 2);
 			// 
-			// textBoxFaderAddress
+			// dataGridViewOscFaders
 			// 
-			textBoxFaderAddress.Dock = DockStyle.Fill;
-			textBoxFaderAddress.Location = new Point(112, 3);
-			textBoxFaderAddress.Margin = new Padding(0, 3, 0, 3);
-			textBoxFaderAddress.Name = "textBoxFaderAddress";
-			textBoxFaderAddress.Size = new Size(295, 27);
-			textBoxFaderAddress.TabIndex = 1;
-			textBoxFaderAddress.Text = "/main/st/mix/fader";
-			textBoxFaderAddress.TextChanged += textBoxFaderAddress_TextChanged;
+			dataGridViewOscFaders.AllowUserToAddRows = false;
+			dataGridViewOscFaders.AllowUserToDeleteRows = false;
+			dataGridViewOscFaders.AllowUserToResizeRows = false;
+			dataGridViewOscFaders.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+			dataGridViewOscFaders.BackgroundColor = SystemColors.Window;
+			dataGridViewOscFaders.BorderStyle = BorderStyle.FixedSingle;
+			dataGridViewOscFaders.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+			dataGridViewOscFaders.Columns.AddRange(new DataGridViewColumn[] {
+				columnOscFaderName, columnOscFaderAddress, columnOscFaderStep, columnOscFaderMinimum, columnOscFaderMaximum,
+				columnOscFaderHotkeyMinus, columnOscFaderClearMinus, columnOscFaderHotkeyPlus, columnOscFaderClearPlus, columnOscFaderRemove });
+			dataGridViewOscFaders.Dock = DockStyle.Fill;
+			dataGridViewOscFaders.EditMode = DataGridViewEditMode.EditOnEnter;
+			dataGridViewOscFaders.Location = new Point(0, 33);
+			dataGridViewOscFaders.Margin = new Padding(0);
+			dataGridViewOscFaders.MinimumSize = new Size(0, 120);
+			dataGridViewOscFaders.MultiSelect = false;
+			dataGridViewOscFaders.Name = "dataGridViewOscFaders";
+			dataGridViewOscFaders.RowHeadersVisible = false;
+			dataGridViewOscFaders.RowTemplate.Height = 29;
+			dataGridViewOscFaders.SelectionMode = DataGridViewSelectionMode.CellSelect;
+			dataGridViewOscFaders.Size = new Size(407, 140);
+			dataGridViewOscFaders.TabIndex = 1;
+			dataGridViewOscFaders.CellBeginEdit += dataGridViewOscFaders_CellBeginEdit;
+			dataGridViewOscFaders.CellClick += dataGridViewOscFaders_CellClick;
+			dataGridViewOscFaders.CellEndEdit += dataGridViewOscFaders_CellEndEdit;
+			dataGridViewOscFaders.CurrentCellDirtyStateChanged += dataGridViewOscFaders_CurrentCellDirtyStateChanged;
+			dataGridViewOscFaders.EditingControlShowing += dataGridViewOscFaders_EditingControlShowing;
+			dataGridViewOscFaders.KeyDown += dataGridViewOscFaders_KeyDown;
 			// 
-			// labelFaderAddress
+			// columnOscFaderName
 			// 
-			labelFaderAddress.AutoSize = true;
-			labelFaderAddress.Dock = DockStyle.Fill;
-			labelFaderAddress.Location = new Point(0, 0);
-			labelFaderAddress.Margin = new Padding(0, 0, 6, 0);
-			labelFaderAddress.Name = "labelFaderAddress";
-			labelFaderAddress.Size = new Size(106, 27);
-			labelFaderAddress.TabIndex = 0;
-			labelFaderAddress.Text = "Fader address:";
-			labelFaderAddress.TextAlign = ContentAlignment.MiddleLeft;
+			columnOscFaderName.FillWeight = 18F;
+			columnOscFaderName.HeaderText = "Name";
+			columnOscFaderName.Name = "columnOscFaderName";
+			columnOscFaderName.SortMode = DataGridViewColumnSortMode.NotSortable;
 			// 
-			// labelVolumeStep
+			// columnOscFaderAddress
 			// 
-			labelVolumeStep.AutoSize = true;
-			labelVolumeStep.Dock = DockStyle.Fill;
-			labelVolumeStep.Location = new Point(0, 0);
-			labelVolumeStep.Margin = new Padding(0, 0, 6, 0);
-			labelVolumeStep.Name = "labelVolumeStep";
-			labelVolumeStep.Size = new Size(93, 56);
-			labelVolumeStep.TabIndex = 2;
-			labelVolumeStep.Text = "Volume step:";
-			labelVolumeStep.TextAlign = ContentAlignment.MiddleLeft;
+			columnOscFaderAddress.FillWeight = 28F;
+			columnOscFaderAddress.HeaderText = "Address";
+			columnOscFaderAddress.Name = "columnOscFaderAddress";
+			columnOscFaderAddress.SortMode = DataGridViewColumnSortMode.NotSortable;
 			// 
-			// trackBarVolumeStep
+			// columnOscFaderStep
 			// 
-			trackBarVolumeStep.Dock = DockStyle.Fill;
-			trackBarVolumeStep.LargeChange = 50;
-			trackBarVolumeStep.Location = new Point(99, 33);
-			trackBarVolumeStep.Margin = new Padding(0, 3, 6, 3);
-			trackBarVolumeStep.Maximum = 1000;
-			trackBarVolumeStep.Minimum = 0;
-			trackBarVolumeStep.Name = "trackBarVolumeStep";
-			trackBarVolumeStep.Size = new Size(214, 56);
-			trackBarVolumeStep.SmallChange = 5;
-			trackBarVolumeStep.TabIndex = 3;
-			trackBarVolumeStep.TickStyle = TickStyle.None;
-			trackBarVolumeStep.Value = 482;
-			trackBarVolumeStep.ValueChanged += trackBarVolumeStep_ValueChanged;
+			columnOscFaderStep.FillWeight = 10F;
+			columnOscFaderStep.HeaderText = "Step";
+			columnOscFaderStep.Name = "columnOscFaderStep";
+			columnOscFaderStep.SortMode = DataGridViewColumnSortMode.NotSortable;
 			// 
-			// numericUpDownVolumeStep
+			// columnOscFaderMinimum
 			// 
-			numericUpDownVolumeStep.DecimalPlaces = 4;
-			numericUpDownVolumeStep.Dock = DockStyle.Fill;
-			numericUpDownVolumeStep.Increment = 0.0001m;
-			numericUpDownVolumeStep.Location = new Point(323, 33);
-			numericUpDownVolumeStep.Margin = new Padding(0, 3, 0, 3);
-			numericUpDownVolumeStep.Maximum = 0.5m;
-			numericUpDownVolumeStep.Minimum = 0.001m;
-			numericUpDownVolumeStep.Name = "numericUpDownVolumeStep";
-			numericUpDownVolumeStep.Size = new Size(96, 27);
-			numericUpDownVolumeStep.TabIndex = 4;
-			numericUpDownVolumeStep.TextAlign = HorizontalAlignment.Right;
-			numericUpDownVolumeStep.Value = 0.02m;
-			numericUpDownVolumeStep.ValueChanged += numericUpDownVolumeStep_ValueChanged;
+			columnOscFaderMinimum.FillWeight = 10F;
+			columnOscFaderMinimum.HeaderText = "Minimum";
+			columnOscFaderMinimum.Name = "columnOscFaderMinimum";
+			columnOscFaderMinimum.SortMode = DataGridViewColumnSortMode.NotSortable;
+			// 
+			// columnOscFaderMaximum
+			// 
+			columnOscFaderMaximum.FillWeight = 10F;
+			columnOscFaderMaximum.HeaderText = "Maximum";
+			columnOscFaderMaximum.Name = "columnOscFaderMaximum";
+			columnOscFaderMaximum.SortMode = DataGridViewColumnSortMode.NotSortable;
+			// 
+			// columnOscFaderHotkeyMinus
+			// 
+			columnOscFaderHotkeyMinus.FillWeight = 14F;
+			columnOscFaderHotkeyMinus.HeaderText = "Hotkey −";
+			columnOscFaderHotkeyMinus.Name = "columnOscFaderHotkeyMinus";
+			columnOscFaderHotkeyMinus.SortMode = DataGridViewColumnSortMode.NotSortable;
+			// 
+			// columnOscFaderClearMinus
+			// 
+			columnOscFaderClearMinus.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+			columnOscFaderClearMinus.FillWeight = 8F;
+			columnOscFaderClearMinus.HeaderText = "";
+			columnOscFaderClearMinus.ImageLayout = DataGridViewImageCellLayout.Zoom;
+			columnOscFaderClearMinus.Name = "columnOscFaderClearMinus";
+			columnOscFaderClearMinus.Resizable = DataGridViewTriState.False;
+			columnOscFaderClearMinus.SortMode = DataGridViewColumnSortMode.NotSortable;
+			columnOscFaderClearMinus.Width = 28;
+			// 
+			// columnOscFaderHotkeyPlus
+			// 
+			columnOscFaderHotkeyPlus.FillWeight = 14F;
+			columnOscFaderHotkeyPlus.HeaderText = "Hotkey +";
+			columnOscFaderHotkeyPlus.Name = "columnOscFaderHotkeyPlus";
+			columnOscFaderHotkeyPlus.SortMode = DataGridViewColumnSortMode.NotSortable;
+			// 
+			// columnOscFaderClearPlus
+			// 
+			columnOscFaderClearPlus.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+			columnOscFaderClearPlus.FillWeight = 8F;
+			columnOscFaderClearPlus.HeaderText = "";
+			columnOscFaderClearPlus.ImageLayout = DataGridViewImageCellLayout.Zoom;
+			columnOscFaderClearPlus.Name = "columnOscFaderClearPlus";
+			columnOscFaderClearPlus.Resizable = DataGridViewTriState.False;
+			columnOscFaderClearPlus.SortMode = DataGridViewColumnSortMode.NotSortable;
+			columnOscFaderClearPlus.Width = 28;
+			// 
+			// columnOscFaderRemove
+			// 
+			columnOscFaderRemove.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+			columnOscFaderRemove.FillWeight = 8F;
+			columnOscFaderRemove.HeaderText = "";
+			columnOscFaderRemove.ImageLayout = DataGridViewImageCellLayout.Zoom;
+			columnOscFaderRemove.Name = "columnOscFaderRemove";
+			columnOscFaderRemove.Resizable = DataGridViewTriState.False;
+			columnOscFaderRemove.SortMode = DataGridViewColumnSortMode.NotSortable;
+			columnOscFaderRemove.Width = 28;
 			// 
 			// labelFaderVolumeCacheTtlMs
 			// 
@@ -644,9 +668,9 @@ namespace X32VolumeHijacker
 			labelFaderVolumeCacheTtlMs.Location = new Point(0, 0);
 			labelFaderVolumeCacheTtlMs.Margin = new Padding(0, 0, 6, 0);
 			labelFaderVolumeCacheTtlMs.Name = "labelFaderVolumeCacheTtlMs";
-			labelFaderVolumeCacheTtlMs.Size = new Size(93, 27);
-			labelFaderVolumeCacheTtlMs.TabIndex = 5;
-			labelFaderVolumeCacheTtlMs.Text = "Volume cache:";
+			labelFaderVolumeCacheTtlMs.Size = new Size(160, 27);
+			labelFaderVolumeCacheTtlMs.TabIndex = 0;
+			labelFaderVolumeCacheTtlMs.Text = "Value cache duration:";
 			labelFaderVolumeCacheTtlMs.TextAlign = ContentAlignment.MiddleLeft;
 			// 
 			// numericUpDownFaderVolumeCacheTtlMs
@@ -654,13 +678,13 @@ namespace X32VolumeHijacker
 			numericUpDownFaderVolumeCacheTtlMs.DecimalPlaces = 0;
 			numericUpDownFaderVolumeCacheTtlMs.Dock = DockStyle.Fill;
 			numericUpDownFaderVolumeCacheTtlMs.Increment = 10;
-			numericUpDownFaderVolumeCacheTtlMs.Location = new Point(99, 92);
+			numericUpDownFaderVolumeCacheTtlMs.Location = new Point(166, 3);
 			numericUpDownFaderVolumeCacheTtlMs.Margin = new Padding(0, 3, 0, 3);
 			numericUpDownFaderVolumeCacheTtlMs.Maximum = 10000;
 			numericUpDownFaderVolumeCacheTtlMs.Minimum = 0;
 			numericUpDownFaderVolumeCacheTtlMs.Name = "numericUpDownFaderVolumeCacheTtlMs";
-			numericUpDownFaderVolumeCacheTtlMs.Size = new Size(308, 27);
-			numericUpDownFaderVolumeCacheTtlMs.TabIndex = 6;
+			numericUpDownFaderVolumeCacheTtlMs.Size = new Size(213, 27);
+			numericUpDownFaderVolumeCacheTtlMs.TabIndex = 1;
 			numericUpDownFaderVolumeCacheTtlMs.TextAlign = HorizontalAlignment.Right;
 			numericUpDownFaderVolumeCacheTtlMs.ThousandsSeparator = true;
 			numericUpDownFaderVolumeCacheTtlMs.Value = 1000;
@@ -670,11 +694,11 @@ namespace X32VolumeHijacker
 			// 
 			labelFaderVolumeCacheUnitMs.AutoSize = true;
 			labelFaderVolumeCacheUnitMs.Dock = DockStyle.Fill;
-			labelFaderVolumeCacheUnitMs.Location = new Point(323, 92);
+			labelFaderVolumeCacheUnitMs.Location = new Point(379, 3);
 			labelFaderVolumeCacheUnitMs.Margin = new Padding(6, 3, 0, 3);
 			labelFaderVolumeCacheUnitMs.Name = "labelFaderVolumeCacheUnitMs";
 			labelFaderVolumeCacheUnitMs.Size = new Size(28, 27);
-			labelFaderVolumeCacheUnitMs.TabIndex = 7;
+			labelFaderVolumeCacheUnitMs.TabIndex = 2;
 			labelFaderVolumeCacheUnitMs.Text = "ms";
 			labelFaderVolumeCacheUnitMs.TextAlign = ContentAlignment.MiddleLeft;
 			// 
@@ -790,7 +814,7 @@ namespace X32VolumeHijacker
 			labelOscTogglesHint.Name = "labelOscTogglesHint";
 			labelOscTogglesHint.Size = new Size(407, 20);
 			labelOscTogglesHint.TabIndex = 1;
-			labelOscTogglesHint.Text = "Select a Hotkey cell, then press the desired key combination.";
+			labelOscTogglesHint.Text = "";
 			labelOscTogglesHint.TextAlign = ContentAlignment.MiddleLeft;
 			// 
 			// tableLayoutMain
@@ -844,10 +868,9 @@ namespace X32VolumeHijacker
 			groupBoxOscBase.ResumeLayout(false);
 			tableLayoutVolumeCache.ResumeLayout(false);
 			tableLayoutVolumeCache.PerformLayout();
-			tableLayoutVolumeStep.ResumeLayout(false);
-			tableLayoutVolumeStep.PerformLayout();
 			tableLayoutFader.ResumeLayout(false);
 			tableLayoutFader.PerformLayout();
+			((System.ComponentModel.ISupportInitialize)dataGridViewOscFaders).EndInit();
 			groupBoxFader.ResumeLayout(false);
 			groupBoxOscToggles.ResumeLayout(false);
 			groupBoxOscToggles.PerformLayout();
@@ -892,13 +915,8 @@ namespace X32VolumeHijacker
 		private TableLayoutPanel tableLayoutOscBase;
 		private GroupBox groupBoxFader;
 		private TableLayoutPanel tableLayoutFader;
-		private TableLayoutPanel tableLayoutVolumeStep;
 		private TableLayoutPanel tableLayoutVolumeCache;
-		private Label labelFaderAddress;
-		private TextBox textBoxFaderAddress;
-		private Label labelVolumeStep;
-		private TrackBar trackBarVolumeStep;
-		private NumericUpDown numericUpDownVolumeStep;
+		private DataGridView dataGridViewOscFaders;
 		private Label labelFaderVolumeCacheTtlMs;
 		private NumericUpDown numericUpDownFaderVolumeCacheTtlMs;
 		private Label labelFaderVolumeCacheUnitMs;
@@ -913,5 +931,15 @@ namespace X32VolumeHijacker
 		private DataGridViewTextBoxColumn columnOscToggleHotkey;
 		private DataGridViewImageColumn columnOscToggleClearHotkey;
 		private DataGridViewImageColumn columnOscToggleRemove;
+		private DataGridViewTextBoxColumn columnOscFaderName;
+		private DataGridViewTextBoxColumn columnOscFaderAddress;
+		private DataGridViewTextBoxColumn columnOscFaderStep;
+		private DataGridViewTextBoxColumn columnOscFaderMinimum;
+		private DataGridViewTextBoxColumn columnOscFaderMaximum;
+		private DataGridViewTextBoxColumn columnOscFaderHotkeyMinus;
+		private DataGridViewImageColumn columnOscFaderClearMinus;
+		private DataGridViewTextBoxColumn columnOscFaderHotkeyPlus;
+		private DataGridViewImageColumn columnOscFaderClearPlus;
+		private DataGridViewImageColumn columnOscFaderRemove;
 	}
 }
