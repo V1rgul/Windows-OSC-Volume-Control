@@ -17,9 +17,9 @@ public sealed class OscFaderBinding {
 		ArgumentNullException.ThrowIfNull(other);
 		Name = other.Name;
 		Address = other.Address;
-		Step = other.Step;
-		Minimum = other.Minimum;
-		Maximum = other.Maximum;
+		Step = FaderFloatUtil.RoundToBindingDecimals(other.Step);
+		Minimum = FaderFloatUtil.RoundToBindingDecimals(other.Minimum);
+		Maximum = FaderFloatUtil.RoundToBindingDecimals(other.Maximum);
 		HotkeyMinus = other.HotkeyMinus;
 		HotkeyPlus = other.HotkeyPlus;
 	}

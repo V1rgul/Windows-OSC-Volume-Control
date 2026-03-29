@@ -113,9 +113,9 @@ public sealed class ConfigStore {
 			string p = i.ToString(CultureInfo.InvariantCulture);
 			lines.Add("oscFader." + p + ".name=" + b.Name.Trim());
 			lines.Add("oscFader." + p + ".address=" + b.Address.Trim());
-			lines.Add("oscFader." + p + ".step=" + b.Step.ToString(CultureInfo.InvariantCulture));
-			lines.Add("oscFader." + p + ".minimum=" + b.Minimum.ToString(CultureInfo.InvariantCulture));
-			lines.Add("oscFader." + p + ".maximum=" + b.Maximum.ToString(CultureInfo.InvariantCulture));
+			lines.Add("oscFader." + p + ".step=" + FaderFloatUtil.FormatGridFloat(b.Step));
+			lines.Add("oscFader." + p + ".minimum=" + FaderFloatUtil.FormatGridFloat(b.Minimum));
+			lines.Add("oscFader." + p + ".maximum=" + FaderFloatUtil.FormatGridFloat(b.Maximum));
 			lines.Add("oscFader." + p + ".hotkeyMinus=" + OscHotkey.Format(b.HotkeyMinus));
 			lines.Add("oscFader." + p + ".hotkeyPlus=" + OscHotkey.Format(b.HotkeyPlus));
 		}
@@ -205,13 +205,15 @@ public sealed class ConfigStore {
 				continue;
 			if (!float.IsFinite(row.Step) || !float.IsFinite(row.Minimum) || !float.IsFinite(row.Maximum) || row.Minimum > row.Maximum)
 				continue;
-			row.Step = Math.Clamp(row.Step, MixerController.Config.MinFaderStep, MixerController.Config.MaxFaderStep);
+			row.Step = Math.Clamp(FaderFloatUtil.RoundToBindingDecimals(row.Step), MixerController.Config.MinFaderStep, MixerController.Config.MaxFaderStep);
+			float minR = FaderFloatUtil.RoundToBindingDecimals(row.Minimum);
+			float maxR = FaderFloatUtil.RoundToBindingDecimals(row.Maximum);
 			result.Add(new OscFaderBinding {
 				Name = row.Name.Trim(),
 				Address = row.Address.Trim(),
 				Step = row.Step,
-				Minimum = row.Minimum,
-				Maximum = row.Maximum,
+				Minimum = minR,
+				Maximum = maxR,
 				HotkeyMinus = OscHotkey.Normalize(row.HotkeyMinus),
 				HotkeyPlus = OscHotkey.Normalize(row.HotkeyPlus),
 			});

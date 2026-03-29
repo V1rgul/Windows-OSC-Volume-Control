@@ -7,8 +7,9 @@ namespace X32VolumeHijacker;
 /// <summary>High-level mixer operations (per-path fader nudge, OSC toggles, <c>/info</c>) with optional per-address level cache.</summary>
 public sealed class MixerController {
 	public sealed class Config {
+		/// <summary>Smallest allowed nudge step; also defines binding/grid decimal places via <see cref="FaderFloatUtil.BindingFractionalDigits"/>.</summary>
 		public const float MinFaderStep = 0.001f;
-		public const float MaxFaderStep = 0.5f;
+		public const float MaxFaderStep = 10.0f;
 		public const uint MinValueCacheTtlMs = 0;
 		public const uint MaxValueCacheTtlMs = 10_000;
 
@@ -76,6 +77,9 @@ public sealed class MixerController {
 		if (newVal < min) newVal = min;
 		if (newVal > max) newVal = max;
 
+		newVal = FaderFloatUtil.RoundToBindingDecimals(newVal);
+		if (newVal < min) newVal = min;
+		if (newVal > max) newVal = max;
 		await SetFaderAsync(normalizedPath, newVal).ConfigureAwait(false);
 		_samples[normalizedPath] = (newVal, DateTime.UtcNow);
 

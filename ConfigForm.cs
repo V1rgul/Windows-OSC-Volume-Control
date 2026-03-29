@@ -370,7 +370,13 @@ namespace X32VolumeHijacker {
 					error = $"OSC fader row {rowIndex + 1}: Minimum must be ≤ Maximum.";
 					return false;
 				}
-				step = Math.Clamp(step, MixerController.Config.MinFaderStep, MixerController.Config.MaxFaderStep);
+				step = Math.Clamp(FaderFloatUtil.RoundToBindingDecimals(step), MixerController.Config.MinFaderStep, MixerController.Config.MaxFaderStep);
+				min = FaderFloatUtil.RoundToBindingDecimals(min);
+				max = FaderFloatUtil.RoundToBindingDecimals(max);
+				if (min > max) {
+					error = $"OSC fader row {rowIndex + 1}: Minimum must be ≤ Maximum after rounding.";
+					return false;
+				}
 				_ = OscController.NormalizeBindingAddress(address);
 				if (!TryParseOptionalHotkey(hkMinusS, out Keys hkMinus, out string? em)) {
 					error = $"OSC fader row {rowIndex + 1} (−): {em}";
@@ -653,9 +659,13 @@ namespace X32VolumeHijacker {
 				return;
 			DataGridViewCell cell = dataGridViewOscFaders.Rows[e.RowIndex].Cells[e.ColumnIndex];
 			string text = Convert.ToString(cell.Value, CultureInfo.InvariantCulture)?.Trim() ?? "";
-			if ((e.ColumnIndex == OSC_FADER_HOTKEY_MINUS_COLUMN || e.ColumnIndex == OSC_FADER_HOTKEY_PLUS_COLUMN)
-			    && OscHotkey.TryParse(text, out Keys hk))
+			if (e.ColumnIndex is OSC_FADER_STEP_COLUMN or OSC_FADER_MIN_COLUMN or OSC_FADER_MAX_COLUMN) {
+				if (float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float fv) && float.IsFinite(fv))
+					text = FaderFloatUtil.FormatGridFloat(fv);
+			} else if ((e.ColumnIndex == OSC_FADER_HOTKEY_MINUS_COLUMN || e.ColumnIndex == OSC_FADER_HOTKEY_PLUS_COLUMN)
+			           && OscHotkey.TryParse(text, out Keys hk)) {
 				text = OscHotkey.Format(hk);
+			}
 			cell.Value = text;
 			ClearFaderTestFeedback();
 			RefreshApplyButtonEnabled();
@@ -680,7 +690,7 @@ namespace X32VolumeHijacker {
 			int insertIndex = dataGridViewOscFaders.Rows.Count;
 			if (insertIndex > 0 && IsOscFaderAddRow(dataGridViewOscFaders.Rows[insertIndex - 1]))
 				insertIndex--;
-			string s(float v) => v.ToString("G9", CultureInfo.InvariantCulture);
+			string s(float v) => FaderFloatUtil.FormatGridFloat(v);
 			object[] vals = binding == null
 				? ["", "", "", "", "", "", "", "", "", ""]
 				: [
@@ -1019,7 +1029,7 @@ namespace X32VolumeHijacker {
 						if (IsDisposed) return;
 						if (fader != null) {
 							string lat = $"{faderElapsed.TotalMilliseconds:0} ms";
-							string val = fader.Value.ToString("0.###", CultureInfo.InvariantCulture);
+							string val = FaderFloatUtil.FormatGridFloat(fader.Value);
 							labelFaderTestResult.Text = $"Fader OK (first row) — latency {lat}, current value {val}";
 							labelFaderTestResult.ForeColor = Color.Green;
 						} else {

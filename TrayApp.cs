@@ -205,7 +205,7 @@ public class TrayApp : ApplicationContext
 		}
 
 		if (!_mixer.HasFreshFaderSample(path))
-			Ui(() => _osd.ShowPending(display));
+			Ui(() => _osd.ShowPending(display, binding.Step));
 
 		float? newLevel = await _mixer.NudgeAsync(path, volumeUp, binding.Step, binding.Minimum, binding.Maximum).ConfigureAwait(false);
 		if (newLevel == null) {
@@ -214,7 +214,7 @@ public class TrayApp : ApplicationContext
 		}
 
 		Ui(() => ApplyTrayIconState(AppTrayIconState.Ok));
-		Ui(() => _osd.ShowLevel(display, binding.Minimum, binding.Maximum, newLevel.Value, volumeUp));
+		Ui(() => _osd.ShowLevel(display, binding.Minimum, binding.Maximum, newLevel.Value, volumeUp, binding.Step));
 	}
 
 	async Task FlipOscToggleAsync(OscToggleBinding binding) {

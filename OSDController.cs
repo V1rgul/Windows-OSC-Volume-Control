@@ -1,6 +1,7 @@
 using System;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
+using X32VolumeHijacker;
 
 public class OSDController : Form
 {
@@ -32,7 +33,7 @@ public class OSDController : Form
 		public SizeF PlusFlashSize { get; }
 		public SizeF MinusFlashSize { get; }
 
-		public CachedLayout(Graphics g, Size clientSize, string rowLabelForMeasure)
+		public CachedLayout(Graphics g, Size clientSize, string rowLabelForMeasure, int osdValueFractionalDigits)
 		{
 			ValueFont = new Font("Segoe UI", 12, FontStyle.Bold);
 			FlashFont = new Font("Segoe UI", 20, FontStyle.Bold);
@@ -46,7 +47,9 @@ public class OSDController : Form
 				nameW = Math.Clamp(nameW, 40, 220);
 			}
 			NameColumnWidth = nameW;
-			int reserve = (int)Math.Ceiling(g.MeasureString("100.00%", ValueFont).Width);
+			osdValueFractionalDigits = Math.Clamp(osdValueFractionalDigits, 0, Math.Max(0, FaderFloatUtil.BindingFractionalDigits));
+			string valueMeasure = FaderFloatUtil.OsdMeasureSample(osdValueFractionalDigits);
+			int reserve = (int)Math.Ceiling(g.MeasureString(valueMeasure, ValueFont).Width);
 			int barLeft = FRAME_MARGIN + NameColumnWidth + (NameColumnWidth > 0 ? GAP_NAME_TO_BAR : 0);
 			BarLeft = barLeft;
 			int barW = clientSize.Width - barLeft - FRAME_MARGIN - GAP_BAR_TO_VALUE - reserve;
@@ -86,6 +89,7 @@ public class OSDController : Form
 	float _levelRaw;
 	float _levelMin;
 	float _levelMax;
+	int _levelFracDigits = 2;
 	OsdView _view = OsdView.Level;
 	FlashSign _flashSign;
 	string _rowLabel = "";
@@ -182,11 +186,17 @@ public class OSDController : Form
 		_ => "",
 	};
 
+	int LayoutValueFractionalDigits() => _view switch {
+		OsdView.Level => _levelFracDigits,
+		OsdView.Pending => _levelFracDigits,
+		_ => Math.Max(0, FaderFloatUtil.BindingFractionalDigits),
+	};
+
 	void RebuildLayoutCache()
 	{
 		_cache?.Dispose();
 		using var g = CreateGraphics();
-		_cache = new CachedLayout(g, ClientSize, LayoutMeasureLabel());
+		_cache = new CachedLayout(g, ClientSize, LayoutMeasureLabel(), LayoutValueFractionalDigits());
 	}
 
 	void ShowNoActivate()
@@ -200,10 +210,15 @@ public class OSDController : Form
 		_autoHideTimer.Start();
 	}
 
-	public void ShowPending() => ShowPending("");
+	public void ShowPending() => ShowPending("", float.NaN);
 
-	public void ShowPending(string rowLabel)
+	public void ShowPending(string rowLabel) => ShowPending(rowLabel, float.NaN);
+
+	/// <param name="faderStepForLayout">If finite and &gt; 0, value column width matches this step’s OSD decimals (fader pending).</param>
+	public void ShowPending(string rowLabel, float faderStepForLayout)
 	{
+		if (float.IsFinite(faderStepForLayout) && faderStepForLayout > 0f)
+			_levelFracDigits = FaderFloatUtil.GetOsdFractionalDigitsFromStep(faderStepForLayout);
 		_flashTimer.Stop();
 		_flashSign = FlashSign.None;
 		_rowLabel = rowLabel ?? "";
@@ -222,12 +237,14 @@ public class OSDController : Form
 	}
 
 	/// <param name="volumeIncreased">If true, a brief + appears right of the fill; if false, a brief − appears left of the fill.</param>
-	public void ShowLevel(string rowLabel, float min, float max, float value, bool volumeIncreased)
+	/// <param name="step">Binding step (after rounding); drives value/% decimal places on the OSD.</param>
+	public void ShowLevel(string rowLabel, float min, float max, float value, bool volumeIncreased, float step)
 	{
 		_rowLabel = rowLabel ?? "";
 		_levelMin = min;
 		_levelMax = max;
 		_levelRaw = value;
+		_levelFracDigits = FaderFloatUtil.GetOsdFractionalDigitsFromStep(step);
 		_view = OsdView.Level;
 		_flashSign = volumeIncreased ? FlashSign.Plus : FlashSign.Minus;
 		_flashTimer.Stop();
@@ -235,9 +252,6 @@ public class OSDController : Form
 		Invalidate();
 		ShowNoActivate();
 	}
-
-	public void ShowMute(bool muted) =>
-		ShowToggle(muted ? "MUTE" : "UNMUTE", !muted);
 
 	public void ShowToggle(string name, bool enabled)
 	{
@@ -296,8 +310,8 @@ public class OSDController : Form
 		float fillW = barW * norm;
 		g.FillRectangle(Brushes.LimeGreen, barLeft, FRAME_MARGIN, fillW, BAR_HEIGHT);
 
-		float pct = norm * 100f;
-		DrawValueInColumn(g, c.ValueFont, FormattableString.Invariant($"{pct:F2}%"), barLeft, barW);
+		string valueText = FaderFloatUtil.FormatOsdLevelValue(_levelRaw, _levelFracDigits);
+		DrawValueInColumn(g, c.ValueFont, valueText, barLeft, barW);
 
 		if (_flashSign != FlashSign.None) {
 			float endX = barLeft + fillW;
