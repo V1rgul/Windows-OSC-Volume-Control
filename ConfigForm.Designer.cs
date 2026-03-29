@@ -839,14 +839,15 @@ namespace X32VolumeHijacker
 			tableLayoutMain.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 			tableLayoutMain.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 			tableLayoutMain.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-			tableLayoutMain.Size = new Size(430, 1046);
+			var defaultClientSize = new Size(860, 1046);
+			tableLayoutMain.Size = defaultClientSize;
 			tableLayoutMain.TabIndex = 0;
 			// 
 			// ConfigForm
 			// 
 			AutoScaleDimensions = new SizeF(8F, 20F);
 			AutoScaleMode = AutoScaleMode.Font;
-			ClientSize = new Size(430, 1046);
+			ClientSize = defaultClientSize;
 			Controls.Add(tableLayoutMain);
 			MinimumSize = new Size(360, 760);
 			Name = "ConfigForm";
