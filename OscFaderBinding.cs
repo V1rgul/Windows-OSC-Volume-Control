@@ -26,7 +26,7 @@ public sealed class OscFaderBinding {
 
 	/// <summary>Default out-of-box row (cosmetic name only; not resolved by code).</summary>
 	public static OscFaderBinding CreateDefaultMaster() => new() {
-		Name = "Master",
+		Name = "MAIN",
 		Address = "/main/st/mix/fader",
 		Step = 0.02f,
 		Minimum = 0f,

@@ -18,7 +18,7 @@ public sealed class OscToggleBinding {
 	}
 
 	public static OscToggleBinding CreateDefaultMasterMute() => new() {
-		Name = "Master mute",
+		Name = "MAIN",
 		Address = "/main/st/mix/on",
 		Hotkey = Keys.VolumeMute,
 	};
