@@ -15,7 +15,7 @@ public class TrayApp : ApplicationContext
 	private NotifyIcon _trayIcon;
 	private AppIconController _icons;
 	private KeyboardHook _hook;
-	private VolumeOsd _osd;
+	private OSDController _osd;
 	private MixerController _mixer;
 	private ConfigForm? _configForm;
 	readonly object _oscToggleSync = new();
@@ -78,7 +78,7 @@ public class TrayApp : ApplicationContext
 			new OscController(new OscController.Config(_configStore.AppConfig.OscController)),
 			_configStore.AppConfig.Mixer ?? new MixerController.Config());
 
-		_osd = new VolumeOsd();
+		_osd = new OSDController();
 		_ = _osd.Handle;
 
 		_trayIcon = new NotifyIcon() {
@@ -154,24 +154,27 @@ public class TrayApp : ApplicationContext
 		Ui(() => _osd.ShowLevel(newLevel.Value, key == KeyboardHook.VolumeKey.UP));
 	}
 
-	async Task ToggleMute() {
+	async Task FlipOscToggleAsync(string address, Action<bool> onSuccessUi) {
 		if (_icons.State != AppTrayIconState.Ok) {
 			Ui(() => _osd.ShowError());
 			return;
 		}
 
 		Ui(() => _osd.ShowPending());
-		bool? muted = await _mixer.QueryMuteAsync();
-		if (muted == null) {
+		bool? current = await _mixer.QueryToggleAsync(address).ConfigureAwait(false);
+		if (current == null) {
 			Ui(() => ApplyTrayIconState(AppTrayIconState.NetworkError, showErrorOsdIfNotOk: true));
 			return;
 		}
 
+		bool nowOn = !current.Value;
+		await _mixer.SetToggleAsync(address, nowOn).ConfigureAwait(false);
 		Ui(() => ApplyTrayIconState(AppTrayIconState.Ok));
-		bool nowMuted = !muted.Value;
-		await _mixer.SetMuteAsync(nowMuted);
-		bool showMuted = nowMuted;
-		Ui(() => _osd.ShowMute(showMuted));
+		onSuccessUi(nowOn);
+	}
+
+	async Task ToggleMute() {
+		await FlipOscToggleAsync(_mixer.MixOnOscPath, nowOn => Ui(() => _osd.ShowMute(!nowOn))).ConfigureAwait(false);
 	}
 
 	async Task ToggleOscBinding(Keys hotkey) {
@@ -182,22 +185,7 @@ public class TrayApp : ApplicationContext
 		if (binding == null)
 			return;
 
-		if (_icons.State != AppTrayIconState.Ok) {
-			Ui(() => _osd.ShowError());
-			return;
-		}
-
-		Ui(() => _osd.ShowPending());
-		bool? isOn = await _mixer.QueryToggleAsync(binding.Address);
-		if (isOn == null) {
-			Ui(() => ApplyTrayIconState(AppTrayIconState.NetworkError, showErrorOsdIfNotOk: true));
-			return;
-		}
-
-		bool nowOn = !isOn.Value;
-		await _mixer.SetToggleAsync(binding.Address, nowOn);
-		Ui(() => ApplyTrayIconState(AppTrayIconState.Ok));
-		Ui(() => _osd.ShowToggle(binding.Name, nowOn));
+		await FlipOscToggleAsync(binding.Address, nowOn => Ui(() => _osd.ShowToggle(binding.Name, nowOn))).ConfigureAwait(false);
 	}
 
 	void Exit() {

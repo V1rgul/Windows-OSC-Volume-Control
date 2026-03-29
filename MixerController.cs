@@ -2,7 +2,7 @@ using SharpOSC;
 
 namespace X32VolumeHijacker;
 
-/// <summary>High-level mixer operations (fader, mute, toggles, <c>/info</c>) and volume-key nudging with optional fader level cache.</summary>
+/// <summary>High-level mixer operations (fader, OSC toggles including mix-on for volume mute, <c>/info</c>) and volume-key nudging with optional fader level cache.</summary>
 public sealed class MixerController {
 	/// <summary>Volume step and fader sample cache TTL persisted via <see cref="ConfigStore"/>.</summary>
 	public sealed class Config {
@@ -93,16 +93,8 @@ public sealed class MixerController {
 		return newVal;
 	}
 
-	public async Task<bool?> QueryMuteAsync() {
-		bool? on = await QueryToggleAsync(MixOnOscAddress()).ConfigureAwait(false);
-		return on == null ? null : !on.Value;
-	}
-
-	public async Task SetMuteAsync(bool muted) {
-		await SetToggleAsync(MixOnOscAddress(), !muted).ConfigureAwait(false);
-	}
-
-	string MixOnOscAddress() => _osc.CachedMixOnPath ?? OscController.FaderPathToMixOnPath(_osc.RawFaderAddress);
+	/// <summary>OSC path for the strip mix-on toggle (same float 0/1 semantics as <see cref="QueryToggleAsync"/>).</summary>
+	public string MixOnOscPath => _osc.CachedMixOnPath ?? OscController.FaderPathToMixOnPath(_osc.RawFaderAddress);
 
 	public async Task<bool?> QueryToggleAsync(string address) {
 		address = OscController.NormalizeOscAddress(address);

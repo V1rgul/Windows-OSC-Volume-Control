@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-public class VolumeOsd : Form
+public class OSDController : Form
 {
 
     const int OSD_DISPLAY_MS = 1000;
@@ -29,7 +29,7 @@ public class VolumeOsd : Form
         public SizeF PlusFlashSize { get; }
         public SizeF MinusFlashSize { get; }
 
-        public CachedLayout(VolumeOsd form, Graphics g)
+        public CachedLayout(OSDController form, Graphics g)
         {
             ValueFont = new Font("Segoe UI", 12, FontStyle.Bold);
             FlashFont = new Font("Segoe UI", 20, FontStyle.Bold);
@@ -62,8 +62,6 @@ public class VolumeOsd : Form
         Level,
         Pending,
         Error,
-        Mute,
-        Unmute,
         ToggleStatus,
     }
 
@@ -93,7 +91,7 @@ public class VolumeOsd : Form
         }
     }
 
-    public VolumeOsd()
+    public OSDController()
     {
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
@@ -215,14 +213,8 @@ public class VolumeOsd : Form
         ShowNoActivate();
     }
 
-    public void ShowMute(bool muted)
-    {
-        _flashTimer.Stop();
-        _flashSign = FlashSign.None;
-        _view = muted ? OsdView.Mute : OsdView.Unmute;
-        Invalidate();
-        ShowNoActivate();
-    }
+    public void ShowMute(bool muted) =>
+        ShowToggle(muted ? "MUTE" : "UNMUTE", !muted);
 
     public void ShowToggle(string name, bool enabled)
     {
@@ -247,18 +239,6 @@ public class VolumeOsd : Form
         if (_view == OsdView.Error)
         {
             DrawStatusCentered(g, ClientSize, c.ValueFont, "ERROR", Brushes.Gray);
-            return;
-        }
-
-        if (_view == OsdView.Mute)
-        {
-            DrawStatusCentered(g, ClientSize, c.ValueFont, "MUTE", Brushes.Red);
-            return;
-        }
-
-        if (_view == OsdView.Unmute)
-        {
-            DrawStatusCentered(g, ClientSize, c.ValueFont, "UNMUTE", Brushes.LimeGreen);
             return;
         }
 
