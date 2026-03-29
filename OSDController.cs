@@ -1,4 +1,5 @@
 using System;
+using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 
 public class OSDController : Form
@@ -19,6 +20,7 @@ public class OSDController : Form
     const int FRAME_MARGIN = 24;
     const int BAR_HEIGHT = 30;
     const int GAP_BAR_TO_VALUE = 8;
+    const int TOGGLE_SYMBOL_DIAM = 22;
 
     /// <summary>Fonts and layout metrics; rebuilt when the form loads or DPI changes.</summary>
     sealed class CachedLayout : IDisposable
@@ -244,7 +246,7 @@ public class OSDController : Form
 
         if (_view == OsdView.ToggleStatus)
         {
-            DrawStatusCentered(g, ClientSize, c.ValueFont, _statusText, _statusOn ? Brushes.LimeGreen : Brushes.Red);
+            DrawToggleStatus(g, c);
             return;
         }
 
@@ -279,6 +281,51 @@ public class OSDController : Form
                 float y = centerY - c.MinusFlashSize.Height / 2f;
                 g.DrawString("−", c.FlashFont, Brushes.Black, x, y);
             }
+        }
+    }
+
+    void DrawToggleStatus(Graphics g, CachedLayout c)
+    {
+        int symCol = TOGGLE_SYMBOL_DIAM + GAP_BAR_TO_VALUE;
+        float textW = Math.Max(1f, ClientSize.Width - FRAME_MARGIN - FRAME_MARGIN - symCol);
+        var textRect = new RectangleF(FRAME_MARGIN, FRAME_MARGIN, textW, BAR_HEIGHT);
+        using var textSf = new StringFormat
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center,
+        };
+        g.DrawString(_statusText, c.ValueFont, _statusOn ? Brushes.LimeGreen : Brushes.Red, textRect, textSf);
+
+        int symLeft = ClientSize.Width - FRAME_MARGIN - TOGGLE_SYMBOL_DIAM;
+        int symTop = FRAME_MARGIN + (BAR_HEIGHT - TOGGLE_SYMBOL_DIAM) / 2;
+        var symBounds = new Rectangle(symLeft, symTop, TOGGLE_SYMBOL_DIAM, TOGGLE_SYMBOL_DIAM);
+
+        var prevSmooth = g.SmoothingMode;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        try
+        {
+            if (_statusOn)
+            {
+                g.FillEllipse(Brushes.LimeGreen, symBounds);
+            }
+            else
+            {
+                const float penW = 2f;
+                using var redPen = new Pen(Color.Red, penW);
+                var strokeRect = Rectangle.Inflate(symBounds, -1, -1);
+                g.DrawEllipse(redPen, strokeRect);
+                float inset = TOGGLE_SYMBOL_DIAM * 0.22f;
+                g.DrawLine(
+                    redPen,
+                    symLeft + inset,
+                    symTop + TOGGLE_SYMBOL_DIAM - inset,
+                    symLeft + TOGGLE_SYMBOL_DIAM - inset,
+                    symTop + inset);
+            }
+        }
+        finally
+        {
+            g.SmoothingMode = prevSmooth;
         }
     }
 
