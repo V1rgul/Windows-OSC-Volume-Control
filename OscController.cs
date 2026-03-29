@@ -17,7 +17,7 @@ public partial class OscController {
 		public const uint MaxQueryTimeoutMs = 10_000;
 
 		public IPEndPoint EndPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 10023);
-		public uint timeoutMs = 500;
+		public uint timeoutMs = 200;
 
 		public Config() {}
 		public Config(Config other) {
