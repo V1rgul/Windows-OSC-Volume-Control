@@ -13,9 +13,6 @@ namespace X32VolumeHijacker {
 		const int VK_CONTROL = 0x11;
 		const int VK_SHIFT = 0x10;
 		const int VK_MENU = 0x12;
-		const int VK_VOLUME_UP = 0xAF;
-		const int VK_VOLUME_DOWN = 0xAE;
-		const int VK_VOLUME_MUTE = 0xAD;
 
 		delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
@@ -114,8 +111,6 @@ namespace X32VolumeHijacker {
 						QueueConfiguredHotkey(firedHotkey);
 					return (IntPtr)1;
 				}
-				if (vkCode is VK_VOLUME_UP or VK_VOLUME_DOWN or VK_VOLUME_MUTE)
-					return CallNextHookEx(_hookId, nCode, wParam, lParam);
 			}
 			return CallNextHookEx(_hookId, nCode, wParam, lParam);
 		}
