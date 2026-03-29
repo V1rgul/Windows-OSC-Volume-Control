@@ -22,6 +22,7 @@ public class OSDController : Form
 	const int GAP_BAR_TO_VALUE = 8;
 	const int GAP_NAME_TO_BAR = 8;
 	const int TOGGLE_SYMBOL_DIAM = 22;
+	const int OSD_BASE_CLIENT_WIDTH = 420;
 
 	sealed class CachedLayout : IDisposable
 	{
@@ -30,10 +31,11 @@ public class OSDController : Form
 		public int NameColumnWidth { get; }
 		public int BarLeft { get; }
 		public int BarWidth { get; }
+		public int ComputedClientWidth { get; }
 		public SizeF PlusFlashSize { get; }
 		public SizeF MinusFlashSize { get; }
 
-		public CachedLayout(Graphics g, Size clientSize, string rowLabelForMeasure, int osdValueFractionalDigits)
+		public CachedLayout(Graphics g, string rowLabelForMeasure, int osdValueFractionalDigits)
 		{
 			ValueFont = new Font("Segoe UI", 12, FontStyle.Bold);
 			FlashFont = new Font("Segoe UI", 20, FontStyle.Bold);
@@ -44,18 +46,20 @@ public class OSDController : Form
 				if (label.Length > maxChars)
 					label = label[..maxChars] + "…";
 				nameW = (int)Math.Ceiling(g.MeasureString(label, ValueFont).Width) + 8;
-				nameW = Math.Clamp(nameW, 40, 220);
+				nameW = Math.Max(nameW, 40);
 			}
 			NameColumnWidth = nameW;
 			osdValueFractionalDigits = Math.Clamp(osdValueFractionalDigits, 0, Math.Max(0, FaderFloatUtil.BindingFractionalDigits));
 			string valueMeasure = FaderFloatUtil.OsdMeasureSample(osdValueFractionalDigits);
 			int reserve = (int)Math.Ceiling(g.MeasureString(valueMeasure, ValueFont).Width);
-			int barLeft = FRAME_MARGIN + NameColumnWidth + (NameColumnWidth > 0 ? GAP_NAME_TO_BAR : 0);
+			int nameGap = NameColumnWidth > 0 ? GAP_NAME_TO_BAR : 0;
+			int barLeft = FRAME_MARGIN + NameColumnWidth + nameGap;
 			BarLeft = barLeft;
-			int barW = clientSize.Width - barLeft - FRAME_MARGIN - GAP_BAR_TO_VALUE - reserve;
-			if (barW < 80)
-				barW = 80;
-			BarWidth = barW;
+			int barPreferred = OSD_BASE_CLIENT_WIDTH - FRAME_MARGIN - FRAME_MARGIN - GAP_BAR_TO_VALUE - reserve;
+			if (barPreferred < 80)
+				barPreferred = 80;
+			BarWidth = barPreferred;
+			ComputedClientWidth = barLeft + BarWidth + GAP_BAR_TO_VALUE + reserve + FRAME_MARGIN;
 			PlusFlashSize = g.MeasureString("+", FlashFont);
 			MinusFlashSize = g.MeasureString("−", FlashFont);
 		}
@@ -122,10 +126,7 @@ public class OSDController : Form
 		Opacity = NORMAL_OPACITY;
 		DoubleBuffered = true;
 
-		var workingArea = Screen.PrimaryScreen?.WorkingArea ?? Screen.FromPoint(Cursor.Position).WorkingArea;
-		int x = workingArea.Width - Width - FRAME_MARGIN;
-		int y = workingArea.Height - Height - FRAME_MARGIN;
-		Location = new Point(x, y);
+		RepositionTrailingEdge();
 
 		_autoHideTimer = new System.Windows.Forms.Timer();
 		_autoHideTimer.Interval = OSD_DISPLAY_MS;
@@ -192,11 +193,23 @@ public class OSDController : Form
 		_ => Math.Max(0, FaderFloatUtil.BindingFractionalDigits),
 	};
 
+	void RepositionTrailingEdge()
+	{
+		var workingArea = Screen.PrimaryScreen?.WorkingArea ?? Screen.FromPoint(Cursor.Position).WorkingArea;
+		int x = workingArea.Width - Width - FRAME_MARGIN;
+		int y = workingArea.Height - Height - FRAME_MARGIN;
+		Location = new Point(x, y);
+	}
+
 	void RebuildLayoutCache()
 	{
 		_cache?.Dispose();
 		using var g = CreateGraphics();
-		_cache = new CachedLayout(g, ClientSize, LayoutMeasureLabel(), LayoutValueFractionalDigits());
+		_cache = new CachedLayout(g, LayoutMeasureLabel(), LayoutValueFractionalDigits());
+		int h = FRAME_MARGIN + BAR_HEIGHT + FRAME_MARGIN;
+		if (ClientSize.Width != _cache.ComputedClientWidth || ClientSize.Height != h)
+			ClientSize = new Size(_cache.ComputedClientWidth, h);
+		RepositionTrailingEdge();
 	}
 
 	void ShowNoActivate()
