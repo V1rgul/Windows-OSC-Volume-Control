@@ -13,9 +13,12 @@ namespace X32VolumeHijacker {
 public partial class OscController {
 
 	public class Config {
+		public const uint MinQueryTimeoutMs = 1;
+		public const uint MaxQueryTimeoutMs = 10_000;
+
 		public IPEndPoint EndPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 10023);
 		public string faderAddress = "/main/st/mix/fader";
-		public uint timeoutMs = ConfigStore.DefaultQueryTimeoutMs;
+		public uint timeoutMs = 500;
 
 		public Config() {}
 		public Config(Config other) {

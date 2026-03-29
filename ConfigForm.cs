@@ -6,9 +6,6 @@ using System.Windows.Forms;
 
 namespace X32VolumeHijacker {
 	public partial class ConfigForm : Form {
-		/// <summary>Endpoints for the volume-step trackbar mapping only (not persisted policy).</summary>
-		const float VOLUME_STEP_TRACK_MIN = 0.001f;
-		const float VOLUME_STEP_TRACK_MAX = 0.5f;
 		const int OSC_TOGGLE_NAME_COLUMN = 0;
 		const int OSC_TOGGLE_ADDRESS_COLUMN = 1;
 		const int OSC_TOGGLE_HOTKEY_COLUMN = 2;
@@ -16,7 +13,7 @@ namespace X32VolumeHijacker {
 		const int OSC_TOGGLE_REMOVE_COLUMN = 4;
 		const string OSC_TOGGLES_HINT_TEXT = "Select a Hotkey cell, then press the desired key combination.";
 
-		static readonly double VolumeStepSpanLog = Math.Log(VOLUME_STEP_TRACK_MAX / VOLUME_STEP_TRACK_MIN);
+		static readonly double VolumeStepSpanLog = Math.Log((double)(FaderVolumeAdjuster.Config.MaxVolumeStep / FaderVolumeAdjuster.Config.MinVolumeStep));
 
 		readonly OscController _osc;
 		readonly AppIconController _icons;
@@ -27,6 +24,7 @@ namespace X32VolumeHijacker {
 
 		public ConfigForm(OscController osc, AppIconController icons, TrayApp tray, ConfigStore configStore) {
 			InitializeComponent();
+			ApplyConfigNumericBoundsFromPolicy();
 			this._osc = osc;
 			this._icons = icons;
 			this._tray = tray;
@@ -75,6 +73,15 @@ namespace X32VolumeHijacker {
 					return;
 				}
 			}
+		}
+
+		void ApplyConfigNumericBoundsFromPolicy() {
+			numericUpDownQueryTimeoutMs.Minimum = OscController.Config.MinQueryTimeoutMs;
+			numericUpDownQueryTimeoutMs.Maximum = OscController.Config.MaxQueryTimeoutMs;
+			numericUpDownFaderVolumeCacheTtlMs.Minimum = FaderVolumeAdjuster.Config.MinFaderVolumeCacheTtlMs;
+			numericUpDownFaderVolumeCacheTtlMs.Maximum = FaderVolumeAdjuster.Config.MaxFaderVolumeCacheTtlMs;
+			numericUpDownVolumeStep.Minimum = (decimal)FaderVolumeAdjuster.Config.MinVolumeStep;
+			numericUpDownVolumeStep.Maximum = (decimal)FaderVolumeAdjuster.Config.MaxVolumeStep;
 		}
 
 		void SetupConfigStoreUi() {
@@ -134,12 +141,14 @@ namespace X32VolumeHijacker {
 		static float TrackBarToVolumeStep(int value, int trackMin, int trackMax) {
 			int span = trackMax - trackMin;
 			double t = span <= 0 ? 0 : (value - trackMin) / (double)span;
-			return (float)(VOLUME_STEP_TRACK_MIN * Math.Pow(VOLUME_STEP_TRACK_MAX / VOLUME_STEP_TRACK_MIN, t));
+			float lo = FaderVolumeAdjuster.Config.MinVolumeStep;
+			float hi = FaderVolumeAdjuster.Config.MaxVolumeStep;
+			return (float)(lo * Math.Pow(hi / lo, t));
 		}
 
 		static int VolumeStepToTrackBar(float step, int trackMin, int trackMax) {
 			int span = trackMax - trackMin;
-			double ratio = step / VOLUME_STEP_TRACK_MIN;
+			double ratio = step / FaderVolumeAdjuster.Config.MinVolumeStep;
 			if (ratio <= 0)
 				return trackMin;
 			double t = Math.Log(ratio) / VolumeStepSpanLog;
@@ -195,7 +204,7 @@ namespace X32VolumeHijacker {
 				trackBarVolumeStep.Value = VolumeStepToTrackBar(s, trackBarVolumeStep.Minimum, trackBarVolumeStep.Maximum);
 				float aligned = TrackBarToVolumeStep(trackBarVolumeStep.Value, trackBarVolumeStep.Minimum, trackBarVolumeStep.Maximum);
 				numericUpDownVolumeStep.Value = Math.Round((decimal)aligned, 4, MidpointRounding.AwayFromZero);
-				uint ttl = Math.Min(_configStore.AppConfig.FaderVolumeAdjuster.FaderVolumeCacheTtlMs, ConfigStore.MaxFaderVolumeCacheTtlMs);
+				uint ttl = Math.Min(_configStore.AppConfig.FaderVolumeAdjuster.FaderVolumeCacheTtlMs, FaderVolumeAdjuster.Config.MaxFaderVolumeCacheTtlMs);
 				SetNumericUpDownClamped(numericUpDownFaderVolumeCacheTtlMs, ttl);
 			} finally {
 				_volumeStepUiSync = false;

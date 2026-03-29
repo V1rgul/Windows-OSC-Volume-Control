@@ -4,9 +4,14 @@ using X32VolumeHijacker;
 public sealed class FaderVolumeAdjuster {
 	/// <summary>Volume step and fader sample cache TTL persisted via <see cref="ConfigStore"/>.</summary>
 	public sealed class Config {
-		public float VolumeStep { get; set; } = ConfigStore.DefaultVolumeStep;
+		public const float MinVolumeStep = 0.001f;
+		public const float MaxVolumeStep = 0.5f;
+		public const uint MinFaderVolumeCacheTtlMs = 0;
+		public const uint MaxFaderVolumeCacheTtlMs = 10_000;
+
+		public float VolumeStep { get; set; } = 0.02f;
 		/// <summary>How long a cached fader level is reused before <see cref="OscController.QueryFaderAsync"/> runs again (milliseconds). 0 = always query.</summary>
-		public uint FaderVolumeCacheTtlMs { get; set; } = ConfigStore.DefaultFaderVolumeCacheTtlMs;
+		public uint FaderVolumeCacheTtlMs { get; set; } = 1000;
 
 		public Config() { }
 

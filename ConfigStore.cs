@@ -19,21 +19,6 @@ public enum AppConfigDiskOutcome {
 public sealed class ConfigStore {
 	const string FileName = "X32VolumeHijacker.config";
 
-	/// <summary>Used when no config file or no <c>volumeStep</c> key.</summary>
-	public const float DefaultVolumeStep = 0.02f;
-
-	/// <summary>Used when no config file or no <c>faderVolumeCacheTtlMs</c> key.</summary>
-	public const uint DefaultFaderVolumeCacheTtlMs = 1000;
-
-	/// <summary>Upper bound for <see cref="FaderVolumeAdjuster.Config.FaderVolumeCacheTtlMs"/> when loading from disk.</summary>
-	public const uint MaxFaderVolumeCacheTtlMs = 10_000;
-
-	/// <summary>Used when no config file or no <c>timeoutMs</c> key.</summary>
-	public const uint DefaultQueryTimeoutMs = 500;
-
-	/// <summary>Upper bound for OSC query / ping timeout when loading from disk.</summary>
-	public const uint MaxQueryTimeoutMs = 10_000;
-
 	public string ConfigPath => Path.Combine(AppContext.BaseDirectory, FileName);
 
 	/// <summary>Current aggregate; replaced by <see cref="LoadFromDisk"/>, <see cref="AdoptAppConfig"/>, or load fallbacks.</summary>
@@ -73,19 +58,22 @@ public sealed class ConfigStore {
 				LastDiskFeedback = "Config file exists but could not be parsed; using defaults.";
 				return;
 			}
-			uint timeout = DefaultQueryTimeoutMs;
+			var oscDefaults = new OscController.Config();
+			uint timeout = oscDefaults.timeoutMs;
 			if (map.TryGetValue("timeoutMs", out string? toStr)
 			    && uint.TryParse(toStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint to)
-			    && to > 0)
-				timeout = Math.Min(to, MaxQueryTimeoutMs);
-			float volumeStep = DefaultVolumeStep;
+			    && to >= OscController.Config.MinQueryTimeoutMs)
+				timeout = Math.Min(to, OscController.Config.MaxQueryTimeoutMs);
+			var faderDefaults = new FaderVolumeAdjuster.Config();
+			float volumeStep = faderDefaults.VolumeStep;
 			if (map.TryGetValue("volumeStep", out string? stepStr)
-			    && float.TryParse(stepStr.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float vs))
-				volumeStep = vs;
-			uint faderCacheTtlMs = DefaultFaderVolumeCacheTtlMs;
+			    && float.TryParse(stepStr.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float vs)
+			    && float.IsFinite(vs))
+				volumeStep = Math.Clamp(vs, FaderVolumeAdjuster.Config.MinVolumeStep, FaderVolumeAdjuster.Config.MaxVolumeStep);
+			uint faderCacheTtlMs = faderDefaults.FaderVolumeCacheTtlMs;
 			if (map.TryGetValue("faderVolumeCacheTtlMs", out string? ttlStr)
 			    && uint.TryParse(ttlStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint ttl))
-				faderCacheTtlMs = Math.Min(ttl, MaxFaderVolumeCacheTtlMs);
+				faderCacheTtlMs = Math.Min(ttl, FaderVolumeAdjuster.Config.MaxFaderVolumeCacheTtlMs);
 			List<OscToggleBinding> oscToggles = ParseOscToggleBindings(map);
 			AppConfig = new AppConfig {
 				OscController = new OscController.Config {
