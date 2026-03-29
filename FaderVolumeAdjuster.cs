@@ -22,9 +22,12 @@ public sealed class FaderVolumeAdjuster {
 	DateTime? _lastSampleUtc;
 	float _lastLevel;
 
-	public FaderVolumeAdjuster(OscController osc) {
+	public FaderVolumeAdjuster(OscController osc) : this(osc, new Config()) { }
+
+	public FaderVolumeAdjuster(OscController osc, Config initialConfig) {
 		_osc = osc ?? throw new ArgumentNullException(nameof(osc));
-		_config = new Config();
+		ArgumentNullException.ThrowIfNull(initialConfig);
+		_config = new Config(initialConfig);
 	}
 
 	/// <summary>Replaces persisted fader settings with a copy of <paramref name="c"/>.</summary>

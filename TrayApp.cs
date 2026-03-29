@@ -60,9 +60,9 @@ public class TrayApp : ApplicationContext
 	public void ApplyConfigFromStore() {
 		AppConfig cfg = _configStore.AppConfig;
 		_faderVolume.ClearFaderSampleCache();
-		_osc.ApplyConfig(new OscController.Config(cfg.Osc));
-		_faderVolume.ApplyConfig(cfg.Fader ?? new FaderVolumeAdjuster.Config());
-		SetOscToggleBindings(cfg.OscToggles?.Bindings ?? []);
+		_osc.ApplyConfig(new OscController.Config(cfg.OscController));
+		_faderVolume.ApplyConfig(cfg.FaderVolumeAdjuster ?? new FaderVolumeAdjuster.Config());
+		SetOscToggleBindings(cfg.TrayApp?.Bindings ?? []);
 	}
 
 	/// <summary>Adopts config from the settings form, applies it, then attempts to persist (failure does not revert memory).</summary>
@@ -74,9 +74,9 @@ public class TrayApp : ApplicationContext
 	}
 
 	public TrayApp() {
-		var bootstrapOsc = AppConfig.CreateDefaults().Osc;
-		_osc = new OscController(bootstrapOsc);
-		_faderVolume = new FaderVolumeAdjuster(_osc);
+		_configStore.LoadFromDisk();
+		_osc = new OscController(new OscController.Config(_configStore.AppConfig.OscController));
+		_faderVolume = new FaderVolumeAdjuster(_osc, _configStore.AppConfig.FaderVolumeAdjuster ?? new FaderVolumeAdjuster.Config());
 
 		_osd = new VolumeOsd();
 		_ = _osd.Handle;
@@ -96,8 +96,7 @@ public class TrayApp : ApplicationContext
 		_hook.OnVolumeKeyPressed = key => _ = AdjustVolume(key);
 		_hook.OnConfiguredHotkeyPressed = hotkey => _ = ToggleOscBinding(hotkey);
 
-		_configStore.LoadFromDisk();
-		ApplyConfigFromStore();
+		SetOscToggleBindings(_configStore.AppConfig.TrayApp?.Bindings ?? []);
 		_ = RunStartupHealthAsync();
 	}
 

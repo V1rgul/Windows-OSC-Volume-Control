@@ -184,18 +184,18 @@ namespace X32VolumeHijacker {
 		}
 
 		void LoadFieldsFromOsc() {
-			OscController.Config c = new(_configStore.AppConfig.Osc);
+			OscController.Config c = new(_configStore.AppConfig.OscController);
 			textBoxIP.Text = c.EndPoint.Address.ToString();
 			textBoxPort.Text = c.EndPoint.Port.ToString();
 			textBoxFaderAddress.Text = c.faderAddress ?? "";
 			SetNumericUpDownClamped(numericUpDownQueryTimeoutMs, c.timeoutMs);
 			_volumeStepUiSync = true;
 			try {
-				float s = _configStore.AppConfig.Fader.VolumeStep;
+				float s = _configStore.AppConfig.FaderVolumeAdjuster.VolumeStep;
 				trackBarVolumeStep.Value = VolumeStepToTrackBar(s, trackBarVolumeStep.Minimum, trackBarVolumeStep.Maximum);
 				float aligned = TrackBarToVolumeStep(trackBarVolumeStep.Value, trackBarVolumeStep.Minimum, trackBarVolumeStep.Maximum);
 				numericUpDownVolumeStep.Value = Math.Round((decimal)aligned, 4, MidpointRounding.AwayFromZero);
-				uint ttl = Math.Min(_configStore.AppConfig.Fader.FaderVolumeCacheTtlMs, ConfigStore.MaxFaderVolumeCacheTtlMs);
+				uint ttl = Math.Min(_configStore.AppConfig.FaderVolumeAdjuster.FaderVolumeCacheTtlMs, ConfigStore.MaxFaderVolumeCacheTtlMs);
 				SetNumericUpDownClamped(numericUpDownFaderVolumeCacheTtlMs, ttl);
 			} finally {
 				_volumeStepUiSync = false;
@@ -206,7 +206,7 @@ namespace X32VolumeHijacker {
 
 		void LoadOscToggleBindings() {
 			dataGridViewOscToggles.Rows.Clear();
-			foreach (OscToggleBinding binding in _configStore.AppConfig.OscToggles.Bindings)
+			foreach (OscToggleBinding binding in _configStore.AppConfig.TrayApp.Bindings)
 				AddOscToggleRow(new OscToggleBinding(binding));
 			EnsureOscToggleAddRow();
 			ResetOscToggleHint();
@@ -666,12 +666,12 @@ namespace X32VolumeHijacker {
 			SetConnectionInputsEnabled(false);
 			try {
 				var appConfig = new AppConfig {
-					Osc = newCfg,
-					Fader = new FaderVolumeAdjuster.Config {
+					OscController = newCfg,
+					FaderVolumeAdjuster = new FaderVolumeAdjuster.Config {
 						VolumeStep = (float)numericUpDownVolumeStep.Value,
 						FaderVolumeCacheTtlMs = (uint)numericUpDownFaderVolumeCacheTtlMs.Value,
 					},
-					OscToggles = new TrayApp.Config {
+					TrayApp = new TrayApp.Config {
 						Bindings = oscToggles.Select(b => new OscToggleBinding(b)).ToList(),
 					},
 				};

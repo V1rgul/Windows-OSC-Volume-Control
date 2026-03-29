@@ -44,7 +44,7 @@ public sealed class ConfigStore {
 	public AppConfigDiskOutcome LastDiskOutcome { get; private set; } = AppConfigDiskOutcome.None;
 
 	public ConfigStore() {
-		AppConfig = AppConfig.CreateDefaults();
+		AppConfig = new AppConfig();
 	}
 
 	/// <summary>Replaces <see cref="AppConfig"/> with a deep copy of <paramref name="fromForm"/> (before apply and before disk).</summary>
@@ -57,7 +57,7 @@ public sealed class ConfigStore {
 	public void LoadFromDisk() {
 		string path = ConfigPath;
 		if (!File.Exists(path)) {
-			AppConfig = AppConfig.CreateDefaults();
+			AppConfig = new AppConfig();
 			LastDiskOutcome = AppConfigDiskOutcome.NoFileUsingDefaults;
 			LastDiskFeedback = "No config file; using defaults.";
 			return;
@@ -68,7 +68,7 @@ public sealed class ConfigStore {
 			    || !map.TryGetValue("port", out string? portStr)
 			    || !map.TryGetValue("faderAddress", out string? faderRaw)
 			    || !OscConnectionConfigParse.TryParse(ipStr, portStr, faderRaw, out IPAddress ip, out int port, out string fader, out _, out _, out _)) {
-				AppConfig = AppConfig.CreateDefaults();
+				AppConfig = new AppConfig();
 				LastDiskOutcome = AppConfigDiskOutcome.InvalidOrIncompleteFile;
 				LastDiskFeedback = "Config file exists but could not be parsed; using defaults.";
 				return;
@@ -88,21 +88,21 @@ public sealed class ConfigStore {
 				faderCacheTtlMs = Math.Min(ttl, MaxFaderVolumeCacheTtlMs);
 			List<OscToggleBinding> oscToggles = ParseOscToggleBindings(map);
 			AppConfig = new AppConfig {
-				Osc = new OscController.Config {
+				OscController = new OscController.Config {
 					EndPoint = new IPEndPoint(ip, port),
 					faderAddress = fader,
 					timeoutMs = timeout,
 				},
-				Fader = new FaderVolumeAdjuster.Config {
+				FaderVolumeAdjuster = new FaderVolumeAdjuster.Config {
 					VolumeStep = volumeStep,
 					FaderVolumeCacheTtlMs = faderCacheTtlMs,
 				},
-				OscToggles = new TrayApp.Config { Bindings = oscToggles },
+				TrayApp = new TrayApp.Config { Bindings = oscToggles },
 			};
 			LastDiskOutcome = AppConfigDiskOutcome.LoadedOk;
 			LastDiskFeedback = "Loaded settings from disk.";
 		} catch (Exception ex) {
-			AppConfig = AppConfig.CreateDefaults();
+			AppConfig = new AppConfig();
 			LastDiskOutcome = AppConfigDiskOutcome.LoadIoError;
 			LastDiskFeedback = "Could not read config file: " + ex.Message;
 		}
@@ -111,9 +111,9 @@ public sealed class ConfigStore {
 	/// <summary>Writes <see cref="AppConfig"/> to disk. On failure sets <see cref="AppConfigDiskOutcome.SaveFailed"/> without throwing or reverting <see cref="AppConfig"/>.</summary>
 	public void TryPersistToDisk() {
 		AppConfig cfg = AppConfig;
-		var osc = cfg.Osc;
-		var faderConfig = cfg.Fader ?? new FaderVolumeAdjuster.Config();
-		var toggles = cfg.OscToggles?.Bindings ?? [];
+		var osc = cfg.OscController;
+		var faderConfig = cfg.FaderVolumeAdjuster ?? new FaderVolumeAdjuster.Config();
+		var toggles = cfg.TrayApp?.Bindings ?? [];
 		string fader = (osc.faderAddress ?? "").Trim();
 		var lines = new List<string> {
 			"ip=" + osc.EndPoint.Address.ToString(),
