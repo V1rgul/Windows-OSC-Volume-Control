@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Windows.Forms;
 
-namespace X32VolumeHijacker;
+namespace WindowsOscVolumeControl;
 
 public sealed class OscToggleBinding {
 	public string Name { get; set; } = "";

@@ -3,7 +3,7 @@ using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
 
-namespace X32VolumeHijacker;
+namespace WindowsOscVolumeControl;
 
 /// <summary>Lazy-loaded tray icons from <c>Assets/Icon/app</c> and embedded button PNGs.</summary>
 public sealed class ResourceLoader {

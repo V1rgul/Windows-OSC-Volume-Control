@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace X32VolumeHijacker;
+namespace WindowsOscVolumeControl;
 
 /// <summary>
 /// Rounds fader step/min/max for UI and config. Grid decimals and rounding depth follow

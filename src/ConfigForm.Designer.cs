@@ -1,4 +1,4 @@
-namespace X32VolumeHijacker
+namespace WindowsOscVolumeControl
 {
 	partial class ConfigForm
 	{
@@ -851,7 +851,7 @@ namespace X32VolumeHijacker
 			Controls.Add(tableLayoutMain);
 			MinimumSize = new Size(360, 760);
 			Name = "ConfigForm";
-			Text = "OSC Volume hijacker";
+			Text = "Windows OSC Volume Control";
 			Load += ConfigForm_Load;
 			tableLayoutAutostartOuter.ResumeLayout(false);
 			tableLayoutAutostartOuter.PerformLayout();

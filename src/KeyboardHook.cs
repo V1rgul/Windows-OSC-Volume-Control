@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace X32VolumeHijacker {
+namespace WindowsOscVolumeControl {
 	public partial class KeyboardHook : IDisposable {
 		const int WM_KEYDOWN = 0x0100;
 		const int WM_SYSKEYDOWN = 0x0104;

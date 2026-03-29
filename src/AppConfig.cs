@@ -1,6 +1,6 @@
 using System.Linq;
 
-namespace X32VolumeHijacker;
+namespace WindowsOscVolumeControl;
 
 /// <summary>Aggregate settings owned by <see cref="ConfigStore"/>; composed from per-component DTOs.</summary>
 public sealed class AppConfig {

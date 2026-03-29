@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Net;
 
-namespace X32VolumeHijacker;
+namespace WindowsOscVolumeControl;
 
 /// <summary>Parses and validates IP, UDP port, and OSC fader address strings (UI and config file).</summary>
 static class OscConnectionConfigParse {

@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace X32VolumeHijacker;
+namespace WindowsOscVolumeControl;
 
 public enum AppTrayIconState {
 	StartingOrInvalidConfig,

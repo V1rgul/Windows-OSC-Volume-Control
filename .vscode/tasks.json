@@ -7,7 +7,7 @@
             "type": "process",
             "args": [
                 "build",
-                "${workspaceFolder}/X32VolumeHijacker.csproj",
+                "${workspaceFolder}/Windows-OSC-Volume-Control.csproj",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary;ForceNoAlign"
             ],
@@ -19,7 +19,7 @@
             "type": "process",
             "args": [
                 "publish",
-                "${workspaceFolder}/X32VolumeHijacker.csproj",
+                "${workspaceFolder}/Windows-OSC-Volume-Control.csproj",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary;ForceNoAlign"
             ],
@@ -33,7 +33,7 @@
                 "watch",
                 "run",
                 "--project",
-                "${workspaceFolder}/X32VolumeHijacker.csproj"
+                "${workspaceFolder}/Windows-OSC-Volume-Control.csproj"
             ],
             "problemMatcher": "$msCompile"
         }

@@ -1,7 +1,7 @@
 using System;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
-using X32VolumeHijacker;
+using WindowsOscVolumeControl;
 
 public class OSDController : Form
 {

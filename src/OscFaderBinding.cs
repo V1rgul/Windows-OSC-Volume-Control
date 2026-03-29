@@ -1,6 +1,6 @@
 using System.Windows.Forms;
 
-namespace X32VolumeHijacker;
+namespace WindowsOscVolumeControl;
 
 public sealed class OscFaderBinding {
 	public string Name { get; set; } = "";

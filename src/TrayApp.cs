@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Windows.Forms;
-using X32VolumeHijacker;
+using WindowsOscVolumeControl;
 
 
 public class TrayApp : ApplicationContext
@@ -120,11 +120,11 @@ public class TrayApp : ApplicationContext
 		_trayIcon = new NotifyIcon() {
 			ContextMenuStrip = new ContextMenuStrip(),
 			Visible = true,
-			Text = "X32 Volume Hijacker"
+			Text = "Windows OSC Volume Control"
 		};
 		_icons = new AppIconController(_trayIcon, _resources);
 		_icons.ApplyState(AppTrayIconState.StartingOrInvalidConfig);
-		_trayIcon.ContextMenuStrip.Items.Add("Configure X32", null, (s, e) => OpenConfig());
+		_trayIcon.ContextMenuStrip.Items.Add("Configure…", null, (s, e) => OpenConfig());
 		_trayIcon.ContextMenuStrip.Items.Add("Exit", null, (s, e) => Exit());
 
 

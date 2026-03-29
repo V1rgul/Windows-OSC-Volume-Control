@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>Windows-OSC-Volume-Control</AssemblyName>
+    <RootNamespace>WindowsOscVolumeControl</RootNamespace>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\Icon\app\ok.ico</ApplicationIcon>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="src\**\*.cs" Exclude="src\obj\**\*;src\bin\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\Icon\buttons\*.png" Link="Assets\Icon\buttons\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Assets\Icon\app\*.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="src\SharpOSC\Properties\" />
+  </ItemGroup>
+
+  <!-- Release: framework-dependent publish → small zip; target PC needs .NET 8 Desktop runtime. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <ReleasePublishDir>$(MSBuildProjectDirectory)\bin\Release\publish-zip</ReleasePublishDir>
+    <ReleaseZipFile>$(MSBuildProjectDirectory)\bin\Release\$(AssemblyName)-Release.zip</ReleaseZipFile>
+  </PropertyGroup>
+
+  <Target Name="CreateReleaseZip" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' And '$(DesignTimeBuild)' != 'true'">
+    <RemoveDir Directories="$(ReleasePublishDir)" Condition="Exists('$(ReleasePublishDir)')" />
+    <MakeDir Directories="$(ReleasePublishDir)" />
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release -o &quot;$(ReleasePublishDir)&quot; --no-build" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <Delete Files="$(ReleasePublishDir)\$(AssemblyName).pdb" Condition="Exists('$(ReleasePublishDir)\$(AssemblyName).pdb')" />
+    <ZipDirectory SourceDirectory="$(ReleasePublishDir)" DestinationFile="$(ReleaseZipFile)" Overwrite="true" />
+    <RemoveDir Directories="$(ReleasePublishDir)" />
+    <Message Text="Release zip created: $(ReleaseZipFile)" Importance="high" />
+  </Target>
+
+</Project>

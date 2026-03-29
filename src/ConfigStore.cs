@@ -3,7 +3,7 @@ using System.Linq;
 using System.Net;
 using System.Windows.Forms;
 
-namespace X32VolumeHijacker;
+namespace WindowsOscVolumeControl;
 
 /// <summary>Result of the last config load or save; drives UI message and severity.</summary>
 public enum AppConfigDiskOutcome {
@@ -18,7 +18,7 @@ public enum AppConfigDiskOutcome {
 
 /// <summary>Loads and persists <see cref="AppConfig"/>; owns the in-memory snapshot.</summary>
 public sealed class ConfigStore {
-	const string FileName = "X32VolumeHijacker.config";
+	const string FileName = "Windows-OSC-Volume-Control.config";
 
 	public string ConfigPath => Path.Combine(AppContext.BaseDirectory, FileName);
 

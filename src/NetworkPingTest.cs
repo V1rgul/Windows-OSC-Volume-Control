@@ -3,7 +3,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 
-namespace X32VolumeHijacker {
+namespace WindowsOscVolumeControl {
 	internal static class NetworkPingTest {
 		/// <summary>PingReply.RoundtripTime is whole milliseconds only; 0 means &lt;1 ms, not a sub-ms measurement.</summary>
 		static string FormatPingSampleMs(long roundtripMs) => roundtripMs == 0 ? "<1 ms" : $"{roundtripMs} ms";

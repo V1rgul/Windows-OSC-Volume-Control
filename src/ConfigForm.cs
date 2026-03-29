@@ -6,7 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Windows.Forms;
 
-namespace X32VolumeHijacker {
+namespace WindowsOscVolumeControl {
 	public partial class ConfigForm : Form {
 		const int OSC_TOGGLE_NAME_COLUMN = 0;
 		const int OSC_TOGGLE_ADDRESS_COLUMN = 1;

@@ -1,10 +1,10 @@
 using Microsoft.Win32;
 
-namespace X32VolumeHijacker;
+namespace WindowsOscVolumeControl;
 
 static class WindowsAutostart {
 	const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-	const string ValueName = "X32VolumeHijacker";
+	const string ValueName = "Windows-OSC-Volume-Control";
 
 	public static bool IsRegistered() {
 		using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RunKeyPath, false);

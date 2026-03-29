@@ -9,7 +9,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace X32VolumeHijacker {
+namespace WindowsOscVolumeControl {
 public partial class OscController {
 
 	public class Config {

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using SharpOSC;
 
-namespace X32VolumeHijacker;
+namespace WindowsOscVolumeControl;
 
 /// <summary>High-level mixer operations (per-path fader nudge, OSC toggles, <c>/info</c>) with optional per-address level cache.</summary>
 public sealed class MixerController {
