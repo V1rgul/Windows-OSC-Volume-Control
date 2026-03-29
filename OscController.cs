@@ -120,7 +120,7 @@ public partial class OscController {
 	}
 
 	/// <summary>Sends a query message for <paramref name="address"/> and polls replies until <paramref name="tryExtract"/> returns non-null or timeout.</summary>
-	async Task<T?> QueryAsync<T>(string address, Func<OscMessage, T?> tryExtract) where T : class {
+	internal async Task<T?> QueryAsync<T>(string address, Func<OscMessage, T?> tryExtract) where T : class {
 		await SendMessageAsync(new OscMessage(address));
 		int budgetMs = (int)Math.Max(1, _config.timeoutMs);
 		var deadline = DateTime.UtcNow.AddMilliseconds(budgetMs);
@@ -144,7 +144,7 @@ public partial class OscController {
 		public readonly T Value = value;
 	}
 
-	async Task<float?> QueryFloatAsync(string address, bool logUnmatchedArgs) {
+	internal async Task<float?> QueryFloatAsync(string address, bool logUnmatchedArgs) {
 		var result = await QueryAsync(address, msg => {
 			if (TryCoerceFirstNumericFromMessage(msg, out float f))
 				return new Boxed<float>(f);
@@ -155,12 +155,16 @@ public partial class OscController {
 		return result?.Value;
 	}
 
-	public async Task SetFaderAsync(float value) {
-		await SendMessageAsync(new OscMessage(_oscFaderPath, value));
-	}
+	/// <summary>Normalized fader OSC path from connection config (X32 channel indices normalized).</summary>
+	internal string NormalizedFaderPath => _oscFaderPath;
+
+	/// <summary>Precomputed <c>/mix/on</c> path when fader address is valid for mute; otherwise <c>null</c>.</summary>
+	internal string? CachedMixOnPath => _oscMixOnPath;
+
+	internal string RawFaderAddress => _config.faderAddress;
 
 	/// <summary>Maps e.g. /main/st/mix/fader -> /main/st/mix/on for X32 mute (0 = muted, 1 = on).</summary>
-	static string FaderPathToMixOnPath(string faderPath) {
+	internal static string FaderPathToMixOnPath(string faderPath) {
 		faderPath = NormalizeOscAddress(NormalizeX32ChannelPath(faderPath));
 		const string suffix = "/mix/fader";
 		if (faderPath.EndsWith(suffix, StringComparison.Ordinal))
@@ -168,34 +172,8 @@ public partial class OscController {
 		throw new InvalidOperationException("FaderAddress must end with /mix/fader for mute (e.g. /main/st/mix/fader).");
 	}
 
-	public async Task<bool?> QueryMuteAsync() {
-		string want = _oscMixOnPath ?? FaderPathToMixOnPath(_config.faderAddress);
-		float? v = await QueryFloatAsync(want, logUnmatchedArgs: false);
-		return v == null ? null : v.Value < 0.5f;
-	}
-
-	public async Task SetMuteAsync(bool muted) {
-		string path = _oscMixOnPath ?? FaderPathToMixOnPath(_config.faderAddress);
-		await SendMessageAsync(new OscMessage(path, muted ? 0f : 1f));
-	}
-
-	public async Task<bool?> QueryToggleAsync(string address) {
-		address = NormalizeOscAddress(address);
-		float? v = await QueryFloatAsync(address, logUnmatchedArgs: false);
-		return v == null ? null : v.Value >= 0.5f;
-	}
-
-	public async Task SetToggleAsync(string address, bool enabled) {
-		address = NormalizeOscAddress(address);
-		await SendMessageAsync(new OscMessage(address, enabled ? 1f : 0f));
-	}
-
-	public async Task<float?> QueryFaderAsync() {
-		return await QueryFloatAsync(_oscFaderPath, logUnmatchedArgs: true);
-	}
-
 	/// <summary>Trim; remove trailing slash so UI path matches desk replies.</summary>
-	static string NormalizeOscAddress(string path) {
+	internal static string NormalizeOscAddress(string path) {
 		path = path.Trim();
 		while (path.Length > 1 && path[^1] == '/')
 			path = path[..^1];
@@ -233,15 +211,7 @@ public partial class OscController {
 		return false;
 	}
 
-	/// <summary>Sends <c>/info</c> and returns the first matching reply (X32 desk identity / firmware strings).</summary>
-	public async Task<(bool Ok, string Detail)> QueryInfoAsync() {
-		var result = await QueryAsync("/info", msg => FormatInfoArguments(msg));
-		if (result != null)
-			return (true, result);
-		return (false, "No reply to /info within timeout (check IP, port, and network).");
-	}
-
-	static string FormatInfoArguments(OscMessage message) {
+	internal static string FormatInfoArguments(OscMessage message) {
 		var sb = new StringBuilder();
 		foreach (object? a in message.Arguments) {
 			if (sb.Length > 0) sb.AppendLine();
@@ -250,7 +220,7 @@ public partial class OscController {
 		return sb.Length > 0 ? sb.ToString() : "(empty /info reply)";
 	}
 
-	static string FormatOscArg(object? a) {
+	internal static string FormatOscArg(object? a) {
 		if (a == null) return "null";
 		return a switch {
 			float f => f.ToString(CultureInfo.InvariantCulture),
@@ -261,11 +231,6 @@ public partial class OscController {
 			byte[] bytes => Convert.ToBase64String(bytes),
 			_ => a.ToString() ?? "",
 		};
-	}
-
-	public async Task<bool> TestConnectionAsync() {
-		var (ok, _) = await QueryInfoAsync().ConfigureAwait(false);
-		return ok;
 	}
 
 	/// <summary>X32 requires two-digit channel indices (/ch/01/..., not /ch/1/...).</summary>

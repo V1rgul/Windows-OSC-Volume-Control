@@ -13,19 +13,19 @@ namespace X32VolumeHijacker {
 		const int OSC_TOGGLE_REMOVE_COLUMN = 4;
 		const string OSC_TOGGLES_HINT_TEXT = "Select a Hotkey cell, then press the desired key combination.";
 
-		static readonly double VolumeStepSpanLog = Math.Log((double)(FaderVolumeAdjuster.Config.MaxVolumeStep / FaderVolumeAdjuster.Config.MinVolumeStep));
+		static readonly double VolumeStepSpanLog = Math.Log((double)(MixerController.Config.MaxVolumeStep / MixerController.Config.MinVolumeStep));
 
-		readonly OscController _osc;
+		readonly MixerController _mixer;
 		readonly AppIconController _icons;
 		readonly TrayApp _tray;
 		readonly ConfigStore _configStore;
 		bool _volumeStepUiSync;
 		TextBox? _hotkeyEditingTextBox;
 
-		public ConfigForm(OscController osc, AppIconController icons, TrayApp tray, ConfigStore configStore) {
+		public ConfigForm(MixerController mixer, AppIconController icons, TrayApp tray, ConfigStore configStore) {
 			InitializeComponent();
 			ApplyConfigNumericBoundsFromPolicy();
-			this._osc = osc;
+			this._mixer = mixer;
 			this._icons = icons;
 			this._tray = tray;
 			this._configStore = configStore;
@@ -78,10 +78,10 @@ namespace X32VolumeHijacker {
 		void ApplyConfigNumericBoundsFromPolicy() {
 			numericUpDownQueryTimeoutMs.Minimum = OscController.Config.MinQueryTimeoutMs;
 			numericUpDownQueryTimeoutMs.Maximum = OscController.Config.MaxQueryTimeoutMs;
-			numericUpDownFaderVolumeCacheTtlMs.Minimum = FaderVolumeAdjuster.Config.MinFaderVolumeCacheTtlMs;
-			numericUpDownFaderVolumeCacheTtlMs.Maximum = FaderVolumeAdjuster.Config.MaxFaderVolumeCacheTtlMs;
-			numericUpDownVolumeStep.Minimum = (decimal)FaderVolumeAdjuster.Config.MinVolumeStep;
-			numericUpDownVolumeStep.Maximum = (decimal)FaderVolumeAdjuster.Config.MaxVolumeStep;
+			numericUpDownFaderVolumeCacheTtlMs.Minimum = MixerController.Config.MinFaderVolumeCacheTtlMs;
+			numericUpDownFaderVolumeCacheTtlMs.Maximum = MixerController.Config.MaxFaderVolumeCacheTtlMs;
+			numericUpDownVolumeStep.Minimum = (decimal)MixerController.Config.MinVolumeStep;
+			numericUpDownVolumeStep.Maximum = (decimal)MixerController.Config.MaxVolumeStep;
 		}
 
 		void SetupConfigStoreUi() {
@@ -141,14 +141,14 @@ namespace X32VolumeHijacker {
 		static float TrackBarToVolumeStep(int value, int trackMin, int trackMax) {
 			int span = trackMax - trackMin;
 			double t = span <= 0 ? 0 : (value - trackMin) / (double)span;
-			float lo = FaderVolumeAdjuster.Config.MinVolumeStep;
-			float hi = FaderVolumeAdjuster.Config.MaxVolumeStep;
+			float lo = MixerController.Config.MinVolumeStep;
+			float hi = MixerController.Config.MaxVolumeStep;
 			return (float)(lo * Math.Pow(hi / lo, t));
 		}
 
 		static int VolumeStepToTrackBar(float step, int trackMin, int trackMax) {
 			int span = trackMax - trackMin;
-			double ratio = step / FaderVolumeAdjuster.Config.MinVolumeStep;
+			double ratio = step / MixerController.Config.MinVolumeStep;
 			if (ratio <= 0)
 				return trackMin;
 			double t = Math.Log(ratio) / VolumeStepSpanLog;
@@ -200,11 +200,11 @@ namespace X32VolumeHijacker {
 			SetNumericUpDownClamped(numericUpDownQueryTimeoutMs, c.timeoutMs);
 			_volumeStepUiSync = true;
 			try {
-				float s = _configStore.AppConfig.FaderVolumeAdjuster.VolumeStep;
+				float s = _configStore.AppConfig.Mixer.VolumeStep;
 				trackBarVolumeStep.Value = VolumeStepToTrackBar(s, trackBarVolumeStep.Minimum, trackBarVolumeStep.Maximum);
 				float aligned = TrackBarToVolumeStep(trackBarVolumeStep.Value, trackBarVolumeStep.Minimum, trackBarVolumeStep.Maximum);
 				numericUpDownVolumeStep.Value = Math.Round((decimal)aligned, 4, MidpointRounding.AwayFromZero);
-				uint ttl = Math.Min(_configStore.AppConfig.FaderVolumeAdjuster.FaderVolumeCacheTtlMs, FaderVolumeAdjuster.Config.MaxFaderVolumeCacheTtlMs);
+				uint ttl = Math.Min(_configStore.AppConfig.Mixer.FaderVolumeCacheTtlMs, MixerController.Config.MaxFaderVolumeCacheTtlMs);
 				SetNumericUpDownClamped(numericUpDownFaderVolumeCacheTtlMs, ttl);
 			} finally {
 				_volumeStepUiSync = false;
@@ -676,7 +676,7 @@ namespace X32VolumeHijacker {
 			try {
 				var appConfig = new AppConfig {
 					OscController = newCfg,
-					FaderVolumeAdjuster = new FaderVolumeAdjuster.Config {
+					Mixer = new MixerController.Config {
 						VolumeStep = (float)numericUpDownVolumeStep.Value,
 						FaderVolumeCacheTtlMs = (uint)numericUpDownFaderVolumeCacheTtlMs.Value,
 					},
@@ -708,7 +708,7 @@ namespace X32VolumeHijacker {
 						BeginInvoke(action);
 					}
 					var sw = Stopwatch.StartNew();
-					var info = await _osc.QueryInfoAsync().ConfigureAwait(false);
+					var info = await _mixer.QueryInfoAsync().ConfigureAwait(false);
 					sw.Stop();
 					TimeSpan elapsed = sw.Elapsed;
 					postUi(() => {
@@ -724,7 +724,7 @@ namespace X32VolumeHijacker {
 						}
 					});
 					var swFader = Stopwatch.StartNew();
-					float? fader = await _osc.QueryFaderAsync().ConfigureAwait(false);
+					float? fader = await _mixer.QueryFaderAsync().ConfigureAwait(false);
 					swFader.Stop();
 					TimeSpan faderElapsed = swFader.Elapsed;
 					postUi(() => {

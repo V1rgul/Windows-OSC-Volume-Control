@@ -64,16 +64,16 @@ public sealed class ConfigStore {
 			    && uint.TryParse(toStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint to)
 			    && to >= OscController.Config.MinQueryTimeoutMs)
 				timeout = Math.Min(to, OscController.Config.MaxQueryTimeoutMs);
-			var faderDefaults = new FaderVolumeAdjuster.Config();
+			var faderDefaults = new MixerController.Config();
 			float volumeStep = faderDefaults.VolumeStep;
 			if (map.TryGetValue("volumeStep", out string? stepStr)
 			    && float.TryParse(stepStr.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float vs)
 			    && float.IsFinite(vs))
-				volumeStep = Math.Clamp(vs, FaderVolumeAdjuster.Config.MinVolumeStep, FaderVolumeAdjuster.Config.MaxVolumeStep);
+				volumeStep = Math.Clamp(vs, MixerController.Config.MinVolumeStep, MixerController.Config.MaxVolumeStep);
 			uint faderCacheTtlMs = faderDefaults.FaderVolumeCacheTtlMs;
 			if (map.TryGetValue("faderVolumeCacheTtlMs", out string? ttlStr)
 			    && uint.TryParse(ttlStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint ttl))
-				faderCacheTtlMs = Math.Min(ttl, FaderVolumeAdjuster.Config.MaxFaderVolumeCacheTtlMs);
+				faderCacheTtlMs = Math.Min(ttl, MixerController.Config.MaxFaderVolumeCacheTtlMs);
 			List<OscToggleBinding> oscToggles = ParseOscToggleBindings(map);
 			AppConfig = new AppConfig {
 				OscController = new OscController.Config {
@@ -81,7 +81,7 @@ public sealed class ConfigStore {
 					faderAddress = fader,
 					timeoutMs = timeout,
 				},
-				FaderVolumeAdjuster = new FaderVolumeAdjuster.Config {
+				Mixer = new MixerController.Config {
 					VolumeStep = volumeStep,
 					FaderVolumeCacheTtlMs = faderCacheTtlMs,
 				},
@@ -100,7 +100,7 @@ public sealed class ConfigStore {
 	public void TryPersistToDisk() {
 		AppConfig cfg = AppConfig;
 		var osc = cfg.OscController;
-		var faderConfig = cfg.FaderVolumeAdjuster ?? new FaderVolumeAdjuster.Config();
+		var faderConfig = cfg.Mixer ?? new MixerController.Config();
 		var toggles = cfg.TrayApp?.Bindings ?? [];
 		string fader = (osc.faderAddress ?? "").Trim();
 		var lines = new List<string> {
