@@ -19,6 +19,7 @@ namespace X32VolumeHijacker {
 		readonly AppIconController _icons;
 		readonly TrayApp _tray;
 		readonly ConfigStore _configStore;
+		readonly ResourceLoader _resources;
 		bool _volumeStepUiSync;
 		TextBox? _hotkeyEditingTextBox;
 
@@ -29,6 +30,7 @@ namespace X32VolumeHijacker {
 			this._icons = icons;
 			this._tray = tray;
 			this._configStore = configStore;
+			_resources = tray.Resources;
 			HookNumericUpDownEditTextChanged(numericUpDownQueryTimeoutMs, QueryTimeoutNudEdit_TextChanged);
 			HookNumericUpDownEditTextChanged(numericUpDownFaderVolumeCacheTtlMs, VolumeCacheNudEdit_TextChanged);
 			SetupConfigStoreUi();
@@ -231,10 +233,10 @@ namespace X32VolumeHijacker {
 			row.Cells[OSC_TOGGLE_CLEAR_COLUMN].ReadOnly = true;
 			row.Cells[OSC_TOGGLE_REMOVE_COLUMN].ReadOnly = true;
 			var clearCell = (DataGridViewImageCell)row.Cells[OSC_TOGGLE_CLEAR_COLUMN];
-			clearCell.Value = ButtonIconResources.Close;
+			clearCell.Value = _resources.ButtonClose;
 			clearCell.ToolTipText = "Clear hotkey";
 			var delCell = (DataGridViewImageCell)row.Cells[OSC_TOGGLE_REMOVE_COLUMN];
-			delCell.Value = ButtonIconResources.Delete;
+			delCell.Value = _resources.ButtonDelete;
 			delCell.ToolTipText = "Remove row";
 		}
 
@@ -247,7 +249,7 @@ namespace X32VolumeHijacker {
 				Value = "",
 			};
 			var addCell = (DataGridViewImageCell)row.Cells[OSC_TOGGLE_REMOVE_COLUMN];
-			addCell.Value = ButtonIconResources.Add;
+			addCell.Value = _resources.ButtonAdd;
 			addCell.ToolTipText = "Add toggle";
 			row.Cells[OSC_TOGGLE_NAME_COLUMN].ReadOnly = true;
 			row.Cells[OSC_TOGGLE_ADDRESS_COLUMN].ReadOnly = true;

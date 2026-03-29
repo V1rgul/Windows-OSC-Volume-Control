@@ -13,7 +13,10 @@ public class TrayApp : ApplicationContext
 
 	readonly ConfigStore _configStore = new();
 	private NotifyIcon _trayIcon;
+	readonly ResourceLoader _resources = new();
 	private AppIconController _icons;
+
+	internal ResourceLoader Resources => _resources;
 	private KeyboardHook _hook;
 	private OSDController _osd;
 	private MixerController _mixer;
@@ -86,7 +89,7 @@ public class TrayApp : ApplicationContext
 			Visible = true,
 			Text = "X32 Volume Hijacker"
 		};
-		_icons = new AppIconController(_trayIcon);
+		_icons = new AppIconController(_trayIcon, _resources);
 		_icons.ApplyState(AppTrayIconState.StartingOrInvalidConfig);
 		_trayIcon.ContextMenuStrip.Items.Add("Configure X32", null, (s, e) => OpenConfig());
 		_trayIcon.ContextMenuStrip.Items.Add("Exit", null, (s, e) => Exit());
