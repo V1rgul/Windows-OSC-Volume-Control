@@ -30,8 +30,9 @@ public partial class OscController {
 	UdpClient udpClient = null!;
 	IPEndPoint? _mixerEndPoint;
 
-	public OscController(Config config){
-		Connection = config;
+	/// <summary>Owns a clone of <paramref name="fromApp"/>; mutating the app snapshot does not affect the socket.</summary>
+	public OscController(Config fromApp) {
+		Connection = fromApp;
 	}
 
 	Config _config = null!;

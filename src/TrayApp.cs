@@ -96,8 +96,9 @@ public class TrayApp : ApplicationContext
 	public void ApplyConfigFromStore() {
 		AppConfig cfg = _configStore.AppConfig;
 		_mixer.ClearFaderSampleCache();
-		_mixer.Osc.ApplyConfig(new OscController.Config(cfg.OscController));
-		_mixer.ApplyConfig(cfg.Mixer ?? new MixerController.Config());
+		_mixer.Osc.ApplyConfig(cfg.OscController);
+		_mixer.ApplyConfig(cfg.Mixer);
+		_osd.ApplyConfig(cfg.Osd);
 		RebuildHotkeysFromConfig(cfg.TrayApp?.FaderBindings ?? [], cfg.TrayApp?.Bindings ?? []);
 	}
 
@@ -111,10 +112,10 @@ public class TrayApp : ApplicationContext
 	public TrayApp() {
 		_configStore.LoadFromDisk();
 		_mixer = new MixerController(
-			new OscController(new OscController.Config(_configStore.AppConfig.OscController)),
-			_configStore.AppConfig.Mixer ?? new MixerController.Config());
+			new OscController(_configStore.AppConfig.OscController),
+			_configStore.AppConfig.Mixer);
 
-		_osd = new OSDController();
+		_osd = new OSDController(_configStore.AppConfig.Osd);
 		_ = _osd.Handle;
 
 		_trayIcon = new NotifyIcon() {

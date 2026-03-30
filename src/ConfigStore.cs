@@ -86,6 +86,7 @@ public sealed class ConfigStore {
 					FaderBindings = faders,
 					Bindings = oscToggles,
 				},
+				Osd = ParseOsdFromMap(map),
 			};
 			LastDiskOutcome = AppConfigDiskOutcome.LoadedOk;
 			LastDiskFeedback = "Loaded settings from disk.";
@@ -99,7 +100,8 @@ public sealed class ConfigStore {
 	public void TryPersistToDisk() {
 		AppConfig cfg = AppConfig;
 		var osc = cfg.OscController;
-		var mixer = cfg.Mixer ?? new MixerController.Config();
+		var mixer = cfg.Mixer;
+		OSDController.Config osd = OSDController.Config.Clamped(cfg.Osd);
 		var toggles = cfg.TrayApp?.Bindings ?? [];
 		var faders = cfg.TrayApp?.FaderBindings ?? [];
 		var lines = new List<string> {
@@ -107,6 +109,8 @@ public sealed class ConfigStore {
 			"port=" + osc.EndPoint.Port.ToString(CultureInfo.InvariantCulture),
 			"timeoutMs=" + osc.timeoutMs.ToString(CultureInfo.InvariantCulture),
 			"valueCacheTtlMs=" + mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture),
+			"osdHeightPx=" + osd.HeightPx.ToString(CultureInfo.InvariantCulture),
+			"osdDisplayDurationMs=" + osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture),
 		};
 		for (int i = 0; i < faders.Count; i++) {
 			OscFaderBinding b = faders[i];
@@ -133,6 +137,17 @@ public sealed class ConfigStore {
 			LastDiskOutcome = AppConfigDiskOutcome.SaveFailed;
 			LastDiskFeedback = "Save failed: " + ex.Message;
 		}
+	}
+
+	static OSDController.Config ParseOsdFromMap(IReadOnlyDictionary<string, string> map) {
+		var o = new OSDController.Config();
+		if (map.TryGetValue("osdHeightPx", out string? hStr)
+		    && int.TryParse(hStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int h))
+			o.HeightPx = h;
+		if (map.TryGetValue("osdDisplayDurationMs", out string? dStr)
+		    && uint.TryParse(dStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint d))
+			o.DisplayDurationMs = d;
+		return OSDController.Config.Clamped(o);
 	}
 
 	static Dictionary<string, string> ParseKeyValueLines(string text) {

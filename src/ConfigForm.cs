@@ -44,6 +44,8 @@ namespace WindowsOscVolumeControl {
 			_resources = tray.Resources;
 			HookNumericUpDownEditTextChanged(numericUpDownQueryTimeoutMs, QueryTimeoutNudEdit_TextChanged);
 			HookNumericUpDownEditTextChanged(numericUpDownFaderVolumeCacheTtlMs, VolumeCacheNudEdit_TextChanged);
+			HookNumericUpDownEditTextChanged(numericUpDownOsdHeightPx, OsdHeightNudEdit_TextChanged);
+			HookNumericUpDownEditTextChanged(numericUpDownOsdDisplayDurationMs, OsdDurationNudEdit_TextChanged);
 			SetupConfigStoreUi();
 			SetupOscToggleGridUi();
 			SetupOscFaderGridUi();
@@ -103,6 +105,10 @@ namespace WindowsOscVolumeControl {
 			numericUpDownQueryTimeoutMs.Maximum = OscController.Config.MaxQueryTimeoutMs;
 			numericUpDownFaderVolumeCacheTtlMs.Minimum = MixerController.Config.MinValueCacheTtlMs;
 			numericUpDownFaderVolumeCacheTtlMs.Maximum = MixerController.Config.MaxValueCacheTtlMs;
+			numericUpDownOsdHeightPx.Minimum = OSDController.Config.MinHeightPx;
+			numericUpDownOsdHeightPx.Maximum = OSDController.Config.MaxHeightPx;
+			numericUpDownOsdDisplayDurationMs.Minimum = OSDController.Config.MinDisplayDurationMs;
+			numericUpDownOsdDisplayDurationMs.Maximum = OSDController.Config.MaxDisplayDurationMs;
 		}
 
 		void SetupConfigStoreUi() {
@@ -164,6 +170,11 @@ namespace WindowsOscVolumeControl {
 			nud.Value = value;
 		}
 
+		static void SetOsdHeightNudClamped(NumericUpDown nud, int value) {
+			value = Math.Clamp(value, OSDController.Config.MinHeightPx, OSDController.Config.MaxHeightPx);
+			nud.Value = value;
+		}
+
 		static void ClearFeedbackLabel(Label label) {
 			label.Text = "";
 			label.ForeColor = Color.Black;
@@ -176,6 +187,9 @@ namespace WindowsOscVolumeControl {
 			SetNumericUpDownClamped(numericUpDownQueryTimeoutMs, c.timeoutMs);
 			uint ttl = Math.Min(_configStore.AppConfig.Mixer.ValueCacheTtlMs, MixerController.Config.MaxValueCacheTtlMs);
 			SetNumericUpDownClamped(numericUpDownFaderVolumeCacheTtlMs, ttl);
+			OSDController.Config osd = OSDController.Config.Clamped(_configStore.AppConfig.Osd);
+			SetOsdHeightNudClamped(numericUpDownOsdHeightPx, osd.HeightPx);
+			SetNumericUpDownClamped(numericUpDownOsdDisplayDurationMs, osd.DisplayDurationMs);
 			RefreshQueryTimeoutAndVolumeCacheColors();
 			LoadOscFaderBindings();
 			LoadOscToggleBindings();
@@ -297,11 +311,17 @@ namespace WindowsOscVolumeControl {
 
 		bool VolumeCacheFieldOk() => NumericUpDownTextInRange(numericUpDownFaderVolumeCacheTtlMs);
 
+		bool OsdHeightFieldOk() => NumericUpDownTextInRange(numericUpDownOsdHeightPx);
+
+		bool OsdDisplayDurationFieldOk() => NumericUpDownTextInRange(numericUpDownOsdDisplayDurationMs);
+
 		static string GridCellText(DataGridViewRow row, int columnIndex) => Convert.ToString(row.Cells[columnIndex].Value, CultureInfo.InvariantCulture)?.Trim() ?? "";
 
 		void RefreshQueryTimeoutAndVolumeCacheColors() {
 			numericUpDownQueryTimeoutMs.ForeColor = QueryTimeoutFieldOk() ? Color.Black : Color.Red;
 			numericUpDownFaderVolumeCacheTtlMs.ForeColor = VolumeCacheFieldOk() ? Color.Black : Color.Red;
+			numericUpDownOsdHeightPx.ForeColor = OsdHeightFieldOk() ? Color.Black : Color.Red;
+			numericUpDownOsdDisplayDurationMs.ForeColor = OsdDisplayDurationFieldOk() ? Color.Black : Color.Red;
 		}
 
 		static bool IsOscFaderRowAllEmpty(DataGridViewRow row) {
@@ -477,7 +497,8 @@ namespace WindowsOscVolumeControl {
 		bool OscToggleListOk() => TryReadOscToggleBindings(out _, out _);
 
 		bool ApplyFormOk() {
-			if (!IpFieldOk() || !PortFieldOk() || !QueryTimeoutFieldOk() || !VolumeCacheFieldOk())
+			if (!IpFieldOk() || !PortFieldOk() || !QueryTimeoutFieldOk() || !VolumeCacheFieldOk()
+			    || !OsdHeightFieldOk() || !OsdDisplayDurationFieldOk())
 				return false;
 			if (!TryReadOscFaderBindings(out List<OscFaderBinding> faders, out _))
 				return false;
@@ -493,6 +514,8 @@ namespace WindowsOscVolumeControl {
 			textBoxPort.Enabled = enabled;
 			numericUpDownFaderVolumeCacheTtlMs.Enabled = enabled;
 			numericUpDownQueryTimeoutMs.Enabled = enabled;
+			numericUpDownOsdHeightPx.Enabled = enabled;
+			numericUpDownOsdDisplayDurationMs.Enabled = enabled;
 			dataGridViewOscToggles.Enabled = enabled;
 			dataGridViewOscFaders.Enabled = enabled;
 		}
@@ -894,6 +917,26 @@ namespace WindowsOscVolumeControl {
 			RefreshApplyButtonEnabled();
 		}
 
+		private void numericUpDownOsdHeightPx_ValueChanged(object? sender, EventArgs e) {
+			RefreshQueryTimeoutAndVolumeCacheColors();
+			RefreshApplyButtonEnabled();
+		}
+
+		private void numericUpDownOsdDisplayDurationMs_ValueChanged(object? sender, EventArgs e) {
+			RefreshQueryTimeoutAndVolumeCacheColors();
+			RefreshApplyButtonEnabled();
+		}
+
+		void OsdHeightNudEdit_TextChanged(object? sender, EventArgs e) {
+			RefreshQueryTimeoutAndVolumeCacheColors();
+			RefreshApplyButtonEnabled();
+		}
+
+		void OsdDurationNudEdit_TextChanged(object? sender, EventArgs e) {
+			RefreshQueryTimeoutAndVolumeCacheColors();
+			RefreshApplyButtonEnabled();
+		}
+
 		private void ConfigForm_Load(object sender, EventArgs e) {
 			PositionNearBottomRightOfWorkingArea();
 			SyncTitlebarIconFromTray();
@@ -981,6 +1024,10 @@ namespace WindowsOscVolumeControl {
 						FaderBindings = oscFaders.Select(f => new OscFaderBinding(f)).ToList(),
 						Bindings = oscToggles.Select(b => new OscToggleBinding(b)).ToList(),
 					},
+					Osd = OSDController.Config.Clamped(new OSDController.Config {
+						HeightPx = (int)numericUpDownOsdHeightPx.Value,
+						DisplayDurationMs = (uint)numericUpDownOsdDisplayDurationMs.Value,
+					}),
 				};
 				_tray.CommitConfigFromSettingsForm(appConfig);
 				ResetOscToggleHint();

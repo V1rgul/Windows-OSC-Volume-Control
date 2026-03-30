@@ -49,6 +49,16 @@ namespace WindowsOscVolumeControl
 			buttonOpenConfigStoreFolder = new Button();
 			labelConfigStoreFeedback = new Label();
 			toolTipConfigStore = new ToolTip();
+			groupBoxOsd = new GroupBox();
+			tableLayoutOsd = new TableLayoutPanel();
+			tableLayoutOsdHeight = new TableLayoutPanel();
+			labelOsdHeightPx = new Label();
+			numericUpDownOsdHeightPx = new NumericUpDown();
+			labelOsdHeightUnitPx = new Label();
+			tableLayoutOsdDisplayDuration = new TableLayoutPanel();
+			labelOsdDisplayDurationMs = new Label();
+			numericUpDownOsdDisplayDurationMs = new NumericUpDown();
+			labelOsdDisplayDurationUnitMs = new Label();
 			groupBoxNetwork = new GroupBox();
 			tableLayoutNetwork = new TableLayoutPanel();
 			tableLayoutQueryTimeout = new TableLayoutPanel();
@@ -89,6 +99,10 @@ namespace WindowsOscVolumeControl
 			tableLayoutPanelAutostart.SuspendLayout();
 			groupBoxConfigStore.SuspendLayout();
 			tableLayoutConfigStore.SuspendLayout();
+			groupBoxOsd.SuspendLayout();
+			tableLayoutOsd.SuspendLayout();
+			tableLayoutOsdHeight.SuspendLayout();
+			tableLayoutOsdDisplayDuration.SuspendLayout();
 			groupBoxNetwork.SuspendLayout();
 			tableLayoutNetwork.SuspendLayout();
 			tableLayoutQueryTimeout.SuspendLayout();
@@ -363,6 +377,156 @@ namespace WindowsOscVolumeControl
 			toolTipConfigStore.AutoPopDelay = 10000;
 			toolTipConfigStore.InitialDelay = 400;
 			toolTipConfigStore.ReshowDelay = 200;
+			// 
+			// groupBoxOsd
+			// 
+			groupBoxOsd.Controls.Add(tableLayoutOsd);
+			groupBoxOsd.Dock = DockStyle.Fill;
+			groupBoxOsd.Location = new Point(3, 215);
+			groupBoxOsd.Margin = new Padding(3, 3, 3, 6);
+			groupBoxOsd.Name = "groupBoxOsd";
+			groupBoxOsd.Padding = new Padding(3, 3, 3, 3);
+			groupBoxOsd.Size = new Size(413, 100);
+			groupBoxOsd.TabIndex = 11;
+			groupBoxOsd.TabStop = false;
+			groupBoxOsd.Text = "OSD";
+			// 
+			// tableLayoutOsd
+			// 
+			tableLayoutOsd.ColumnCount = 1;
+			tableLayoutOsd.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+			tableLayoutOsd.Controls.Add(tableLayoutOsdHeight, 0, 0);
+			tableLayoutOsd.Controls.Add(tableLayoutOsdDisplayDuration, 0, 1);
+			tableLayoutOsd.Dock = DockStyle.Fill;
+			tableLayoutOsd.Location = new Point(3, 23);
+			tableLayoutOsd.Name = "tableLayoutOsd";
+			tableLayoutOsd.RowCount = 2;
+			tableLayoutOsd.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+			tableLayoutOsd.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+			tableLayoutOsd.Size = new Size(407, 74);
+			tableLayoutOsd.TabIndex = 0;
+			// 
+			// tableLayoutOsdHeight
+			// 
+			tableLayoutOsdHeight.AutoSize = true;
+			tableLayoutOsdHeight.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+			tableLayoutOsdHeight.ColumnCount = 3;
+			tableLayoutOsdHeight.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+			tableLayoutOsdHeight.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+			tableLayoutOsdHeight.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+			tableLayoutOsdHeight.Controls.Add(labelOsdHeightPx, 0, 0);
+			tableLayoutOsdHeight.Controls.Add(numericUpDownOsdHeightPx, 1, 0);
+			tableLayoutOsdHeight.Controls.Add(labelOsdHeightUnitPx, 2, 0);
+			tableLayoutOsdHeight.Dock = DockStyle.Fill;
+			tableLayoutOsdHeight.Location = new Point(0, 0);
+			tableLayoutOsdHeight.Margin = new Padding(0);
+			tableLayoutOsdHeight.Name = "tableLayoutOsdHeight";
+			tableLayoutOsdHeight.RowCount = 1;
+			tableLayoutOsdHeight.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+			tableLayoutOsdHeight.Size = new Size(407, 33);
+			tableLayoutOsdHeight.TabIndex = 0;
+			// 
+			// labelOsdHeightPx
+			// 
+			labelOsdHeightPx.AutoSize = true;
+			labelOsdHeightPx.Dock = DockStyle.Fill;
+			labelOsdHeightPx.Location = new Point(0, 0);
+			labelOsdHeightPx.Margin = new Padding(0, 0, 6, 0);
+			labelOsdHeightPx.Name = "labelOsdHeightPx";
+			labelOsdHeightPx.Size = new Size(56, 27);
+			labelOsdHeightPx.TabIndex = 0;
+			labelOsdHeightPx.Text = "Height:";
+			labelOsdHeightPx.TextAlign = ContentAlignment.MiddleLeft;
+			// 
+			// numericUpDownOsdHeightPx
+			// 
+			numericUpDownOsdHeightPx.DecimalPlaces = 0;
+			numericUpDownOsdHeightPx.Dock = DockStyle.Fill;
+			numericUpDownOsdHeightPx.Increment = 1;
+			numericUpDownOsdHeightPx.Location = new Point(62, 3);
+			numericUpDownOsdHeightPx.Margin = new Padding(0, 3, 0, 3);
+			numericUpDownOsdHeightPx.Maximum = 600;
+			numericUpDownOsdHeightPx.Minimum = 48;
+			numericUpDownOsdHeightPx.Name = "numericUpDownOsdHeightPx";
+			numericUpDownOsdHeightPx.Size = new Size(313, 27);
+			numericUpDownOsdHeightPx.TabIndex = 1;
+			numericUpDownOsdHeightPx.TextAlign = HorizontalAlignment.Right;
+			numericUpDownOsdHeightPx.ThousandsSeparator = true;
+			numericUpDownOsdHeightPx.Value = 78;
+			numericUpDownOsdHeightPx.ValueChanged += numericUpDownOsdHeightPx_ValueChanged;
+			// 
+			// labelOsdHeightUnitPx
+			// 
+			labelOsdHeightUnitPx.AutoSize = true;
+			labelOsdHeightUnitPx.Dock = DockStyle.Fill;
+			labelOsdHeightUnitPx.Location = new Point(375, 3);
+			labelOsdHeightUnitPx.Margin = new Padding(6, 3, 0, 3);
+			labelOsdHeightUnitPx.Name = "labelOsdHeightUnitPx";
+			labelOsdHeightUnitPx.Size = new Size(25, 27);
+			labelOsdHeightUnitPx.TabIndex = 2;
+			labelOsdHeightUnitPx.Text = "px";
+			labelOsdHeightUnitPx.TextAlign = ContentAlignment.MiddleLeft;
+			// 
+			// tableLayoutOsdDisplayDuration
+			// 
+			tableLayoutOsdDisplayDuration.AutoSize = true;
+			tableLayoutOsdDisplayDuration.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+			tableLayoutOsdDisplayDuration.ColumnCount = 3;
+			tableLayoutOsdDisplayDuration.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+			tableLayoutOsdDisplayDuration.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+			tableLayoutOsdDisplayDuration.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+			tableLayoutOsdDisplayDuration.Controls.Add(labelOsdDisplayDurationMs, 0, 0);
+			tableLayoutOsdDisplayDuration.Controls.Add(numericUpDownOsdDisplayDurationMs, 1, 0);
+			tableLayoutOsdDisplayDuration.Controls.Add(labelOsdDisplayDurationUnitMs, 2, 0);
+			tableLayoutOsdDisplayDuration.Dock = DockStyle.Fill;
+			tableLayoutOsdDisplayDuration.Location = new Point(0, 33);
+			tableLayoutOsdDisplayDuration.Margin = new Padding(0);
+			tableLayoutOsdDisplayDuration.Name = "tableLayoutOsdDisplayDuration";
+			tableLayoutOsdDisplayDuration.RowCount = 1;
+			tableLayoutOsdDisplayDuration.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+			tableLayoutOsdDisplayDuration.Size = new Size(407, 33);
+			tableLayoutOsdDisplayDuration.TabIndex = 1;
+			// 
+			// labelOsdDisplayDurationMs
+			// 
+			labelOsdDisplayDurationMs.AutoSize = true;
+			labelOsdDisplayDurationMs.Dock = DockStyle.Fill;
+			labelOsdDisplayDurationMs.Location = new Point(0, 0);
+			labelOsdDisplayDurationMs.Margin = new Padding(0, 0, 6, 0);
+			labelOsdDisplayDurationMs.Name = "labelOsdDisplayDurationMs";
+			labelOsdDisplayDurationMs.Size = new Size(120, 27);
+			labelOsdDisplayDurationMs.TabIndex = 0;
+			labelOsdDisplayDurationMs.Text = "Display duration:";
+			labelOsdDisplayDurationMs.TextAlign = ContentAlignment.MiddleLeft;
+			// 
+			// numericUpDownOsdDisplayDurationMs
+			// 
+			numericUpDownOsdDisplayDurationMs.DecimalPlaces = 0;
+			numericUpDownOsdDisplayDurationMs.Dock = DockStyle.Fill;
+			numericUpDownOsdDisplayDurationMs.Increment = 10;
+			numericUpDownOsdDisplayDurationMs.Location = new Point(126, 3);
+			numericUpDownOsdDisplayDurationMs.Margin = new Padding(0, 3, 0, 3);
+			numericUpDownOsdDisplayDurationMs.Maximum = 60000;
+			numericUpDownOsdDisplayDurationMs.Minimum = 200;
+			numericUpDownOsdDisplayDurationMs.Name = "numericUpDownOsdDisplayDurationMs";
+			numericUpDownOsdDisplayDurationMs.Size = new Size(249, 27);
+			numericUpDownOsdDisplayDurationMs.TabIndex = 1;
+			numericUpDownOsdDisplayDurationMs.TextAlign = HorizontalAlignment.Right;
+			numericUpDownOsdDisplayDurationMs.ThousandsSeparator = true;
+			numericUpDownOsdDisplayDurationMs.Value = 1000;
+			numericUpDownOsdDisplayDurationMs.ValueChanged += numericUpDownOsdDisplayDurationMs_ValueChanged;
+			// 
+			// labelOsdDisplayDurationUnitMs
+			// 
+			labelOsdDisplayDurationUnitMs.AutoSize = true;
+			labelOsdDisplayDurationUnitMs.Dock = DockStyle.Fill;
+			labelOsdDisplayDurationUnitMs.Location = new Point(375, 3);
+			labelOsdDisplayDurationUnitMs.Margin = new Padding(6, 3, 0, 3);
+			labelOsdDisplayDurationUnitMs.Name = "labelOsdDisplayDurationUnitMs";
+			labelOsdDisplayDurationUnitMs.Size = new Size(28, 27);
+			labelOsdDisplayDurationUnitMs.TabIndex = 2;
+			labelOsdDisplayDurationUnitMs.Text = "ms";
+			labelOsdDisplayDurationUnitMs.TextAlign = ContentAlignment.MiddleLeft;
 			// 
 			// groupBoxNetwork
 			// 
@@ -823,15 +987,17 @@ namespace WindowsOscVolumeControl
 			tableLayoutMain.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 			tableLayoutMain.Controls.Add(groupBoxAutostart, 0, 0);
 			tableLayoutMain.Controls.Add(groupBoxConfigStore, 0, 1);
-			tableLayoutMain.Controls.Add(groupBoxNetwork, 0, 2);
-			tableLayoutMain.Controls.Add(groupBoxOscBase, 0, 3);
-			tableLayoutMain.Controls.Add(groupBoxFader, 0, 4);
-			tableLayoutMain.Controls.Add(groupBoxOscToggles, 0, 5);
-			tableLayoutMain.Controls.Add(buttonSaveAndTest, 0, 6);
+			tableLayoutMain.Controls.Add(groupBoxOsd, 0, 2);
+			tableLayoutMain.Controls.Add(groupBoxNetwork, 0, 3);
+			tableLayoutMain.Controls.Add(groupBoxOscBase, 0, 4);
+			tableLayoutMain.Controls.Add(groupBoxFader, 0, 5);
+			tableLayoutMain.Controls.Add(groupBoxOscToggles, 0, 6);
+			tableLayoutMain.Controls.Add(buttonSaveAndTest, 0, 7);
 			tableLayoutMain.Dock = DockStyle.Fill;
 			tableLayoutMain.Location = new Point(0, 0);
 			tableLayoutMain.Name = "tableLayoutMain";
-			tableLayoutMain.RowCount = 7;
+			tableLayoutMain.RowCount = 8;
+			tableLayoutMain.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 			tableLayoutMain.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 			tableLayoutMain.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 			tableLayoutMain.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -859,6 +1025,13 @@ namespace WindowsOscVolumeControl
 			tableLayoutConfigStore.ResumeLayout(false);
 			tableLayoutConfigStore.PerformLayout();
 			groupBoxConfigStore.ResumeLayout(false);
+			tableLayoutOsdHeight.ResumeLayout(false);
+			tableLayoutOsdHeight.PerformLayout();
+			tableLayoutOsdDisplayDuration.ResumeLayout(false);
+			tableLayoutOsdDisplayDuration.PerformLayout();
+			tableLayoutOsd.ResumeLayout(false);
+			tableLayoutOsd.PerformLayout();
+			groupBoxOsd.ResumeLayout(false);
 			tableLayoutQueryTimeout.ResumeLayout(false);
 			tableLayoutQueryTimeout.PerformLayout();
 			tableLayoutNetwork.ResumeLayout(false);
@@ -906,6 +1079,16 @@ namespace WindowsOscVolumeControl
 		private Button buttonOpenConfigStoreFolder;
 		private Label labelConfigStoreFeedback;
 		private ToolTip toolTipConfigStore;
+		private GroupBox groupBoxOsd;
+		private TableLayoutPanel tableLayoutOsd;
+		private TableLayoutPanel tableLayoutOsdHeight;
+		private Label labelOsdHeightPx;
+		private NumericUpDown numericUpDownOsdHeightPx;
+		private Label labelOsdHeightUnitPx;
+		private TableLayoutPanel tableLayoutOsdDisplayDuration;
+		private Label labelOsdDisplayDurationMs;
+		private NumericUpDown numericUpDownOsdDisplayDurationMs;
+		private Label labelOsdDisplayDurationUnitMs;
 		private GroupBox groupBoxNetwork;
 		private TableLayoutPanel tableLayoutNetwork;
 		private TableLayoutPanel tableLayoutQueryTimeout;
