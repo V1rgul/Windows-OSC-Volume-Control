@@ -382,11 +382,14 @@ public class OSDController : Form
 		ShowNoActivate();
 	}
 
-	public void ShowToggle(string name, bool enabled)
+	/// <summary>Shows on/off state for an OSC toggle; <paramref name="displayName"/> is normally <see cref="OscBinding.displayName"/> from the caller so this layer stays free of binding types.</summary>
+	/// <param name="displayName">Row label (same rules as <see cref="OscBinding.displayName"/>).</param>
+	/// <param name="enabled">Whether the toggle is on.</param>
+	public void ShowToggle(string displayName, bool enabled)
 	{
 		_flashTimer.Stop();
 		_flashSign = FlashSign.NONE;
-		_statusText = string.IsNullOrWhiteSpace(name) ? "OSC TOGGLE" : name.Trim();
+		_statusText = displayName;
 		_statusOn = enabled;
 		_view = OsdView.TOGGLE_STATUS;
 		Invalidate();

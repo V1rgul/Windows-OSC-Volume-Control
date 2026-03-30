@@ -50,7 +50,7 @@ namespace WindowsOscVolumeControl {
 			ArgumentNullException.ThrowIfNull(hotkeys);
 			lock (_configuredHotkeysSync) {
 				_configuredHotkeys = hotkeys
-					.Select(OscHotkey.normalize)
+					.Select(KeysUtil.normalize)
 					.Where(hotkey => hotkey != Keys.None)
 					.ToHashSet();
 				_pressedConfiguredHotkeys.Clear();
@@ -65,7 +65,7 @@ namespace WindowsOscVolumeControl {
 			}
 		}
 
-		static bool IsModifierVirtualKey(int vkCode) => OscHotkey.isModifierKey((Keys)vkCode);
+		static bool IsModifierVirtualKey(int vkCode) => KeysUtil.isModifierKey((Keys)vkCode);
 
 		static Keys GetActiveModifiers() {
 			Keys modifiers = Keys.None;
@@ -91,7 +91,7 @@ namespace WindowsOscVolumeControl {
 					return _pressedConfiguredHotkeys.Remove(vkCode);
 				if (!IsKeyDown(wParam))
 					return false;
-				Keys candidate = OscHotkey.normalize((Keys)vkCode | GetActiveModifiers());
+				Keys candidate = KeysUtil.normalize((Keys)vkCode | GetActiveModifiers());
 				if (!_configuredHotkeys.Contains(candidate))
 					return false;
 				if (_pressedConfiguredHotkeys.ContainsKey(vkCode))

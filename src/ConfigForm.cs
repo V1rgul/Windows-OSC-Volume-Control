@@ -26,7 +26,7 @@ namespace WindowsOscVolumeControl {
 		const int OSC_FADER_REMOVE_COLUMN = 9;
 
 		readonly MixerController _mixer;
-		readonly AppIconController _icons;
+		readonly TrayController _trayController;
 		readonly TrayApp _tray;
 		readonly ConfigStore _configStore;
 		readonly ResourceLoader _resources;
@@ -34,11 +34,11 @@ namespace WindowsOscVolumeControl {
 		DataGridView? _hotkeyOwnerGrid;
 		int _hotkeyOwnerColumn = -1;
 
-		public ConfigForm(MixerController mixer, AppIconController icons, TrayApp tray, ConfigStore configStore) {
+		public ConfigForm(MixerController mixer, TrayController trayController, TrayApp tray, ConfigStore configStore) {
 			InitializeComponent();
 			ApplyConfigNumericBoundsFromPolicy();
 			this._mixer = mixer;
-			this._icons = icons;
+			this._trayController = trayController;
 			this._tray = tray;
 			this._configStore = configStore;
 			_resources = tray.Resources;
@@ -163,7 +163,7 @@ namespace WindowsOscVolumeControl {
 			}
 		}
 
-		void SyncTitlebarIconFromTray() => Icon = _icons.TrayIconSnapshot;
+		void SyncTitlebarIconFromTray() => Icon = _trayController.TrayIconSnapshot;
 
 		static void SetNumericUpDownClamped(NumericUpDown nud, uint value) {
 			if (value < (uint)nud.Minimum) value = (uint)nud.Minimum;
@@ -343,15 +343,15 @@ namespace WindowsOscVolumeControl {
 			text = text.Trim();
 			if (string.IsNullOrEmpty(text))
 				return true;
-			if (!OscHotkey.tryParse(text, out hotkey)) {
+			if (!KeysUtil.tryParse(text, out hotkey)) {
 				error = "Invalid hotkey.";
 				return false;
 			}
-			if (!OscHotkey.tryValidate(hotkey, out string hotkeyError)) {
+			if (!KeysUtil.tryValidate(hotkey, out string hotkeyError)) {
 				error = hotkeyError;
 				return false;
 			}
-			hotkey = OscHotkey.normalize(hotkey);
+			hotkey = KeysUtil.normalize(hotkey);
 			return true;
 		}
 
@@ -440,15 +440,15 @@ namespace WindowsOscVolumeControl {
 					error = $"OSC toggle row {rowIndex + 1} must have Name, Address, and Hotkey.";
 					return false;
 				}
-				if (!OscHotkey.tryParse(hotkeyText, out Keys hotkey)) {
+				if (!KeysUtil.tryParse(hotkeyText, out Keys hotkey)) {
 					error = $"OSC toggle row {rowIndex + 1} has an invalid hotkey.";
 					return false;
 				}
-				if (!OscHotkey.tryValidate(hotkey, out string hotkeyError)) {
+				if (!KeysUtil.tryValidate(hotkey, out string hotkeyError)) {
 					error = $"OSC toggle row {rowIndex + 1}: {hotkeyError}";
 					return false;
 				}
-				hotkey = OscHotkey.normalize(hotkey);
+				hotkey = KeysUtil.normalize(hotkey);
 				bindings.Add(new OscToggleBinding {
 					name = name,
 					address = address,
@@ -465,17 +465,17 @@ namespace WindowsOscVolumeControl {
 				OscFaderBinding f = faders[i];
 				string rowLabel = $"OSC fader row {i + 1}";
 				if (f.hotkeyMinus != Keys.None) {
-					Keys k = OscHotkey.normalize(f.hotkeyMinus);
+					Keys k = KeysUtil.normalize(f.hotkeyMinus);
 					if (claimed.TryGetValue(k, out string? prev)) {
-						error = $"{rowLabel} hotkey − ({OscHotkey.format(k)}) conflicts with {prev}.";
+						error = $"{rowLabel} hotkey − ({KeysUtil.format(k)}) conflicts with {prev}.";
 						return false;
 					}
 					claimed[k] = $"{rowLabel} (−)";
 				}
 				if (f.hotkeyPlus != Keys.None) {
-					Keys k = OscHotkey.normalize(f.hotkeyPlus);
+					Keys k = KeysUtil.normalize(f.hotkeyPlus);
 					if (claimed.TryGetValue(k, out string? prev)) {
-						error = $"{rowLabel} hotkey + ({OscHotkey.format(k)}) conflicts with {prev}.";
+						error = $"{rowLabel} hotkey + ({KeysUtil.format(k)}) conflicts with {prev}.";
 						return false;
 					}
 					claimed[k] = $"{rowLabel} (+)";
@@ -483,9 +483,9 @@ namespace WindowsOscVolumeControl {
 			}
 			for (int i = 0; i < toggles.Count; i++) {
 				OscToggleBinding t = toggles[i];
-				Keys k = OscHotkey.normalize(t.hotkey);
+				Keys k = KeysUtil.normalize(t.hotkey);
 				if (claimed.TryGetValue(k, out string? prev)) {
-					error = $"OSC toggle \"{t.name}\" ({OscHotkey.format(k)}) conflicts with {prev}.";
+					error = $"OSC toggle \"{t.name}\" ({KeysUtil.format(k)}) conflicts with {prev}.";
 					return false;
 				}
 				claimed[k] = $"OSC toggle \"{t.name}\"";
@@ -670,8 +670,8 @@ namespace WindowsOscVolumeControl {
 				return;
 			DataGridViewCell cell = dataGridViewOscToggles.Rows[e.RowIndex].Cells[e.ColumnIndex];
 			string text = Convert.ToString(cell.Value, CultureInfo.InvariantCulture)?.Trim() ?? "";
-			if (e.ColumnIndex == OSC_TOGGLE_HOTKEY_COLUMN && OscHotkey.tryParse(text, out Keys hotkey))
-				text = OscHotkey.format(hotkey);
+			if (e.ColumnIndex == OSC_TOGGLE_HOTKEY_COLUMN && KeysUtil.tryParse(text, out Keys hotkey))
+				text = KeysUtil.format(hotkey);
 			cell.Value = text;
 			ResetOscToggleHint();
 			RefreshApplyButtonEnabled();
@@ -687,8 +687,8 @@ namespace WindowsOscVolumeControl {
 				if (float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float fv) && float.IsFinite(fv))
 					text = FaderFloatUtil.FormatGridFloat(fv);
 			} else if ((e.ColumnIndex == OSC_FADER_HOTKEY_MINUS_COLUMN || e.ColumnIndex == OSC_FADER_HOTKEY_PLUS_COLUMN)
-			           && OscHotkey.tryParse(text, out Keys hk)) {
-				text = OscHotkey.format(hk);
+			           && KeysUtil.tryParse(text, out Keys hk)) {
+				text = KeysUtil.format(hk);
 			}
 			cell.Value = text;
 			ClearFaderTestFeedback();
@@ -699,7 +699,7 @@ namespace WindowsOscVolumeControl {
 			int insertIndex = dataGridViewOscToggles.Rows.Count;
 			if (insertIndex > 0 && IsOscToggleAddRow(dataGridViewOscToggles.Rows[insertIndex - 1]))
 				insertIndex--;
-			dataGridViewOscToggles.Rows.Insert(insertIndex, binding?.name ?? "", binding?.address ?? "", binding != null ? OscHotkey.format(binding.hotkey) : "", "", "");
+			dataGridViewOscToggles.Rows.Insert(insertIndex, binding?.name ?? "", binding?.address ?? "", binding != null ? KeysUtil.format(binding.hotkey) : "", "", "");
 			ConfigureOscToggleDataRow(dataGridViewOscToggles.Rows[insertIndex]);
 			EnsureOscToggleAddRow();
 			if (binding == null) {
@@ -723,9 +723,9 @@ namespace WindowsOscVolumeControl {
 					s(binding.step),
 					s(binding.minimum),
 					s(binding.maximum),
-					OscHotkey.format(binding.hotkeyMinus),
+					KeysUtil.format(binding.hotkeyMinus),
 					"",
-					OscHotkey.format(binding.hotkeyPlus),
+					KeysUtil.format(binding.hotkeyPlus),
 					"",
 					"",
 				];
@@ -775,12 +775,12 @@ namespace WindowsOscVolumeControl {
 			int rowIndex = _hotkeyOwnerGrid.CurrentCell.RowIndex;
 			if (rowIndex < 0)
 				return;
-			if (!OscHotkey.tryValidate(hotkey, out string error)) {
+			if (!KeysUtil.tryValidate(hotkey, out string error)) {
 				ShowOscToggleError(error);
 				RefreshApplyButtonEnabled();
 				return;
 			}
-			SetHotkeyCellDisplay(_hotkeyOwnerGrid, rowIndex, _hotkeyOwnerColumn, OscHotkey.format(OscHotkey.normalize(hotkey)));
+			SetHotkeyCellDisplay(_hotkeyOwnerGrid, rowIndex, _hotkeyOwnerColumn, KeysUtil.format(KeysUtil.normalize(hotkey)));
 			ResetOscToggleHint();
 			ClearFaderTestFeedback();
 			RefreshApplyButtonEnabled();
@@ -801,18 +801,18 @@ namespace WindowsOscVolumeControl {
 				e.SuppressKeyPress = true;
 				return;
 			}
-			if (OscHotkey.isModifierKey(e.KeyCode)) {
+			if (KeysUtil.isModifierKey(e.KeyCode)) {
 				e.SuppressKeyPress = true;
 				return;
 			}
-			Keys k = OscHotkey.normalize(e.KeyData);
-			if (!OscHotkey.tryValidate(k, out string err)) {
+			Keys k = KeysUtil.normalize(e.KeyData);
+			if (!KeysUtil.tryValidate(k, out string err)) {
 				ShowOscToggleError(err);
 				RefreshApplyButtonEnabled();
 				e.SuppressKeyPress = true;
 				return;
 			}
-			SetHotkeyCellDisplay(dataGridViewOscToggles, r, OSC_TOGGLE_HOTKEY_COLUMN, OscHotkey.format(k));
+			SetHotkeyCellDisplay(dataGridViewOscToggles, r, OSC_TOGGLE_HOTKEY_COLUMN, KeysUtil.format(k));
 			ResetOscToggleHint();
 			RefreshApplyButtonEnabled();
 			e.SuppressKeyPress = true;
@@ -834,18 +834,18 @@ namespace WindowsOscVolumeControl {
 				e.SuppressKeyPress = true;
 				return;
 			}
-			if (OscHotkey.isModifierKey(e.KeyCode)) {
+			if (KeysUtil.isModifierKey(e.KeyCode)) {
 				e.SuppressKeyPress = true;
 				return;
 			}
-			Keys k = OscHotkey.normalize(e.KeyData);
-			if (!OscHotkey.tryValidate(k, out string err)) {
+			Keys k = KeysUtil.normalize(e.KeyData);
+			if (!KeysUtil.tryValidate(k, out string err)) {
 				ShowOscToggleError(err);
 				RefreshApplyButtonEnabled();
 				e.SuppressKeyPress = true;
 				return;
 			}
-			SetHotkeyCellDisplay(dataGridViewOscFaders, r, c, OscHotkey.format(k));
+			SetHotkeyCellDisplay(dataGridViewOscFaders, r, c, KeysUtil.format(k));
 			ClearFaderTestFeedback();
 			RefreshApplyButtonEnabled();
 			e.SuppressKeyPress = true;
@@ -896,11 +896,11 @@ namespace WindowsOscVolumeControl {
 				e.SuppressKeyPress = true;
 				return;
 			}
-			if (OscHotkey.isModifierKey(e.KeyCode)) {
+			if (KeysUtil.isModifierKey(e.KeyCode)) {
 				e.SuppressKeyPress = true;
 				return;
 			}
-			ApplyHotkeyToOwnerEditTarget(OscHotkey.normalize(e.KeyData));
+			ApplyHotkeyToOwnerEditTarget(KeysUtil.normalize(e.KeyData));
 			e.SuppressKeyPress = true;
 		}
 

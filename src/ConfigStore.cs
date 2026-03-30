@@ -102,14 +102,14 @@ public sealed class ConfigStore {
 			lines.Add("oscFader." + p + ".step=" + FaderFloatUtil.FormatGridFloat(b.step));
 			lines.Add("oscFader." + p + ".minimum=" + FaderFloatUtil.FormatGridFloat(b.minimum));
 			lines.Add("oscFader." + p + ".maximum=" + FaderFloatUtil.FormatGridFloat(b.maximum));
-			lines.Add("oscFader." + p + ".hotkeyMinus=" + OscHotkey.format(b.hotkeyMinus));
-			lines.Add("oscFader." + p + ".hotkeyPlus=" + OscHotkey.format(b.hotkeyPlus));
+			lines.Add("oscFader." + p + ".hotkeyMinus=" + KeysUtil.format(b.hotkeyMinus));
+			lines.Add("oscFader." + p + ".hotkeyPlus=" + KeysUtil.format(b.hotkeyPlus));
 		}
 		for (int i = 0; i < toggles.Count; i++) {
 			OscToggleBinding binding = toggles[i];
 			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".name=" + binding.name.Trim());
 			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".address=" + binding.address.Trim());
-			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".hotkey=" + OscHotkey.format(binding.hotkey));
+			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".hotkey=" + KeysUtil.format(binding.hotkey));
 		}
 		try {
 			File.WriteAllText(configPath, string.Join(Environment.NewLine, lines) + Environment.NewLine);
@@ -234,11 +234,11 @@ public sealed class ConfigStore {
 						row.maximum = mx;
 					break;
 				case "hotkeyminus":
-					if (OscHotkey.tryParse(value, out var hm))
+					if (KeysUtil.tryParse(value, out var hm))
 						row.hotkeyMinus = hm;
 					break;
 				case "hotkeyplus":
-					if (OscHotkey.tryParse(value, out var hp))
+					if (KeysUtil.tryParse(value, out var hp))
 						row.hotkeyPlus = hp;
 					break;
 			}
@@ -260,8 +260,8 @@ public sealed class ConfigStore {
 				step = row.step,
 				minimum = minR,
 				maximum = maxR,
-				hotkeyMinus = OscHotkey.normalize(row.hotkeyMinus),
-				hotkeyPlus = OscHotkey.normalize(row.hotkeyPlus),
+				hotkeyMinus = KeysUtil.normalize(row.hotkeyMinus),
+				hotkeyPlus = KeysUtil.normalize(row.hotkeyPlus),
 			});
 		}
 		return result;
@@ -291,7 +291,7 @@ public sealed class ConfigStore {
 					row.address = value.Trim();
 					break;
 				case "hotkey":
-					if (OscHotkey.tryParse(value, out var hotkey))
+					if (KeysUtil.tryParse(value, out var hotkey))
 						row.hotkey = hotkey;
 					break;
 			}
@@ -305,7 +305,7 @@ public sealed class ConfigStore {
 			result.Add(new OscToggleBinding {
 				name = row.name.Trim(),
 				address = row.address.Trim(),
-				hotkey = OscHotkey.normalize(row.hotkey),
+				hotkey = KeysUtil.normalize(row.hotkey),
 			});
 		}
 		return result;

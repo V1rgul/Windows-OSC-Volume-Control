@@ -11,4 +11,10 @@ public abstract class OscBinding {
 		name = other.name;
 		address = other.address;
 	}
+
+	/// <summary>Label for OSD / tray: <see cref="name"/> when set, otherwise <see cref="address"/> (required for a valid binding).</summary>
+	public string displayName() {
+		if (!string.IsNullOrWhiteSpace(name)) return name;
+		return address;
+	}
 }
