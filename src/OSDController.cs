@@ -19,9 +19,8 @@ public class OSDController : Form
 
 	const int FRAME_MARGIN = 24;
 	const int BAR_HEIGHT = 30;
-	const int GAP_BAR_TO_VALUE = 8;
-	const int GAP_NAME_TO_BAR = 8;
-	const int TOGGLE_SYMBOL_DIAM = 22;
+	const int GAP_HORIZONTAL = 12;
+	const int TOGGLE_SYMBOL_DIAM = 24;
 	const int OSD_BASE_CLIENT_WIDTH = 420;
 
 	sealed class CachedLayout : IDisposable
@@ -35,7 +34,7 @@ public class OSDController : Form
 		public SizeF PlusFlashSize { get; }
 		public SizeF MinusFlashSize { get; }
 
-		public CachedLayout(Graphics g, string rowLabelForMeasure, int osdValueFractionalDigits)
+		public CachedLayout(Graphics g, string rowLabelForMeasure, int osdValueFractionalDigits, bool toggleCompact)
 		{
 			ValueFont = new Font("Segoe UI", 12, FontStyle.Bold);
 			FlashFont = new Font("Segoe UI", 20, FontStyle.Bold);
@@ -45,21 +44,30 @@ public class OSDController : Form
 				const int maxChars = 48;
 				if (label.Length > maxChars)
 					label = label[..maxChars] + "…";
-				nameW = (int)Math.Ceiling(g.MeasureString(label, ValueFont).Width) + 8;
-				nameW = Math.Max(nameW, 40);
+				nameW = (int)Math.Ceiling(g.MeasureString(label, ValueFont).Width);
+				if (!toggleCompact) {
+					nameW += 8;
+					nameW = Math.Max(nameW, 40);
+				}
 			}
 			NameColumnWidth = nameW;
-			osdValueFractionalDigits = Math.Clamp(osdValueFractionalDigits, 0, Math.Max(0, FaderFloatUtil.BindingFractionalDigits));
-			string valueMeasure = FaderFloatUtil.OsdMeasureSample(osdValueFractionalDigits);
-			int reserve = (int)Math.Ceiling(g.MeasureString(valueMeasure, ValueFont).Width);
-			int nameGap = NameColumnWidth > 0 ? GAP_NAME_TO_BAR : 0;
-			int barLeft = FRAME_MARGIN + NameColumnWidth + nameGap;
-			BarLeft = barLeft;
-			int barPreferred = OSD_BASE_CLIENT_WIDTH - FRAME_MARGIN - FRAME_MARGIN - GAP_BAR_TO_VALUE - reserve;
-			if (barPreferred < 80)
-				barPreferred = 80;
-			BarWidth = barPreferred;
-			ComputedClientWidth = barLeft + BarWidth + GAP_BAR_TO_VALUE + reserve + FRAME_MARGIN;
+			if (toggleCompact) {
+				BarLeft = FRAME_MARGIN + NameColumnWidth;
+				BarWidth = 0;
+				ComputedClientWidth = FRAME_MARGIN + NameColumnWidth + GAP_HORIZONTAL + TOGGLE_SYMBOL_DIAM + FRAME_MARGIN;
+			} else {
+				osdValueFractionalDigits = Math.Clamp(osdValueFractionalDigits, 0, Math.Max(0, FaderFloatUtil.BindingFractionalDigits));
+				string valueMeasure = FaderFloatUtil.OsdMeasureSample(osdValueFractionalDigits);
+				int reserve = (int)Math.Ceiling(g.MeasureString(valueMeasure, ValueFont).Width);
+				int nameGap = NameColumnWidth > 0 ? GAP_HORIZONTAL : 0;
+				int barLeft = FRAME_MARGIN + NameColumnWidth + nameGap;
+				BarLeft = barLeft;
+				int barPreferred = OSD_BASE_CLIENT_WIDTH - FRAME_MARGIN - FRAME_MARGIN - GAP_HORIZONTAL - reserve;
+				if (barPreferred < 80)
+					barPreferred = 80;
+				BarWidth = barPreferred;
+				ComputedClientWidth = barLeft + BarWidth + GAP_HORIZONTAL + reserve + FRAME_MARGIN;
+			}
 			PlusFlashSize = g.MeasureString("+", FlashFont);
 			MinusFlashSize = g.MeasureString("−", FlashFont);
 		}
@@ -205,7 +213,7 @@ public class OSDController : Form
 	{
 		_cache?.Dispose();
 		using var g = CreateGraphics();
-		_cache = new CachedLayout(g, LayoutMeasureLabel(), LayoutValueFractionalDigits());
+		_cache = new CachedLayout(g, LayoutMeasureLabel(), LayoutValueFractionalDigits(), _view == OsdView.ToggleStatus);
 		int h = FRAME_MARGIN + BAR_HEIGHT + FRAME_MARGIN;
 		if (ClientSize.Width != _cache.ComputedClientWidth || ClientSize.Height != h)
 			ClientSize = new Size(_cache.ComputedClientWidth, h);
@@ -350,7 +358,7 @@ public class OSDController : Form
 			var nameRect = new RectangleF(FRAME_MARGIN, FRAME_MARGIN, nameCol, BAR_HEIGHT);
 			g.DrawString(_statusText, c.ValueFont, _statusOn ? Brushes.LimeGreen : Brushes.Red, nameRect, nameSf);
 		} else {
-			float textW = Math.Max(1f, c.BarLeft - FRAME_MARGIN - GAP_BAR_TO_VALUE);
+			float textW = Math.Max(1f, c.BarLeft - FRAME_MARGIN - GAP_HORIZONTAL);
 			var textRect = new RectangleF(FRAME_MARGIN, FRAME_MARGIN, textW, BAR_HEIGHT);
 			using var textSf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
 			g.DrawString(_statusText, c.ValueFont, _statusOn ? Brushes.LimeGreen : Brushes.Red, textRect, textSf);
@@ -395,7 +403,7 @@ public class OSDController : Form
 
 	void DrawValueInColumn(Graphics g, Font font, string text, int barLeft, int barW)
 	{
-		float left = barLeft + barW + GAP_BAR_TO_VALUE;
+		float left = barLeft + barW + GAP_HORIZONTAL;
 		float w = ClientSize.Width - FRAME_MARGIN - left;
 		if (w < 1f)
 			return;
