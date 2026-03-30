@@ -199,17 +199,15 @@ public class TrayApp : ApplicationContext
 	async Task NudgeFaderAsync(OscFaderBinding binding, bool volumeUp) {
 		string path = OscController.NormalizeBindingAddress(binding.Address);
 		string display = BindingDisplayName(binding);
-		if (_icons.State != AppTrayIconState.Ok) {
-			Ui(() => _osd.ShowError());
-			return;
-		}
-
 		if (!_mixer.HasFreshFaderSample(path))
 			Ui(() => _osd.ShowPending(display, binding.Step));
 
 		float? newLevel = await _mixer.NudgeAsync(path, volumeUp, binding.Step, binding.Minimum, binding.Maximum).ConfigureAwait(false);
 		if (newLevel == null) {
-			Ui(() => ApplyTrayIconState(AppTrayIconState.NetworkError, showErrorOsdIfNotOk: true));
+			Ui(() => {
+				_icons.ApplyState(AppTrayIconState.NetworkError);
+				_osd.ShowError();
+			});
 			return;
 		}
 
@@ -218,16 +216,14 @@ public class TrayApp : ApplicationContext
 	}
 
 	async Task FlipOscToggleAsync(OscToggleBinding binding) {
-		if (_icons.State != AppTrayIconState.Ok) {
-			Ui(() => _osd.ShowError());
-			return;
-		}
-
 		string display = string.IsNullOrWhiteSpace(binding.Name) ? binding.Address.Trim() : binding.Name.Trim();
 		Ui(() => _osd.ShowPending(display));
 		bool? current = await _mixer.QueryToggleAsync(binding.Address).ConfigureAwait(false);
 		if (current == null) {
-			Ui(() => ApplyTrayIconState(AppTrayIconState.NetworkError, showErrorOsdIfNotOk: true));
+			Ui(() => {
+				_icons.ApplyState(AppTrayIconState.NetworkError);
+				_osd.ShowError();
+			});
 			return;
 		}
 
