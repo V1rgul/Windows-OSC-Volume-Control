@@ -382,8 +382,8 @@ public class OSDController : Form
 		ShowNoActivate();
 	}
 
-	/// <summary>Shows on/off state for an OSC toggle; <paramref name="displayName"/> is normally <see cref="OscBinding.displayName"/> from the caller so this layer stays free of binding types.</summary>
-	/// <param name="displayName">Row label (same rules as <see cref="OscBinding.displayName"/>).</param>
+	/// <summary>Shows on/off state for an OSC toggle; <paramref name="displayName"/> is normally <see cref="OscBindingAbstract.displayName"/> from the caller so this layer stays free of binding types.</summary>
+	/// <param name="displayName">Row label (same rules as <see cref="OscBindingAbstract.displayName"/>).</param>
 	/// <param name="enabled">Whether the toggle is on.</param>
 	public void ShowToggle(string displayName, bool enabled)
 	{

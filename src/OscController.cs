@@ -36,7 +36,7 @@ public partial class OscController {
 	}
 
 	Config _config = null!;
-	/// <summary>Mixer endpoint and query timeout only; fader paths come from <see cref="OscFaderBinding"/> rows.</summary>
+	/// <summary>Mixer endpoint and query timeout only; fader paths come from <see cref="OscBindingFader"/> rows.</summary>
 	public Config Connection {
 		get { return new Config(_config); }
 		set {
