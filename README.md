@@ -1,18 +1,41 @@
 # Windows-OSC-Volume-Control
 
-Windows tray application that intercepts the configurable keys and routes them to an **OSC** mixer over (tested only on X32). You can also bind other hotkeys to toggle OSC parameters and to nudge additional faders.
+Windows tray application that captures configurable global hotkeys and maps them to **OSC** mixer actions (tested on X32). It is built for fast desktop control without keeping the mixer UI in focus.
 
 ![Configuration window](doc/screenshot.png)
 
 ## Features
 
-- **Fader bindings** — Map keys (by default Volume Down / Volume Up) to OSC fader paths with configurable step size and limits.
-- **Toggle bindings** — Map a key (by default Volume Mute) to flip a float at an OSC address (e.g. mute).
-- **OSC connection** — IP, port, and query timeout; settings UI includes connectivity checks.
-- **Optional autostart** — Register with Windows startup from the tray menu.
-- Settings persist next to the executable.
+- **System tray app**: Tray icon with menu (configure, exit) and live status icon state.
+- **Global hotkeys**: Uses a low-level keyboard hook so configured shortcuts work system-wide, not only when a window is focused.
+- **Fader control bindings**: Map keys (default: Volume Down / Volume Up) to OSC fader addresses with per-binding step size and min/max clamp.
+- **Toggle control bindings**: Map keys (default: Volume Mute) to OSC float toggles (typical use: mute on/off).
+- **Multiple mappings**: Configure multiple independent fader and toggle bindings, each with its own hotkey and OSC address.
+- **On-screen status (OSD)**: Shows pending, level, toggle, and error feedback for hotkey actions; size and display duration are configurable.
+- **Connection health feedback**: Startup connection test and runtime failure detection update tray state and surface errors.
+- **Connection settings**: Configure OSC target IP, port, and query timeout in the settings window, with connectivity checks.
+- **Optional autostart**: Register/unregister in the configuration window with dynamic current-state feedback.
+- **Resilient config persistence**: Stores settings next to the executable and falls back to defaults for missing/invalid entries.
 
-## Requirements
+## Typical use cases
 
-- Windows (WinForms, low-level keyboard hook).
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) to build; runtime included when publishing a self-contained build if you prefer.
+- Drive one or more mixer faders (or knobs) from configurable hotkeys (including media keys).
+- Bind dedicated hotkeys for talkback, mute (groups), or scene-related toggle parameters.
+- Keep audio control available while working in other applications.
+
+## Notes
+
+- Platform: Windows (WinForms + low-level keyboard hook).
+- Mixer compatibility: implemented against OSC and tested on Behringer X32; other OSC mixers may work if value semantics match.
+- OSC library: `src/SharpOSC` vendor code is based on [ValdemarOrn/SharpOSC](https://github.com/ValdemarOrn/SharpOSC).
+
+## Running a Release build
+
+- Install: [.NET 8 Desktop Runtime (Windows)](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Choose installer architecture matching the target OS (`x64`, `x86`, or `Arm64`).
+- No additional VC++ redistributable is required by this project.
+
+## Building
+
+- This project is built with **Visual Studio** (open `Windows-OSC-Volume-Control.sln`, then build `Debug` or `Release`).
+- The **.NET 8 SDK** is required : [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
