@@ -88,7 +88,7 @@ namespace WindowsOscVolumeControl {
 			}
 			_hotkeyOwnerGrid = null;
 			_hotkeyOwnerColumn = -1;
-			_tray.SetOscToggleHotkeysEnabled(true);
+			_tray.setOscToggleHotkeysEnabled(true);
 		}
 
 		static void HookNumericUpDownEditTextChanged(NumericUpDown nud, EventHandler handler) {
@@ -139,10 +139,11 @@ namespace WindowsOscVolumeControl {
 				AppConfigDiskOutcome.NONE => SystemColors.GrayText,
 				AppConfigDiskOutcome.NO_FILE_USING_DEFAULTS => Color.SteelBlue,
 				AppConfigDiskOutcome.LOADED_OK => Color.Green,
-				AppConfigDiskOutcome.INVALID_OR_INCOMPLETE_FILE => Color.Red,
+				AppConfigDiskOutcome.LOADED_PARTIAL => Color.DarkOrange,
 				AppConfigDiskOutcome.LOAD_IO_ERROR => Color.Red,
 				AppConfigDiskOutcome.SAVED_OK => Color.Green,
 				AppConfigDiskOutcome.SAVE_FAILED => Color.Red,
+				_ => SystemColors.GrayText,
 			};
 		}
 
@@ -859,7 +860,7 @@ namespace WindowsOscVolumeControl {
 			_hotkeyOwnerGrid = dataGridViewOscToggles;
 			_hotkeyOwnerColumn = OSC_TOGGLE_HOTKEY_COLUMN;
 			_hotkeyEditingTextBox = tb;
-			_tray.SetOscToggleHotkeysEnabled(false);
+			_tray.setOscToggleHotkeysEnabled(false);
 			tb.ReadOnly = true;
 			tb.ShortcutsEnabled = false;
 			tb.KeyDown += HotkeyTextBox_KeyDown;
@@ -876,7 +877,7 @@ namespace WindowsOscVolumeControl {
 			_hotkeyOwnerGrid = dataGridViewOscFaders;
 			_hotkeyOwnerColumn = col;
 			_hotkeyEditingTextBox = tb;
-			_tray.SetOscToggleHotkeysEnabled(false);
+			_tray.setOscToggleHotkeysEnabled(false);
 			tb.ReadOnly = true;
 			tb.ShortcutsEnabled = false;
 			tb.KeyDown += HotkeyTextBox_KeyDown;
@@ -884,7 +885,7 @@ namespace WindowsOscVolumeControl {
 		}
 
 		protected override void OnFormClosed(FormClosedEventArgs e) {
-			_tray.SetOscToggleHotkeysEnabled(true);
+			_tray.setOscToggleHotkeysEnabled(true);
 			DetachHotkeyEditingControl();
 			base.OnFormClosed(e);
 		}
@@ -1032,7 +1033,7 @@ namespace WindowsOscVolumeControl {
 				_tray.commitConfigFromSettingsForm(appConfig);
 				ResetOscToggleHint();
 				RefreshConfigStoreDiskFeedback();
-				Icon = _tray.ApplyTrayIconState(AppTrayIconState.STARTING_OR_INVALID_CONFIG);
+				Icon = _tray.applyTrayIconState(AppTrayIconState.STARTING_OR_INVALID_CONFIG);
 				labelNetworkFeedback.Text = "Ping test: running…";
 				labelNetworkFeedback.ForeColor = Color.Black;
 				labelOscBaseFeedback.Text = "Testing /info ...";
@@ -1096,15 +1097,15 @@ namespace WindowsOscVolumeControl {
 
 				bool faderOk = fader != null;
 				if (infoOk && faderOk)
-					Icon = _tray.ApplyTrayIconState(AppTrayIconState.OK);
+					Icon = _tray.applyTrayIconState(AppTrayIconState.OK);
 				else
-					Icon = _tray.ApplyTrayIconState(AppTrayIconState.NETWORK_ERROR, showErrorOsdIfNotOk: false);
+					Icon = _tray.applyTrayIconState(AppTrayIconState.NETWORK_ERROR, showErrorOsdIfNotOk: false);
 			} catch (Exception ex) {
 				textBoxInfoResult.Text = "";
 				labelOscBaseFeedback.Text = "Error: " + ex.Message;
 				labelOscBaseFeedback.ForeColor = Color.Red;
 				labelFaderTestResult.Text = "";
-				Icon = _tray.ApplyTrayIconState(AppTrayIconState.NETWORK_ERROR, showErrorOsdIfNotOk: false);
+				Icon = _tray.applyTrayIconState(AppTrayIconState.NETWORK_ERROR, showErrorOsdIfNotOk: false);
 			} finally {
 				SetConnectionInputsEnabled(true);
 				RefreshApplyButtonEnabled();

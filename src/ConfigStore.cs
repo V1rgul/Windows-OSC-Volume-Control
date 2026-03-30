@@ -10,7 +10,8 @@ public enum AppConfigDiskOutcome {
 	NONE = 0,
 	NO_FILE_USING_DEFAULTS,
 	LOADED_OK,
-	INVALID_OR_INCOMPLETE_FILE,
+	/// <summary>Config loaded from disk with at least one section taken from defaults (partial apply).</summary>
+	LOADED_PARTIAL,
 	LOAD_IO_ERROR,
 	SAVED_OK,
 	SAVE_FAILED,
@@ -46,50 +47,31 @@ public sealed class ConfigStore {
 			return;
 		}
 		try {
-			IReadOnlyDictionary<string, string> map = ParseKeyValueLines(File.ReadAllText(path));
-			if (!map.TryGetValue("ip", out string? ipStr)
-			    || !map.TryGetValue("port", out string? portStr)
-			    || !OscConnectionConfigParse.TryParseIpPort(ipStr, portStr, out IPAddress ip, out int port, out _, out _)) {
-				appConfig = new AppConfig();
-				lastDiskOutcome = AppConfigDiskOutcome.INVALID_OR_INCOMPLETE_FILE;
-				lastDiskFeedback = "Config file exists but could not be parsed; using defaults.";
-				return;
-			}
-			var oscDefaults = new OscController.Config();
-			uint timeout = oscDefaults.timeoutMs;
-			if (map.TryGetValue("timeoutMs", out string? toStr)
-			    && uint.TryParse(toStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint to)
-			    && to >= OscController.Config.MIN_QUERY_TIMEOUT_MS)
-				timeout = Math.Min(to, OscController.Config.MAX_QUERY_TIMEOUT_MS);
-			var mixerDefaults = new MixerController.Config();
-			uint valueCacheTtlMs = mixerDefaults.ValueCacheTtlMs;
-			if (map.TryGetValue("valueCacheTtlMs", out string? ttlStr)
-			    && uint.TryParse(ttlStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint ttl))
-				valueCacheTtlMs = Math.Min(ttl, MixerController.Config.MAX_VALUE_CACHE_TTL_MS);
-			List<OscFaderBinding> faders = ParseOscFaderBindings(map);
+			IReadOnlyDictionary<string, string> map = parseKeyValueLines(File.ReadAllText(path));
+			var repairNotes = new List<string>();
+			OscController.Config osc = buildOscConfigFromMap(map, repairNotes);
+			MixerController.Config mixer = buildMixerConfigFromMap(map, repairNotes);
+			List<OscFaderBinding> faders = parseOscFaderBindings(map);
 			if (faders.Count == 0) {
-				appConfig = new AppConfig();
-				lastDiskOutcome = AppConfigDiskOutcome.INVALID_OR_INCOMPLETE_FILE;
-				lastDiskFeedback = "Config file exists but could not be parsed; using defaults.";
-				return;
+				faders = cloneDefaultFaderBindings();
+				repairNotes.Add("No valid fader bindings in file; using defaults.");
 			}
-			List<OscToggleBinding> oscToggles = ParseOscToggleBindings(map);
+			List<OscToggleBinding> oscToggles = parseOscToggleBindings(map);
 			appConfig = new AppConfig {
-				oscController = new OscController.Config {
-					endPoint = new IPEndPoint(ip, port),
-					timeoutMs = timeout,
-				},
-				mixer = new MixerController.Config {
-					ValueCacheTtlMs = valueCacheTtlMs,
-				},
+				oscController = osc,
+				mixer = mixer,
 				trayApp = new TrayApp.Config {
 					faderBindings = faders,
 					bindings = oscToggles,
 				},
-				osd = ParseOsdFromMap(map),
+				osd = buildOsdConfigFromMap(map, repairNotes),
 			};
-			lastDiskOutcome = AppConfigDiskOutcome.LOADED_OK;
-			lastDiskFeedback = "Loaded settings from disk.";
+			lastDiskOutcome = repairNotes.Count > 0
+				? AppConfigDiskOutcome.LOADED_PARTIAL
+				: AppConfigDiskOutcome.LOADED_OK;
+			lastDiskFeedback = repairNotes.Count > 0
+				? "Loaded settings from disk. " + string.Join(" ", repairNotes)
+				: "Loaded settings from disk.";
 		} catch (Exception ex) {
 			appConfig = new AppConfig();
 			lastDiskOutcome = AppConfigDiskOutcome.LOAD_IO_ERROR;
@@ -139,18 +121,67 @@ public sealed class ConfigStore {
 		}
 	}
 
-	static OSDController.Config ParseOsdFromMap(IReadOnlyDictionary<string, string> map) {
-		var o = new OSDController.Config();
-		if (map.TryGetValue("osdHeightPx", out string? hStr)
-		    && int.TryParse(hStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int h))
-			o.HeightPx = h;
-		if (map.TryGetValue("osdDisplayDurationMs", out string? dStr)
-		    && uint.TryParse(dStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint d))
-			o.DisplayDurationMs = d;
-		return OSDController.Config.Clamped(o);
+	static List<OscFaderBinding> cloneDefaultFaderBindings() {
+		var trayDefaults = new TrayApp.Config();
+		return trayDefaults.faderBindings.Select(f => new OscFaderBinding(f)).ToList();
 	}
 
-	static Dictionary<string, string> ParseKeyValueLines(string text) {
+	static OscController.Config buildOscConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
+		var baseOsc = new OscController.Config();
+		uint timeout = baseOsc.timeoutMs;
+		if (map.TryGetValue("timeoutMs", out string? toStr)) {
+			if (uint.TryParse(toStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint to)
+			    && to >= OscController.Config.MIN_QUERY_TIMEOUT_MS)
+				timeout = Math.Min(to, OscController.Config.MAX_QUERY_TIMEOUT_MS);
+			else
+				repairNotes.Add("timeoutMs invalid; using default.");
+		}
+
+		if (map.TryGetValue("ip", out string? ipStr)
+		    && map.TryGetValue("port", out string? portStr)
+		    && OscConnectionConfigParse.TryParseIpPort(ipStr, portStr, out IPAddress ip, out int port, out _, out _)) {
+			return new OscController.Config {
+				endPoint = new IPEndPoint(ip, port),
+				timeoutMs = timeout,
+			};
+		}
+		repairNotes.Add("OSC IP/port missing or invalid; using connection defaults.");
+		return new OscController.Config { timeoutMs = timeout };
+	}
+
+	static MixerController.Config buildMixerConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
+		var mixerDefaults = new MixerController.Config();
+		uint valueCacheTtlMs = mixerDefaults.ValueCacheTtlMs;
+		if (map.TryGetValue("valueCacheTtlMs", out string? ttlStr)) {
+			if (uint.TryParse(ttlStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint ttl))
+				valueCacheTtlMs = Math.Min(ttl, MixerController.Config.MAX_VALUE_CACHE_TTL_MS);
+			else
+				repairNotes.Add("valueCacheTtlMs invalid; using default.");
+		}
+		return new MixerController.Config { ValueCacheTtlMs = valueCacheTtlMs };
+	}
+
+	static OSDController.Config buildOsdConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
+		var o = new OSDController.Config();
+		if (map.TryGetValue("osdHeightPx", out string? hStr)) {
+			if (!int.TryParse(hStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int h))
+				repairNotes.Add("osdHeightPx invalid; ignored.");
+			else
+				o.HeightPx = h;
+		}
+		if (map.TryGetValue("osdDisplayDurationMs", out string? dStr)) {
+			if (!uint.TryParse(dStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint d))
+				repairNotes.Add("osdDisplayDurationMs invalid; ignored.");
+			else
+				o.DisplayDurationMs = d;
+		}
+		OSDController.Config clamped = OSDController.Config.Clamped(o);
+		if (clamped.HeightPx != o.HeightPx || clamped.DisplayDurationMs != o.DisplayDurationMs)
+			repairNotes.Add("OSD size or duration was out of range; clamped.");
+		return clamped;
+	}
+
+	static Dictionary<string, string> parseKeyValueLines(string text) {
 		var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		foreach (string raw in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)) {
 			string line = raw.Trim();
@@ -167,7 +198,7 @@ public sealed class ConfigStore {
 		return map;
 	}
 
-	static List<OscFaderBinding> ParseOscFaderBindings(IReadOnlyDictionary<string, string> map) {
+	static List<OscFaderBinding> parseOscFaderBindings(IReadOnlyDictionary<string, string> map) {
 		var rows = new Dictionary<int, OscFaderBinding>();
 		foreach ((string key, string value) in map) {
 			if (!key.StartsWith("oscFader.", StringComparison.OrdinalIgnoreCase))
@@ -236,7 +267,7 @@ public sealed class ConfigStore {
 		return result;
 	}
 
-	static List<OscToggleBinding> ParseOscToggleBindings(IReadOnlyDictionary<string, string> map) {
+	static List<OscToggleBinding> parseOscToggleBindings(IReadOnlyDictionary<string, string> map) {
 		var rows = new Dictionary<int, OscToggleBinding>();
 		foreach ((string key, string value) in map) {
 			if (!key.StartsWith("oscToggle.", StringComparison.OrdinalIgnoreCase))

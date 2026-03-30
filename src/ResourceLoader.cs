@@ -15,12 +15,12 @@ public sealed class ResourceLoader {
 	readonly Lazy<Bitmap> _buttonDelete;
 
 	public ResourceLoader() {
-		_trayErrorGlobal = new Lazy<Icon>(() => LoadTrayIconFile("error_global.ico"));
-		_trayErrorNetwork = new Lazy<Icon>(() => LoadTrayIconFile("error_network.ico"));
-		_trayOk = new Lazy<Icon>(() => LoadTrayIconFile("ok.ico"));
-		_buttonAdd = new Lazy<Bitmap>(() => LoadEmbeddedButtonBitmap("add.png"));
-		_buttonClose = new Lazy<Bitmap>(() => LoadEmbeddedButtonBitmap("close.png"));
-		_buttonDelete = new Lazy<Bitmap>(() => LoadEmbeddedButtonBitmap("delete.png"));
+		_trayErrorGlobal = new Lazy<Icon>(() => loadTrayIconFile("error_global.ico"));
+		_trayErrorNetwork = new Lazy<Icon>(() => loadTrayIconFile("error_network.ico"));
+		_trayOk = new Lazy<Icon>(() => loadTrayIconFile("ok.ico"));
+		_buttonAdd = new Lazy<Bitmap>(() => loadEmbeddedButtonBitmap("add.png"));
+		_buttonClose = new Lazy<Bitmap>(() => loadEmbeddedButtonBitmap("close.png"));
+		_buttonDelete = new Lazy<Bitmap>(() => loadEmbeddedButtonBitmap("delete.png"));
 	}
 
 	public Icon TrayIconErrorGlobal => _trayErrorGlobal.Value;
@@ -31,7 +31,7 @@ public sealed class ResourceLoader {
 	public Image ButtonClose => _buttonClose.Value;
 	public Image ButtonDelete => _buttonDelete.Value;
 
-	static Icon LoadTrayIconFile(string fileName) {
+	static Icon loadTrayIconFile(string fileName) {
 		string path = Path.Combine(AppContext.BaseDirectory, "Assets", "Icon", "app", fileName);
 		try {
 			return new Icon(path);
@@ -40,7 +40,7 @@ public sealed class ResourceLoader {
 		}
 	}
 
-	static Bitmap LoadEmbeddedButtonBitmap(string fileName) {
+	static Bitmap loadEmbeddedButtonBitmap(string fileName) {
 		Assembly asm = typeof(ResourceLoader).Assembly;
 		string needle = "buttons." + fileName;
 		string? resourceName = asm.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(needle, StringComparison.OrdinalIgnoreCase));

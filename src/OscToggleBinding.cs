@@ -3,25 +3,14 @@ using System.Windows.Forms;
 
 namespace WindowsOscVolumeControl;
 
-public sealed class OscToggleBinding {
-	public string name { get; set; } = "";
-	public string address { get; set; } = "";
+public sealed class OscToggleBinding : OscBinding {
 	public Keys hotkey { get; set; } = Keys.None;
 
 	public OscToggleBinding() { }
 
-	public OscToggleBinding(OscToggleBinding other) {
-		ArgumentNullException.ThrowIfNull(other);
-		name = other.name;
-		address = other.address;
+	public OscToggleBinding(OscToggleBinding other) : base(other) {
 		hotkey = other.hotkey;
 	}
-
-	public static OscToggleBinding createDefaultMasterMute() => new() {
-		name = "MAIN",
-		address = "/main/st/mix/on",
-		hotkey = Keys.VolumeMute,
-	};
 }
 
 static class OscHotkey {
