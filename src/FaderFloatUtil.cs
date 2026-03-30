@@ -4,13 +4,13 @@ namespace WindowsOscVolumeControl;
 
 /// <summary>
 /// Rounds fader step/min/max for UI and config. Grid decimals and rounding depth follow
-/// <see cref="MixerController.Config.MinFaderStep"/> (e.g. 0.001 → 3 places).
+/// <see cref="MixerController.Config.MIN_FADER_STEP"/> (e.g. 0.001 → 3 places).
 /// </summary>
 public static class FaderFloatUtil {
-	const double ScaleIntegerEpsilon = 1e-7;
+	const double SCALE_INTEGER_EPSILON = 1e-7;
 
 	/// <summary>Fractional digits implied by the minimum step (same as grid / binding rounding).</summary>
-	public static int BindingFractionalDigits => GetFractionalDigitsForMinStep(MixerController.Config.MinFaderStep);
+	public static int BindingFractionalDigits => GetFractionalDigitsForMinStep(MixerController.Config.MIN_FADER_STEP);
 
 	/// <summary>Smallest N such that <paramref name="minStep"/>·10^N is (within ε) an integer.</summary>
 	public static int GetFractionalDigitsForMinStep(float minStep) {
@@ -19,7 +19,7 @@ public static class FaderFloatUtil {
 			return 0;
 		for (int n = 0; n <= 14; n++) {
 			double scaled = s * Math.Pow(10.0, n);
-			if (Math.Abs(scaled - Math.Round(scaled)) < ScaleIntegerEpsilon)
+			if (Math.Abs(scaled - Math.Round(scaled)) < SCALE_INTEGER_EPSILON)
 				return n;
 		}
 		return 14;

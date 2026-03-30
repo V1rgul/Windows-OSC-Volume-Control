@@ -8,10 +8,10 @@ namespace WindowsOscVolumeControl;
 public sealed class MixerController {
 	public sealed class Config {
 		/// <summary>Smallest allowed nudge step; also defines binding/grid decimal places via <see cref="FaderFloatUtil.BindingFractionalDigits"/>.</summary>
-		public const float MinFaderStep = 0.001f;
-		public const float MaxFaderStep = 10.0f;
-		public const uint MinValueCacheTtlMs = 0;
-		public const uint MaxValueCacheTtlMs = 10_000;
+		public const float MIN_FADER_STEP = 0.001f;
+		public const float MAX_FADER_STEP = 10.0f;
+		public const uint MIN_VALUE_CACHE_TTL_MS = 0;
+		public const uint MAX_VALUE_CACHE_TTL_MS = 10_000;
 
 		/// <summary>How long a cached level per path is reused before querying again (ms). 0 = always query.</summary>
 		public uint ValueCacheTtlMs { get; set; } = 1000;
@@ -57,7 +57,7 @@ public sealed class MixerController {
 	}
 
 	public async Task<float?> NudgeAsync(string normalizedPath, bool volumeUp, float step, float min, float max) {
-		step = Math.Clamp(step, Config.MinFaderStep, Config.MaxFaderStep);
+		step = Math.Clamp(step, Config.MIN_FADER_STEP, Config.MAX_FADER_STEP);
 		if (!float.IsFinite(min) || !float.IsFinite(max) || min > max)
 			return null;
 		DateTime utcNow = DateTime.UtcNow;

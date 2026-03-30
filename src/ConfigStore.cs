@@ -7,42 +7,42 @@ namespace WindowsOscVolumeControl;
 
 /// <summary>Result of the last config load or save; drives UI message and severity.</summary>
 public enum AppConfigDiskOutcome {
-	None = 0,
-	NoFileUsingDefaults,
-	LoadedOk,
-	InvalidOrIncompleteFile,
-	LoadIoError,
-	SavedOk,
-	SaveFailed,
+	NONE = 0,
+	NO_FILE_USING_DEFAULTS,
+	LOADED_OK,
+	INVALID_OR_INCOMPLETE_FILE,
+	LOAD_IO_ERROR,
+	SAVED_OK,
+	SAVE_FAILED,
 }
 
 /// <summary>Loads and persists <see cref="AppConfig"/>; owns the in-memory snapshot.</summary>
 public sealed class ConfigStore {
-	const string FileName = "Windows-OSC-Volume-Control.config";
+	const string FILE_NAME = "Windows-OSC-Volume-Control.config";
 
-	public string ConfigPath => Path.Combine(AppContext.BaseDirectory, FileName);
+	public string configPath => Path.Combine(AppContext.BaseDirectory, FILE_NAME);
 
-	public AppConfig AppConfig { get; private set; }
+	public AppConfig appConfig { get; private set; }
 
-	public string LastDiskFeedback { get; private set; } = "";
+	public string lastDiskFeedback { get; private set; } = "";
 
-	public AppConfigDiskOutcome LastDiskOutcome { get; private set; } = AppConfigDiskOutcome.None;
+	public AppConfigDiskOutcome lastDiskOutcome { get; private set; } = AppConfigDiskOutcome.NONE;
 
 	public ConfigStore() {
-		AppConfig = new AppConfig();
+		appConfig = new AppConfig();
 	}
 
-	public void AdoptAppConfig(AppConfig fromForm) {
+	public void adoptAppConfig(AppConfig fromForm) {
 		ArgumentNullException.ThrowIfNull(fromForm);
-		AppConfig = fromForm.DeepClone();
+		appConfig = fromForm.deepClone();
 	}
 
-	public void LoadFromDisk() {
-		string path = ConfigPath;
+	public void loadFromDisk() {
+		string path = configPath;
 		if (!File.Exists(path)) {
-			AppConfig = new AppConfig();
-			LastDiskOutcome = AppConfigDiskOutcome.NoFileUsingDefaults;
-			LastDiskFeedback = "No config file; using defaults.";
+			appConfig = new AppConfig();
+			lastDiskOutcome = AppConfigDiskOutcome.NO_FILE_USING_DEFAULTS;
+			lastDiskFeedback = "No config file; using defaults.";
 			return;
 		}
 		try {
@@ -50,63 +50,63 @@ public sealed class ConfigStore {
 			if (!map.TryGetValue("ip", out string? ipStr)
 			    || !map.TryGetValue("port", out string? portStr)
 			    || !OscConnectionConfigParse.TryParseIpPort(ipStr, portStr, out IPAddress ip, out int port, out _, out _)) {
-				AppConfig = new AppConfig();
-				LastDiskOutcome = AppConfigDiskOutcome.InvalidOrIncompleteFile;
-				LastDiskFeedback = "Config file exists but could not be parsed; using defaults.";
+				appConfig = new AppConfig();
+				lastDiskOutcome = AppConfigDiskOutcome.INVALID_OR_INCOMPLETE_FILE;
+				lastDiskFeedback = "Config file exists but could not be parsed; using defaults.";
 				return;
 			}
 			var oscDefaults = new OscController.Config();
 			uint timeout = oscDefaults.timeoutMs;
 			if (map.TryGetValue("timeoutMs", out string? toStr)
 			    && uint.TryParse(toStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint to)
-			    && to >= OscController.Config.MinQueryTimeoutMs)
-				timeout = Math.Min(to, OscController.Config.MaxQueryTimeoutMs);
+			    && to >= OscController.Config.MIN_QUERY_TIMEOUT_MS)
+				timeout = Math.Min(to, OscController.Config.MAX_QUERY_TIMEOUT_MS);
 			var mixerDefaults = new MixerController.Config();
 			uint valueCacheTtlMs = mixerDefaults.ValueCacheTtlMs;
 			if (map.TryGetValue("valueCacheTtlMs", out string? ttlStr)
 			    && uint.TryParse(ttlStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint ttl))
-				valueCacheTtlMs = Math.Min(ttl, MixerController.Config.MaxValueCacheTtlMs);
+				valueCacheTtlMs = Math.Min(ttl, MixerController.Config.MAX_VALUE_CACHE_TTL_MS);
 			List<OscFaderBinding> faders = ParseOscFaderBindings(map);
 			if (faders.Count == 0) {
-				AppConfig = new AppConfig();
-				LastDiskOutcome = AppConfigDiskOutcome.InvalidOrIncompleteFile;
-				LastDiskFeedback = "Config file exists but could not be parsed; using defaults.";
+				appConfig = new AppConfig();
+				lastDiskOutcome = AppConfigDiskOutcome.INVALID_OR_INCOMPLETE_FILE;
+				lastDiskFeedback = "Config file exists but could not be parsed; using defaults.";
 				return;
 			}
 			List<OscToggleBinding> oscToggles = ParseOscToggleBindings(map);
-			AppConfig = new AppConfig {
-				OscController = new OscController.Config {
-					EndPoint = new IPEndPoint(ip, port),
+			appConfig = new AppConfig {
+				oscController = new OscController.Config {
+					endPoint = new IPEndPoint(ip, port),
 					timeoutMs = timeout,
 				},
-				Mixer = new MixerController.Config {
+				mixer = new MixerController.Config {
 					ValueCacheTtlMs = valueCacheTtlMs,
 				},
-				TrayApp = new TrayApp.Config {
-					FaderBindings = faders,
-					Bindings = oscToggles,
+				trayApp = new TrayApp.Config {
+					faderBindings = faders,
+					bindings = oscToggles,
 				},
-				Osd = ParseOsdFromMap(map),
+				osd = ParseOsdFromMap(map),
 			};
-			LastDiskOutcome = AppConfigDiskOutcome.LoadedOk;
-			LastDiskFeedback = "Loaded settings from disk.";
+			lastDiskOutcome = AppConfigDiskOutcome.LOADED_OK;
+			lastDiskFeedback = "Loaded settings from disk.";
 		} catch (Exception ex) {
-			AppConfig = new AppConfig();
-			LastDiskOutcome = AppConfigDiskOutcome.LoadIoError;
-			LastDiskFeedback = "Could not read config file: " + ex.Message;
+			appConfig = new AppConfig();
+			lastDiskOutcome = AppConfigDiskOutcome.LOAD_IO_ERROR;
+			lastDiskFeedback = "Could not read config file: " + ex.Message;
 		}
 	}
 
-	public void TryPersistToDisk() {
-		AppConfig cfg = AppConfig;
-		var osc = cfg.OscController;
-		var mixer = cfg.Mixer;
-		OSDController.Config osd = OSDController.Config.Clamped(cfg.Osd);
-		var toggles = cfg.TrayApp?.Bindings ?? [];
-		var faders = cfg.TrayApp?.FaderBindings ?? [];
+	public void tryPersistToDisk() {
+		AppConfig cfg = appConfig;
+		var osc = cfg.oscController;
+		var mixer = cfg.mixer;
+		OSDController.Config osd = OSDController.Config.Clamped(cfg.osd);
+		var toggles = cfg.trayApp?.bindings ?? [];
+		var faders = cfg.trayApp?.faderBindings ?? [];
 		var lines = new List<string> {
-			"ip=" + osc.EndPoint.Address.ToString(),
-			"port=" + osc.EndPoint.Port.ToString(CultureInfo.InvariantCulture),
+			"ip=" + osc.endPoint.Address.ToString(),
+			"port=" + osc.endPoint.Port.ToString(CultureInfo.InvariantCulture),
 			"timeoutMs=" + osc.timeoutMs.ToString(CultureInfo.InvariantCulture),
 			"valueCacheTtlMs=" + mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture),
 			"osdHeightPx=" + osd.HeightPx.ToString(CultureInfo.InvariantCulture),
@@ -115,27 +115,27 @@ public sealed class ConfigStore {
 		for (int i = 0; i < faders.Count; i++) {
 			OscFaderBinding b = faders[i];
 			string p = i.ToString(CultureInfo.InvariantCulture);
-			lines.Add("oscFader." + p + ".name=" + b.Name.Trim());
-			lines.Add("oscFader." + p + ".address=" + b.Address.Trim());
-			lines.Add("oscFader." + p + ".step=" + FaderFloatUtil.FormatGridFloat(b.Step));
-			lines.Add("oscFader." + p + ".minimum=" + FaderFloatUtil.FormatGridFloat(b.Minimum));
-			lines.Add("oscFader." + p + ".maximum=" + FaderFloatUtil.FormatGridFloat(b.Maximum));
-			lines.Add("oscFader." + p + ".hotkeyMinus=" + OscHotkey.Format(b.HotkeyMinus));
-			lines.Add("oscFader." + p + ".hotkeyPlus=" + OscHotkey.Format(b.HotkeyPlus));
+			lines.Add("oscFader." + p + ".name=" + b.name.Trim());
+			lines.Add("oscFader." + p + ".address=" + b.address.Trim());
+			lines.Add("oscFader." + p + ".step=" + FaderFloatUtil.FormatGridFloat(b.step));
+			lines.Add("oscFader." + p + ".minimum=" + FaderFloatUtil.FormatGridFloat(b.minimum));
+			lines.Add("oscFader." + p + ".maximum=" + FaderFloatUtil.FormatGridFloat(b.maximum));
+			lines.Add("oscFader." + p + ".hotkeyMinus=" + OscHotkey.format(b.hotkeyMinus));
+			lines.Add("oscFader." + p + ".hotkeyPlus=" + OscHotkey.format(b.hotkeyPlus));
 		}
 		for (int i = 0; i < toggles.Count; i++) {
 			OscToggleBinding binding = toggles[i];
-			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".name=" + binding.Name.Trim());
-			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".address=" + binding.Address.Trim());
-			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".hotkey=" + OscHotkey.Format(binding.Hotkey));
+			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".name=" + binding.name.Trim());
+			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".address=" + binding.address.Trim());
+			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".hotkey=" + OscHotkey.format(binding.hotkey));
 		}
 		try {
-			File.WriteAllText(ConfigPath, string.Join(Environment.NewLine, lines) + Environment.NewLine);
-			LastDiskOutcome = AppConfigDiskOutcome.SavedOk;
-			LastDiskFeedback = "Saved to disk.";
+			File.WriteAllText(configPath, string.Join(Environment.NewLine, lines) + Environment.NewLine);
+			lastDiskOutcome = AppConfigDiskOutcome.SAVED_OK;
+			lastDiskFeedback = "Saved to disk.";
 		} catch (Exception ex) {
-			LastDiskOutcome = AppConfigDiskOutcome.SaveFailed;
-			LastDiskFeedback = "Save failed: " + ex.Message;
+			lastDiskOutcome = AppConfigDiskOutcome.SAVE_FAILED;
+			lastDiskFeedback = "Save failed: " + ex.Message;
 		}
 	}
 
@@ -185,30 +185,30 @@ public sealed class ConfigStore {
 			}
 			switch (field.ToLowerInvariant()) {
 				case "name":
-					row.Name = value.Trim();
+					row.name = value.Trim();
 					break;
 				case "address":
-					row.Address = value.Trim();
+					row.address = value.Trim();
 					break;
 				case "step":
 					if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float st) && float.IsFinite(st))
-						row.Step = st;
+						row.step = st;
 					break;
 				case "minimum":
 					if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float mn) && float.IsFinite(mn))
-						row.Minimum = mn;
+						row.minimum = mn;
 					break;
 				case "maximum":
 					if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float mx) && float.IsFinite(mx))
-						row.Maximum = mx;
+						row.maximum = mx;
 					break;
 				case "hotkeyminus":
-					if (OscHotkey.TryParse(value, out var hm))
-						row.HotkeyMinus = hm;
+					if (OscHotkey.tryParse(value, out var hm))
+						row.hotkeyMinus = hm;
 					break;
 				case "hotkeyplus":
-					if (OscHotkey.TryParse(value, out var hp))
-						row.HotkeyPlus = hp;
+					if (OscHotkey.tryParse(value, out var hp))
+						row.hotkeyPlus = hp;
 					break;
 			}
 		}
@@ -216,21 +216,21 @@ public sealed class ConfigStore {
 		var result = new List<OscFaderBinding>(rows.Count);
 		foreach (int index in rows.Keys.OrderBy(i => i)) {
 			OscFaderBinding row = rows[index];
-			if (string.IsNullOrWhiteSpace(row.Name) || string.IsNullOrWhiteSpace(row.Address))
+			if (string.IsNullOrWhiteSpace(row.name) || string.IsNullOrWhiteSpace(row.address))
 				continue;
-			if (!float.IsFinite(row.Step) || !float.IsFinite(row.Minimum) || !float.IsFinite(row.Maximum) || row.Minimum > row.Maximum)
+			if (!float.IsFinite(row.step) || !float.IsFinite(row.minimum) || !float.IsFinite(row.maximum) || row.minimum > row.maximum)
 				continue;
-			row.Step = Math.Clamp(FaderFloatUtil.RoundToBindingDecimals(row.Step), MixerController.Config.MinFaderStep, MixerController.Config.MaxFaderStep);
-			float minR = FaderFloatUtil.RoundToBindingDecimals(row.Minimum);
-			float maxR = FaderFloatUtil.RoundToBindingDecimals(row.Maximum);
+			row.step = Math.Clamp(FaderFloatUtil.RoundToBindingDecimals(row.step), MixerController.Config.MIN_FADER_STEP, MixerController.Config.MAX_FADER_STEP);
+			float minR = FaderFloatUtil.RoundToBindingDecimals(row.minimum);
+			float maxR = FaderFloatUtil.RoundToBindingDecimals(row.maximum);
 			result.Add(new OscFaderBinding {
-				Name = row.Name.Trim(),
-				Address = row.Address.Trim(),
-				Step = row.Step,
-				Minimum = minR,
-				Maximum = maxR,
-				HotkeyMinus = OscHotkey.Normalize(row.HotkeyMinus),
-				HotkeyPlus = OscHotkey.Normalize(row.HotkeyPlus),
+				name = row.name.Trim(),
+				address = row.address.Trim(),
+				step = row.step,
+				minimum = minR,
+				maximum = maxR,
+				hotkeyMinus = OscHotkey.normalize(row.hotkeyMinus),
+				hotkeyPlus = OscHotkey.normalize(row.hotkeyPlus),
 			});
 		}
 		return result;
@@ -254,14 +254,14 @@ public sealed class ConfigStore {
 			}
 			switch (field.ToLowerInvariant()) {
 				case "name":
-					row.Name = value.Trim();
+					row.name = value.Trim();
 					break;
 				case "address":
-					row.Address = value.Trim();
+					row.address = value.Trim();
 					break;
 				case "hotkey":
-					if (OscHotkey.TryParse(value, out var hotkey))
-						row.Hotkey = hotkey;
+					if (OscHotkey.tryParse(value, out var hotkey))
+						row.hotkey = hotkey;
 					break;
 			}
 		}
@@ -269,12 +269,12 @@ public sealed class ConfigStore {
 		var result = new List<OscToggleBinding>(rows.Count);
 		foreach (int index in rows.Keys.OrderBy(i => i)) {
 			OscToggleBinding row = rows[index];
-			if (string.IsNullOrWhiteSpace(row.Name) || string.IsNullOrWhiteSpace(row.Address) || row.Hotkey == Keys.None)
+			if (string.IsNullOrWhiteSpace(row.name) || string.IsNullOrWhiteSpace(row.address) || row.hotkey == Keys.None)
 				continue;
 			result.Add(new OscToggleBinding {
-				Name = row.Name.Trim(),
-				Address = row.Address.Trim(),
-				Hotkey = OscHotkey.Normalize(row.Hotkey),
+				name = row.name.Trim(),
+				address = row.address.Trim(),
+				hotkey = OscHotkey.normalize(row.hotkey),
 			});
 		}
 		return result;

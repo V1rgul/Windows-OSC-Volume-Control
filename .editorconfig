@@ -1,0 +1,21 @@
+# https://editorconfig.org
+# Code style for this repo: non-idiomatic C# naming on purpose (camelCase methods/members,
+# _prefixed instance fields, SCREAMING_SNAKE const/enum values). SharpOSC is unchanged;
+# inspections are relaxed so ReSharper/Rider do not fight that style.
+
+root = true
+
+[*]
+charset = utf-8
+indent_style = tab
+indent_size = tab
+insert_final_newline = true
+
+[*.cs]
+# ReSharper / Rider — disable built-in naming enforcement (assumes PascalCase API surface).
+resharper_inconsistent_naming_highlighting = none
+
+# .NET SDK / IDE code analyzers that assume Framework Design Guidelines naming.
+dotnet_diagnostic.IDE1006.severity = none
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1715.severity = none

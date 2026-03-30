@@ -4,19 +4,19 @@ namespace WindowsOscVolumeControl;
 
 /// <summary>Aggregate settings owned by <see cref="ConfigStore"/>; composed from per-component DTOs.</summary>
 public sealed class AppConfig {
-	public OscController.Config OscController { get; set; } = new();
-	public MixerController.Config Mixer { get; set; } = new();
-	public TrayApp.Config TrayApp { get; set; } = new();
-	public OSDController.Config Osd { get; set; } = new();
+	public OscController.Config oscController { get; set; } = new();
+	public MixerController.Config mixer { get; set; } = new();
+	public TrayApp.Config trayApp { get; set; } = new();
+	public OSDController.Config osd { get; set; } = new();
 
 	/// <summary>Deep copy for store ownership (detaches from form-held instances).</summary>
-	public AppConfig DeepClone() => new AppConfig {
-		OscController = new OscController.Config(OscController),
-		Mixer = new MixerController.Config(Mixer),
-		TrayApp = new TrayApp.Config {
-			Bindings = TrayApp.Bindings.Select(b => new OscToggleBinding(b)).ToList(),
-			FaderBindings = TrayApp.FaderBindings.Select(f => new OscFaderBinding(f)).ToList(),
+	public AppConfig deepClone() => new AppConfig {
+		oscController = new OscController.Config(oscController),
+		mixer = new MixerController.Config(mixer),
+		trayApp = new TrayApp.Config {
+			bindings = trayApp.bindings.Select(b => new OscToggleBinding(b)).ToList(),
+			faderBindings = trayApp.faderBindings.Select(f => new OscFaderBinding(f)).ToList(),
 		},
-		Osd = new OSDController.Config(Osd),
+		osd = new OSDController.Config(osd),
 	};
 }

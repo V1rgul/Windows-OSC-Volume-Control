@@ -9,8 +9,8 @@ public class TrayApp : ApplicationContext
 {
 	/// <summary>OSC fader and toggle bindings; persisted via <see cref="ConfigStore"/>.</summary>
 	public sealed class Config {
-		public List<OscFaderBinding> FaderBindings { get; set; } = [OscFaderBinding.CreateDefaultMaster()];
-		public List<OscToggleBinding> Bindings { get; set; } = [OscToggleBinding.CreateDefaultMasterMute()];
+		public List<OscFaderBinding> faderBindings { get; set; } = [OscFaderBinding.createDefaultMaster()];
+		public List<OscToggleBinding> bindings { get; set; } = [OscToggleBinding.createDefaultMasterMute()];
 	}
 
 	readonly ConfigStore _configStore = new();
@@ -30,7 +30,7 @@ public class TrayApp : ApplicationContext
 	List<OscToggleBinding> _oscToggleBindings = [];
 	Dictionary<Keys, OscToggleBinding> _oscTogglesByHotkey = [];
 
-	internal ConfigStore ConfigStore => _configStore;
+	internal ConfigStore configStore => _configStore;
 
 	internal void ResetFaderVolumeCache() => _mixer.ClearFaderSampleCache();
 
@@ -50,27 +50,27 @@ public class TrayApp : ApplicationContext
 
 	void RebuildHotkeysFromConfig(IEnumerable<OscFaderBinding> faders, IEnumerable<OscToggleBinding> toggles) {
 		List<OscFaderBinding> fd = faders.Select(f => new OscFaderBinding(f)).ToList();
-		List<OscToggleBinding> tg = toggles.Select(t => new OscToggleBinding(t) { Hotkey = OscHotkey.Normalize(t.Hotkey) }).ToList();
+		List<OscToggleBinding> tg = toggles.Select(t => new OscToggleBinding(t) { hotkey = OscHotkey.normalize(t.hotkey) }).ToList();
 		var minus = new Dictionary<Keys, OscFaderBinding>();
 		var plus = new Dictionary<Keys, OscFaderBinding>();
 		var toggleMap = new Dictionary<Keys, OscToggleBinding>();
 		var allKeys = new HashSet<Keys>();
 		foreach (OscFaderBinding f in fd) {
-			if (f.HotkeyMinus != Keys.None) {
-				Keys k = OscHotkey.Normalize(f.HotkeyMinus);
+			if (f.hotkeyMinus != Keys.None) {
+				Keys k = OscHotkey.normalize(f.hotkeyMinus);
 				minus[k] = f;
 				allKeys.Add(k);
 			}
-			if (f.HotkeyPlus != Keys.None) {
-				Keys k = OscHotkey.Normalize(f.HotkeyPlus);
+			if (f.hotkeyPlus != Keys.None) {
+				Keys k = OscHotkey.normalize(f.hotkeyPlus);
 				plus[k] = f;
 				allKeys.Add(k);
 			}
 		}
 		foreach (OscToggleBinding t in tg) {
-			if (t.Hotkey == Keys.None)
+			if (t.hotkey == Keys.None)
 				continue;
-			Keys k = OscHotkey.Normalize(t.Hotkey);
+			Keys k = OscHotkey.normalize(t.hotkey);
 			toggleMap[k] = t;
 			allKeys.Add(k);
 		}
@@ -88,34 +88,34 @@ public class TrayApp : ApplicationContext
 
 	internal Icon ApplyTrayIconState(AppTrayIconState state, bool showErrorOsdIfNotOk = false) {
 		_icons.ApplyState(state);
-		if (showErrorOsdIfNotOk && state != AppTrayIconState.Ok)
+		if (showErrorOsdIfNotOk && state != AppTrayIconState.OK)
 			_osd.ShowError();
 		return _icons.TrayIconSnapshot;
 	}
 
-	public void ApplyConfigFromStore() {
-		AppConfig cfg = _configStore.AppConfig;
+	public void applyConfigFromStore() {
+		AppConfig cfg = _configStore.appConfig;
 		_mixer.ClearFaderSampleCache();
-		_mixer.Osc.ApplyConfig(cfg.OscController);
-		_mixer.ApplyConfig(cfg.Mixer);
-		_osd.ApplyConfig(cfg.Osd);
-		RebuildHotkeysFromConfig(cfg.TrayApp?.FaderBindings ?? [], cfg.TrayApp?.Bindings ?? []);
+		_mixer.Osc.ApplyConfig(cfg.oscController);
+		_mixer.ApplyConfig(cfg.mixer);
+		_osd.ApplyConfig(cfg.osd);
+		RebuildHotkeysFromConfig(cfg.trayApp?.faderBindings ?? [], cfg.trayApp?.bindings ?? []);
 	}
 
-	public void CommitConfigFromSettingsForm(AppConfig newConfig) {
+	public void commitConfigFromSettingsForm(AppConfig newConfig) {
 		ArgumentNullException.ThrowIfNull(newConfig);
-		_configStore.AdoptAppConfig(newConfig);
-		ApplyConfigFromStore();
-		_configStore.TryPersistToDisk();
+		_configStore.adoptAppConfig(newConfig);
+		applyConfigFromStore();
+		_configStore.tryPersistToDisk();
 	}
 
 	public TrayApp() {
-		_configStore.LoadFromDisk();
+		_configStore.loadFromDisk();
 		_mixer = new MixerController(
-			new OscController(_configStore.AppConfig.OscController),
-			_configStore.AppConfig.Mixer);
+			new OscController(_configStore.appConfig.oscController),
+			_configStore.appConfig.mixer);
 
-		_osd = new OSDController(_configStore.AppConfig.Osd);
+		_osd = new OSDController(_configStore.appConfig.osd);
 		_ = _osd.Handle;
 
 		_trayIcon = new NotifyIcon() {
@@ -124,7 +124,7 @@ public class TrayApp : ApplicationContext
 			Text = "Windows OSC Volume Control"
 		};
 		_icons = new AppIconController(_trayIcon, _resources);
-		_icons.ApplyState(AppTrayIconState.StartingOrInvalidConfig);
+		_icons.ApplyState(AppTrayIconState.STARTING_OR_INVALID_CONFIG);
 		_trayIcon.ContextMenuStrip.Items.Add("Configure…", null, (s, e) => OpenConfig());
 		_trayIcon.ContextMenuStrip.Items.Add("Exit", null, (s, e) => Exit());
 
@@ -132,13 +132,13 @@ public class TrayApp : ApplicationContext
 		_hook = new KeyboardHook();
 		_hook.OnConfiguredHotkeyPressed = hotkey => _ = OnConfiguredHotkeyAsync(hotkey);
 
-		RebuildHotkeysFromConfig(_configStore.AppConfig.TrayApp?.FaderBindings ?? [], _configStore.AppConfig.TrayApp?.Bindings ?? []);
+		RebuildHotkeysFromConfig(_configStore.appConfig.trayApp?.faderBindings ?? [], _configStore.appConfig.trayApp?.bindings ?? []);
 		_ = RunStartupHealthAsync();
 	}
 
 	async Task RunStartupHealthAsync() {
 		bool ok = await _mixer.TestConnectionAsync().ConfigureAwait(false);
-		Ui(() => ApplyTrayIconState(ok ? AppTrayIconState.Ok : AppTrayIconState.NetworkError, showErrorOsdIfNotOk: !ok));
+		Ui(() => ApplyTrayIconState(ok ? AppTrayIconState.OK : AppTrayIconState.NETWORK_ERROR, showErrorOsdIfNotOk: !ok));
 	}
 
 	void OpenConfig() {
@@ -167,15 +167,15 @@ public class TrayApp : ApplicationContext
 	}
 
 	static string BindingDisplayName(OscFaderBinding b) {
-		if (!string.IsNullOrWhiteSpace(b.Name))
-			return b.Name.Trim();
-		if (!string.IsNullOrWhiteSpace(b.Address))
-			return b.Address.Trim();
+		if (!string.IsNullOrWhiteSpace(b.name))
+			return b.name.Trim();
+		if (!string.IsNullOrWhiteSpace(b.address))
+			return b.address.Trim();
 		return "Fader";
 	}
 
 	async Task OnConfiguredHotkeyAsync(Keys hotkey) {
-		hotkey = OscHotkey.Normalize(hotkey);
+		hotkey = OscHotkey.normalize(hotkey);
 		OscFaderBinding? fPlus;
 		OscFaderBinding? fMinus;
 		OscToggleBinding? toggle;
@@ -198,40 +198,40 @@ public class TrayApp : ApplicationContext
 	}
 
 	async Task NudgeFaderAsync(OscFaderBinding binding, bool volumeUp) {
-		string path = OscController.NormalizeBindingAddress(binding.Address);
+		string path = OscController.NormalizeBindingAddress(binding.address);
 		string display = BindingDisplayName(binding);
 		if (!_mixer.HasFreshFaderSample(path))
-			Ui(() => _osd.ShowPending(display, binding.Step));
+			Ui(() => _osd.ShowPending(display, binding.step));
 
-		float? newLevel = await _mixer.NudgeAsync(path, volumeUp, binding.Step, binding.Minimum, binding.Maximum).ConfigureAwait(false);
+		float? newLevel = await _mixer.NudgeAsync(path, volumeUp, binding.step, binding.minimum, binding.maximum).ConfigureAwait(false);
 		if (newLevel == null) {
 			Ui(() => {
-				_icons.ApplyState(AppTrayIconState.NetworkError);
+				_icons.ApplyState(AppTrayIconState.NETWORK_ERROR);
 				_osd.ShowError();
 			});
 			return;
 		}
 
-		Ui(() => ApplyTrayIconState(AppTrayIconState.Ok));
-		Ui(() => _osd.ShowLevel(display, binding.Minimum, binding.Maximum, newLevel.Value, volumeUp, binding.Step));
+		Ui(() => ApplyTrayIconState(AppTrayIconState.OK));
+		Ui(() => _osd.ShowLevel(display, binding.minimum, binding.maximum, newLevel.Value, volumeUp, binding.step));
 	}
 
 	async Task FlipOscToggleAsync(OscToggleBinding binding) {
-		string display = string.IsNullOrWhiteSpace(binding.Name) ? binding.Address.Trim() : binding.Name.Trim();
+		string display = string.IsNullOrWhiteSpace(binding.name) ? binding.address.Trim() : binding.name.Trim();
 		Ui(() => _osd.ShowPending(display));
-		bool? current = await _mixer.QueryToggleAsync(binding.Address).ConfigureAwait(false);
+		bool? current = await _mixer.QueryToggleAsync(binding.address).ConfigureAwait(false);
 		if (current == null) {
 			Ui(() => {
-				_icons.ApplyState(AppTrayIconState.NetworkError);
+				_icons.ApplyState(AppTrayIconState.NETWORK_ERROR);
 				_osd.ShowError();
 			});
 			return;
 		}
 
 		bool nowOn = !current.Value;
-		await _mixer.SetToggleAsync(binding.Address, nowOn).ConfigureAwait(false);
-		Ui(() => ApplyTrayIconState(AppTrayIconState.Ok));
-		Ui(() => _osd.ShowToggle(binding.Name, nowOn));
+		await _mixer.SetToggleAsync(binding.address, nowOn).ConfigureAwait(false);
+		Ui(() => ApplyTrayIconState(AppTrayIconState.OK));
+		Ui(() => _osd.ShowToggle(binding.name, nowOn));
 	}
 
 	void Exit() {

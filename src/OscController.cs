@@ -13,16 +13,16 @@ namespace WindowsOscVolumeControl {
 public partial class OscController {
 
 	public class Config {
-		public const uint MinQueryTimeoutMs = 1;
-		public const uint MaxQueryTimeoutMs = 10_000;
+		public const uint MIN_QUERY_TIMEOUT_MS = 1;
+		public const uint MAX_QUERY_TIMEOUT_MS = 10_000;
 
-		public IPEndPoint EndPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 10023);
+		public IPEndPoint endPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 10023);
 		public uint timeoutMs = 200;
 
 		public Config() {}
 		public Config(Config other) {
 			ArgumentNullException.ThrowIfNull(other);
-			EndPoint = new IPEndPoint(other.EndPoint.Address, other.EndPoint.Port);
+			endPoint = new IPEndPoint(other.endPoint.Address, other.endPoint.Port);
 			timeoutMs = other.timeoutMs;
 		}
 	}
@@ -41,7 +41,7 @@ public partial class OscController {
 		get { return new Config(_config); }
 		set {
 			udpClient?.Dispose();
-			int oscPort = value.EndPoint.Port;
+			int oscPort = value.endPoint.Port;
 			// X32 replies to the UDP source port used by the client; binding to the configured OSC port
 			// matches the desk default and keeps custom-port setups consistent with saved config.
 			// See e.g. https://github.com/mike-steciuk/X32Client/blob/master/X32Client/X32/X32Client.cs
@@ -54,7 +54,7 @@ public partial class OscController {
 				udpClient = new UdpClient(AddressFamily.InterNetwork);
 			}
 			udpClient.Client.IOControl((IOControlCode)(-1744830452), [0], null);
-			_mixerEndPoint = new IPEndPoint(value.EndPoint.Address, value.EndPoint.Port);
+			_mixerEndPoint = new IPEndPoint(value.endPoint.Address, value.endPoint.Port);
 			Trace.WriteLine("OSC socket local=" + udpClient.Client.LocalEndPoint + " remote=" + _mixerEndPoint);
 			_config = new Config(value);
 		}
@@ -152,9 +152,9 @@ public partial class OscController {
 	/// <summary>Maps e.g. /main/st/mix/fader -> /main/st/mix/on for X32 mute (0 = muted, 1 = on).</summary>
 	internal static string FaderPathToMixOnPath(string faderPath) {
 		faderPath = NormalizeOscAddress(NormalizeX32ChannelPath(faderPath));
-		const string suffix = "/mix/fader";
-		if (faderPath.EndsWith(suffix, StringComparison.Ordinal))
-			return faderPath[..^suffix.Length] + "/mix/on";
+		const string FADER_PATH_SUFFIX = "/mix/fader";
+		if (faderPath.EndsWith(FADER_PATH_SUFFIX, StringComparison.Ordinal))
+			return faderPath[..^FADER_PATH_SUFFIX.Length] + "/mix/on";
 		throw new InvalidOperationException("FaderAddress must end with /mix/fader for mute (e.g. /main/st/mix/fader).");
 	}
 

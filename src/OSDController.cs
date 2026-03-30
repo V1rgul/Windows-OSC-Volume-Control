@@ -17,10 +17,10 @@ public class OSDController : Form
 
 	/// <summary>OSD size and dwell time; persisted via <see cref="WindowsOscVolumeControl.ConfigStore"/>.</summary>
 	public sealed class Config {
-		public const int MinHeightPx = 48;
-		public const int MaxHeightPx = 600;
-		public const uint MinDisplayDurationMs = 200;
-		public const uint MaxDisplayDurationMs = 60_000;
+		public const int MIN_HEIGHT_PX = 48;
+		public const int MAX_HEIGHT_PX = 600;
+		public const uint MIN_DISPLAY_DURATION_MS = 200;
+		public const uint MAX_DISPLAY_DURATION_MS = 60_000;
 
 		/// <summary>Total OSD client height in pixels (reference layout uses 78).</summary>
 		public int HeightPx { get; set; } = 78;
@@ -37,24 +37,24 @@ public class OSDController : Form
 
 		public static Config Clamped(Config? c) {
 			c ??= new Config();
-			int h = Math.Clamp(c.HeightPx, MinHeightPx, MaxHeightPx);
+			int h = Math.Clamp(c.HeightPx, MIN_HEIGHT_PX, MAX_HEIGHT_PX);
 			uint d = c.DisplayDurationMs;
-			if (d < MinDisplayDurationMs) d = MinDisplayDurationMs;
-			if (d > MaxDisplayDurationMs) d = MaxDisplayDurationMs;
+			if (d < MIN_DISPLAY_DURATION_MS) d = MIN_DISPLAY_DURATION_MS;
+			if (d > MAX_DISPLAY_DURATION_MS) d = MAX_DISPLAY_DURATION_MS;
 			return new Config { HeightPx = h, DisplayDurationMs = d };
 		}
 	}
 
 	/// <summary>Reference total client height (24 + 30 + 24).</summary>
-	const int RefClientHeightPx = 78;
-	const int RefFrameMargin = 24;
-	const int RefBarHeight = 30;
-	const int RefGapHorizontal = 12;
-	const int RefToggleSymbolDiam = 24;
-	const int RefBaseClientWidth = 420;
-	const float RefValueFontPt = 12f;
-	const float RefFlashFontPt = 20f;
-	const int RefFlashGapPx = 4;
+	const int REF_CLIENT_HEIGHT_PX = 78;
+	const int REF_FRAME_MARGIN = 24;
+	const int REF_BAR_HEIGHT = 30;
+	const int REF_GAP_HORIZONTAL = 12;
+	const int REF_TOGGLE_SYMBOL_DIAM = 24;
+	const int REF_BASE_CLIENT_WIDTH = 420;
+	const float REF_VALUE_FONT_PT = 12f;
+	const float REF_FLASH_FONT_PT = 20f;
+	const int REF_FLASH_GAP_PX = 4;
 
 	readonly struct OsdLayoutMetrics
 	{
@@ -75,20 +75,20 @@ public class OSDController : Form
 
 		public static OsdLayoutMetrics FromHeightPx(int heightPx)
 		{
-			double scale = heightPx / (double)RefClientHeightPx;
-			int margin = Math.Max(4, (int)Math.Round(RefFrameMargin * scale));
+			double scale = heightPx / (double)REF_CLIENT_HEIGHT_PX;
+			int margin = Math.Max(4, (int)Math.Round(REF_FRAME_MARGIN * scale));
 			int bar = heightPx - 2 * margin;
 			if (bar < 1) {
 				margin = Math.Max(0, (heightPx - 1) / 2);
 				bar = heightPx - 2 * margin;
 				bar = Math.Max(1, bar);
 			}
-			int gap = Math.Max(4, (int)Math.Round(RefGapHorizontal * scale));
-			int toggle = Math.Max(8, (int)Math.Round(RefToggleSymbolDiam * scale));
-			int baseW = Math.Max(200, (int)Math.Round(RefBaseClientWidth * scale));
-			float valuePt = Math.Max(6f, (float)(RefValueFontPt * scale));
-			float flashPt = Math.Max(8f, (float)(RefFlashFontPt * scale));
-			int flashGap = Math.Max(1, (int)Math.Round(RefFlashGapPx * scale));
+			int gap = Math.Max(4, (int)Math.Round(REF_GAP_HORIZONTAL * scale));
+			int toggle = Math.Max(8, (int)Math.Round(REF_TOGGLE_SYMBOL_DIAM * scale));
+			int baseW = Math.Max(200, (int)Math.Round(REF_BASE_CLIENT_WIDTH * scale));
+			float valuePt = Math.Max(6f, (float)(REF_VALUE_FONT_PT * scale));
+			float flashPt = Math.Max(8f, (float)(REF_FLASH_FONT_PT * scale));
+			int flashGap = Math.Max(1, (int)Math.Round(REF_FLASH_GAP_PX * scale));
 			float penW = Math.Max(1f, (float)(2.0 * scale));
 			int nameMin = Math.Max(8, (int)Math.Round(40 * scale));
 			int namePad = Math.Max(2, (int)Math.Round(8 * scale));
@@ -128,9 +128,9 @@ public class OSDController : Form
 			string label = string.IsNullOrWhiteSpace(rowLabelForMeasure) ? "" : rowLabelForMeasure.Trim();
 			int nameW = 0;
 			if (label.Length > 0) {
-				const int maxChars = 48;
-				if (label.Length > maxChars)
-					label = label[..maxChars] + "…";
+				const int MAX_CHARS = 48;
+				if (label.Length > MAX_CHARS)
+					label = label[..MAX_CHARS] + "…";
 				nameW = (int)Math.Ceiling(g.MeasureString(label, ValueFont).Width);
 				if (!toggleCompact) {
 					nameW += m.NameColumnExtraPad;
@@ -168,17 +168,17 @@ public class OSDController : Form
 
 	enum FlashSign
 	{
-		None,
-		Plus,
-		Minus,
+		NONE,
+		PLUS,
+		MINUS,
 	}
 
 	enum OsdView
 	{
-		Level,
-		Pending,
-		Error,
-		ToggleStatus,
+		LEVEL,
+		PENDING,
+		ERROR,
+		TOGGLE_STATUS,
 	}
 
 	System.Windows.Forms.Timer _autoHideTimer;
@@ -189,7 +189,7 @@ public class OSDController : Form
 	float _levelMin;
 	float _levelMax;
 	int _levelFracDigits = 2;
-	OsdView _view = OsdView.Level;
+	OsdView _view = OsdView.LEVEL;
 	FlashSign _flashSign;
 	string _rowLabel = "";
 	string _statusText = "";
@@ -247,7 +247,7 @@ public class OSDController : Form
 		_flashTimer.Interval = OSD_FLASH_MS;
 		_flashTimer.Tick += (s, e) =>
 		{
-			_flashSign = FlashSign.None;
+			_flashSign = FlashSign.NONE;
 			_flashTimer.Stop();
 			Invalidate();
 		};
@@ -297,14 +297,14 @@ public class OSDController : Form
 	}
 
 	string LayoutMeasureLabel() => _view switch {
-		OsdView.ToggleStatus => _statusText,
-		OsdView.Level or OsdView.Pending => _rowLabel,
+		OsdView.TOGGLE_STATUS => _statusText,
+		OsdView.LEVEL or OsdView.PENDING => _rowLabel,
 		_ => "",
 	};
 
 	int LayoutValueFractionalDigits() => _view switch {
-		OsdView.Level => _levelFracDigits,
-		OsdView.Pending => _levelFracDigits,
+		OsdView.LEVEL => _levelFracDigits,
+		OsdView.PENDING => _levelFracDigits,
 		_ => Math.Max(0, FaderFloatUtil.BindingFractionalDigits),
 	};
 
@@ -321,7 +321,7 @@ public class OSDController : Form
 	{
 		_cache?.Dispose();
 		using var g = CreateGraphics();
-		_cache = new CachedLayout(g, _metrics, LayoutMeasureLabel(), LayoutValueFractionalDigits(), _view == OsdView.ToggleStatus);
+		_cache = new CachedLayout(g, _metrics, LayoutMeasureLabel(), LayoutValueFractionalDigits(), _view == OsdView.TOGGLE_STATUS);
 		int h = _metrics.ClientHeightPx;
 		if (ClientSize.Width != _cache.ComputedClientWidth || ClientSize.Height != h)
 			ClientSize = new Size(_cache.ComputedClientWidth, h);
@@ -349,9 +349,9 @@ public class OSDController : Form
 		if (float.IsFinite(faderStepForLayout) && faderStepForLayout > 0f)
 			_levelFracDigits = FaderFloatUtil.GetOsdFractionalDigitsFromStep(faderStepForLayout);
 		_flashTimer.Stop();
-		_flashSign = FlashSign.None;
+		_flashSign = FlashSign.NONE;
 		_rowLabel = rowLabel ?? "";
-		_view = OsdView.Pending;
+		_view = OsdView.PENDING;
 		Invalidate();
 		ShowNoActivate();
 	}
@@ -359,8 +359,8 @@ public class OSDController : Form
 	public void ShowError()
 	{
 		_flashTimer.Stop();
-		_flashSign = FlashSign.None;
-		_view = OsdView.Error;
+		_flashSign = FlashSign.NONE;
+		_view = OsdView.ERROR;
 		Invalidate();
 		ShowNoActivate();
 	}
@@ -374,8 +374,8 @@ public class OSDController : Form
 		_levelMax = max;
 		_levelRaw = value;
 		_levelFracDigits = FaderFloatUtil.GetOsdFractionalDigitsFromStep(step);
-		_view = OsdView.Level;
-		_flashSign = volumeIncreased ? FlashSign.Plus : FlashSign.Minus;
+		_view = OsdView.LEVEL;
+		_flashSign = volumeIncreased ? FlashSign.PLUS : FlashSign.MINUS;
 		_flashTimer.Stop();
 		_flashTimer.Start();
 		Invalidate();
@@ -385,10 +385,10 @@ public class OSDController : Form
 	public void ShowToggle(string name, bool enabled)
 	{
 		_flashTimer.Stop();
-		_flashSign = FlashSign.None;
+		_flashSign = FlashSign.NONE;
 		_statusText = string.IsNullOrWhiteSpace(name) ? "OSC TOGGLE" : name.Trim();
 		_statusOn = enabled;
-		_view = OsdView.ToggleStatus;
+		_view = OsdView.TOGGLE_STATUS;
 		Invalidate();
 		ShowNoActivate();
 	}
@@ -412,12 +412,12 @@ public class OSDController : Form
 		int bh = _metrics.BarHeight;
 		int gap = _metrics.FlashGapPx;
 
-		if (_view == OsdView.Error) {
+		if (_view == OsdView.ERROR) {
 			DrawStatusCentered(g, ClientSize, c.ValueFont, "ERROR", Brushes.Gray);
 			return;
 		}
 
-		if (_view == OsdView.ToggleStatus) {
+		if (_view == OsdView.TOGGLE_STATUS) {
 			DrawToggleStatus(g, c);
 			return;
 		}
@@ -432,7 +432,7 @@ public class OSDController : Form
 			g.DrawString(_rowLabel.Trim(), c.ValueFont, Brushes.White, nameRect, nameSf);
 		}
 
-		if (_view == OsdView.Pending) {
+		if (_view == OsdView.PENDING) {
 			g.FillRectangle(Brushes.Gray, barLeft, fm, barW, bh);
 			DrawValueInColumn(g, c.ValueFont, "—", barLeft, barW);
 			return;
@@ -446,10 +446,10 @@ public class OSDController : Form
 		string valueText = FaderFloatUtil.FormatOsdLevelValue(_levelRaw, _levelFracDigits);
 		DrawValueInColumn(g, c.ValueFont, valueText, barLeft, barW);
 
-		if (_flashSign != FlashSign.None) {
+		if (_flashSign != FlashSign.NONE) {
 			float endX = barLeft + fillW;
 			int centerY = fm + bh / 2;
-			if (_flashSign == FlashSign.Plus) {
+			if (_flashSign == FlashSign.PLUS) {
 				float x = endX + gap;
 				float y = centerY - c.PlusFlashSize.Height / 2f;
 				g.DrawString("+", c.FlashFont, Brushes.Black, x, y);

@@ -101,18 +101,18 @@ namespace WindowsOscVolumeControl {
 		}
 
 		void ApplyConfigNumericBoundsFromPolicy() {
-			numericUpDownQueryTimeoutMs.Minimum = OscController.Config.MinQueryTimeoutMs;
-			numericUpDownQueryTimeoutMs.Maximum = OscController.Config.MaxQueryTimeoutMs;
-			numericUpDownFaderVolumeCacheTtlMs.Minimum = MixerController.Config.MinValueCacheTtlMs;
-			numericUpDownFaderVolumeCacheTtlMs.Maximum = MixerController.Config.MaxValueCacheTtlMs;
-			numericUpDownOsdHeightPx.Minimum = OSDController.Config.MinHeightPx;
-			numericUpDownOsdHeightPx.Maximum = OSDController.Config.MaxHeightPx;
-			numericUpDownOsdDisplayDurationMs.Minimum = OSDController.Config.MinDisplayDurationMs;
-			numericUpDownOsdDisplayDurationMs.Maximum = OSDController.Config.MaxDisplayDurationMs;
+			numericUpDownQueryTimeoutMs.Minimum = OscController.Config.MIN_QUERY_TIMEOUT_MS;
+			numericUpDownQueryTimeoutMs.Maximum = OscController.Config.MAX_QUERY_TIMEOUT_MS;
+			numericUpDownFaderVolumeCacheTtlMs.Minimum = MixerController.Config.MIN_VALUE_CACHE_TTL_MS;
+			numericUpDownFaderVolumeCacheTtlMs.Maximum = MixerController.Config.MAX_VALUE_CACHE_TTL_MS;
+			numericUpDownOsdHeightPx.Minimum = OSDController.Config.MIN_HEIGHT_PX;
+			numericUpDownOsdHeightPx.Maximum = OSDController.Config.MAX_HEIGHT_PX;
+			numericUpDownOsdDisplayDurationMs.Minimum = OSDController.Config.MIN_DISPLAY_DURATION_MS;
+			numericUpDownOsdDisplayDurationMs.Maximum = OSDController.Config.MAX_DISPLAY_DURATION_MS;
 		}
 
 		void SetupConfigStoreUi() {
-			textBoxConfigStorePath.Text = _configStore.ConfigPath;
+			textBoxConfigStorePath.Text = _configStore.configPath;
 			buttonOpenConfigStoreFolder.Text = "";
 			buttonOpenConfigStoreFolder.AutoSize = false;
 			int boxH = textBoxConfigStorePath.PreferredHeight;
@@ -134,20 +134,20 @@ namespace WindowsOscVolumeControl {
 		}
 
 		void RefreshConfigStoreDiskFeedback() {
-			labelConfigStoreFeedback.Text = _configStore.LastDiskFeedback;
-			labelConfigStoreFeedback.ForeColor = _configStore.LastDiskOutcome switch {
-				AppConfigDiskOutcome.None => SystemColors.GrayText,
-				AppConfigDiskOutcome.NoFileUsingDefaults => Color.SteelBlue,
-				AppConfigDiskOutcome.LoadedOk => Color.Green,
-				AppConfigDiskOutcome.InvalidOrIncompleteFile => Color.Red,
-				AppConfigDiskOutcome.LoadIoError => Color.Red,
-				AppConfigDiskOutcome.SavedOk => Color.Green,
-				AppConfigDiskOutcome.SaveFailed => Color.Red,
+			labelConfigStoreFeedback.Text = _configStore.lastDiskFeedback;
+			labelConfigStoreFeedback.ForeColor = _configStore.lastDiskOutcome switch {
+				AppConfigDiskOutcome.NONE => SystemColors.GrayText,
+				AppConfigDiskOutcome.NO_FILE_USING_DEFAULTS => Color.SteelBlue,
+				AppConfigDiskOutcome.LOADED_OK => Color.Green,
+				AppConfigDiskOutcome.INVALID_OR_INCOMPLETE_FILE => Color.Red,
+				AppConfigDiskOutcome.LOAD_IO_ERROR => Color.Red,
+				AppConfigDiskOutcome.SAVED_OK => Color.Green,
+				AppConfigDiskOutcome.SAVE_FAILED => Color.Red,
 			};
 		}
 
 		void buttonOpenConfigStoreFolder_Click(object? sender, EventArgs e) {
-			string path = _configStore.ConfigPath;
+			string path = _configStore.configPath;
 			string? dir = Path.GetDirectoryName(path);
 			if (string.IsNullOrEmpty(dir))
 				return;
@@ -171,7 +171,7 @@ namespace WindowsOscVolumeControl {
 		}
 
 		static void SetOsdHeightNudClamped(NumericUpDown nud, int value) {
-			value = Math.Clamp(value, OSDController.Config.MinHeightPx, OSDController.Config.MaxHeightPx);
+			value = Math.Clamp(value, OSDController.Config.MIN_HEIGHT_PX, OSDController.Config.MAX_HEIGHT_PX);
 			nud.Value = value;
 		}
 
@@ -181,13 +181,13 @@ namespace WindowsOscVolumeControl {
 		}
 
 		void LoadFieldsFromOsc() {
-			OscController.Config c = new(_configStore.AppConfig.OscController);
-			textBoxIP.Text = c.EndPoint.Address.ToString();
-			textBoxPort.Text = c.EndPoint.Port.ToString();
+			OscController.Config c = new(_configStore.appConfig.oscController);
+			textBoxIP.Text = c.endPoint.Address.ToString();
+			textBoxPort.Text = c.endPoint.Port.ToString();
 			SetNumericUpDownClamped(numericUpDownQueryTimeoutMs, c.timeoutMs);
-			uint ttl = Math.Min(_configStore.AppConfig.Mixer.ValueCacheTtlMs, MixerController.Config.MaxValueCacheTtlMs);
+			uint ttl = Math.Min(_configStore.appConfig.mixer.ValueCacheTtlMs, MixerController.Config.MAX_VALUE_CACHE_TTL_MS);
 			SetNumericUpDownClamped(numericUpDownFaderVolumeCacheTtlMs, ttl);
-			OSDController.Config osd = OSDController.Config.Clamped(_configStore.AppConfig.Osd);
+			OSDController.Config osd = OSDController.Config.Clamped(_configStore.appConfig.osd);
 			SetOsdHeightNudClamped(numericUpDownOsdHeightPx, osd.HeightPx);
 			SetNumericUpDownClamped(numericUpDownOsdDisplayDurationMs, osd.DisplayDurationMs);
 			RefreshQueryTimeoutAndVolumeCacheColors();
@@ -197,14 +197,14 @@ namespace WindowsOscVolumeControl {
 
 		void LoadOscFaderBindings() {
 			dataGridViewOscFaders.Rows.Clear();
-			foreach (OscFaderBinding binding in _configStore.AppConfig.TrayApp?.FaderBindings ?? [])
+			foreach (OscFaderBinding binding in _configStore.appConfig.trayApp?.faderBindings ?? [])
 				AddOscFaderRow(new OscFaderBinding(binding));
 			EnsureOscFaderAddRow();
 		}
 
 		void LoadOscToggleBindings() {
 			dataGridViewOscToggles.Rows.Clear();
-			foreach (OscToggleBinding binding in _configStore.AppConfig.TrayApp?.Bindings ?? [])
+			foreach (OscToggleBinding binding in _configStore.appConfig.trayApp?.bindings ?? [])
 				AddOscToggleRow(new OscToggleBinding(binding));
 			EnsureOscToggleAddRow();
 			ResetOscToggleHint();
@@ -342,15 +342,15 @@ namespace WindowsOscVolumeControl {
 			text = text.Trim();
 			if (string.IsNullOrEmpty(text))
 				return true;
-			if (!OscHotkey.TryParse(text, out hotkey)) {
+			if (!OscHotkey.tryParse(text, out hotkey)) {
 				error = "Invalid hotkey.";
 				return false;
 			}
-			if (!OscHotkey.TryValidate(hotkey, out string hotkeyError)) {
+			if (!OscHotkey.tryValidate(hotkey, out string hotkeyError)) {
 				error = hotkeyError;
 				return false;
 			}
-			hotkey = OscHotkey.Normalize(hotkey);
+			hotkey = OscHotkey.normalize(hotkey);
 			return true;
 		}
 
@@ -390,7 +390,7 @@ namespace WindowsOscVolumeControl {
 					error = $"OSC fader row {rowIndex + 1}: Minimum must be ≤ Maximum.";
 					return false;
 				}
-				step = Math.Clamp(FaderFloatUtil.RoundToBindingDecimals(step), MixerController.Config.MinFaderStep, MixerController.Config.MaxFaderStep);
+				step = Math.Clamp(FaderFloatUtil.RoundToBindingDecimals(step), MixerController.Config.MIN_FADER_STEP, MixerController.Config.MAX_FADER_STEP);
 				min = FaderFloatUtil.RoundToBindingDecimals(min);
 				max = FaderFloatUtil.RoundToBindingDecimals(max);
 				if (min > max) {
@@ -407,13 +407,13 @@ namespace WindowsOscVolumeControl {
 					return false;
 				}
 				bindings.Add(new OscFaderBinding {
-					Name = name,
-					Address = address,
-					Step = step,
-					Minimum = min,
-					Maximum = max,
-					HotkeyMinus = hkMinus,
-					HotkeyPlus = hkPlus,
+					name = name,
+					address = address,
+					step = step,
+					minimum = min,
+					maximum = max,
+					hotkeyMinus = hkMinus,
+					hotkeyPlus = hkPlus,
 				});
 			}
 			if (bindings.Count == 0) {
@@ -439,19 +439,19 @@ namespace WindowsOscVolumeControl {
 					error = $"OSC toggle row {rowIndex + 1} must have Name, Address, and Hotkey.";
 					return false;
 				}
-				if (!OscHotkey.TryParse(hotkeyText, out Keys hotkey)) {
+				if (!OscHotkey.tryParse(hotkeyText, out Keys hotkey)) {
 					error = $"OSC toggle row {rowIndex + 1} has an invalid hotkey.";
 					return false;
 				}
-				if (!OscHotkey.TryValidate(hotkey, out string hotkeyError)) {
+				if (!OscHotkey.tryValidate(hotkey, out string hotkeyError)) {
 					error = $"OSC toggle row {rowIndex + 1}: {hotkeyError}";
 					return false;
 				}
-				hotkey = OscHotkey.Normalize(hotkey);
+				hotkey = OscHotkey.normalize(hotkey);
 				bindings.Add(new OscToggleBinding {
-					Name = name,
-					Address = address,
-					Hotkey = hotkey,
+					name = name,
+					address = address,
+					hotkey = hotkey,
 				});
 			}
 			return true;
@@ -463,18 +463,18 @@ namespace WindowsOscVolumeControl {
 			for (int i = 0; i < faders.Count; i++) {
 				OscFaderBinding f = faders[i];
 				string rowLabel = $"OSC fader row {i + 1}";
-				if (f.HotkeyMinus != Keys.None) {
-					Keys k = OscHotkey.Normalize(f.HotkeyMinus);
+				if (f.hotkeyMinus != Keys.None) {
+					Keys k = OscHotkey.normalize(f.hotkeyMinus);
 					if (claimed.TryGetValue(k, out string? prev)) {
-						error = $"{rowLabel} hotkey − ({OscHotkey.Format(k)}) conflicts with {prev}.";
+						error = $"{rowLabel} hotkey − ({OscHotkey.format(k)}) conflicts with {prev}.";
 						return false;
 					}
 					claimed[k] = $"{rowLabel} (−)";
 				}
-				if (f.HotkeyPlus != Keys.None) {
-					Keys k = OscHotkey.Normalize(f.HotkeyPlus);
+				if (f.hotkeyPlus != Keys.None) {
+					Keys k = OscHotkey.normalize(f.hotkeyPlus);
 					if (claimed.TryGetValue(k, out string? prev)) {
-						error = $"{rowLabel} hotkey + ({OscHotkey.Format(k)}) conflicts with {prev}.";
+						error = $"{rowLabel} hotkey + ({OscHotkey.format(k)}) conflicts with {prev}.";
 						return false;
 					}
 					claimed[k] = $"{rowLabel} (+)";
@@ -482,12 +482,12 @@ namespace WindowsOscVolumeControl {
 			}
 			for (int i = 0; i < toggles.Count; i++) {
 				OscToggleBinding t = toggles[i];
-				Keys k = OscHotkey.Normalize(t.Hotkey);
+				Keys k = OscHotkey.normalize(t.hotkey);
 				if (claimed.TryGetValue(k, out string? prev)) {
-					error = $"OSC toggle \"{t.Name}\" ({OscHotkey.Format(k)}) conflicts with {prev}.";
+					error = $"OSC toggle \"{t.name}\" ({OscHotkey.format(k)}) conflicts with {prev}.";
 					return false;
 				}
-				claimed[k] = $"OSC toggle \"{t.Name}\"";
+				claimed[k] = $"OSC toggle \"{t.name}\"";
 			}
 			return true;
 		}
@@ -546,7 +546,7 @@ namespace WindowsOscVolumeControl {
 				    out IPAddress ip, out int port, out ipError, out portError))
 				return false;
 			cfg = new OscController.Config {
-				EndPoint = new IPEndPoint(ip, port),
+				endPoint = new IPEndPoint(ip, port),
 				timeoutMs = (uint)numericUpDownQueryTimeoutMs.Value,
 			};
 			return true;
@@ -669,8 +669,8 @@ namespace WindowsOscVolumeControl {
 				return;
 			DataGridViewCell cell = dataGridViewOscToggles.Rows[e.RowIndex].Cells[e.ColumnIndex];
 			string text = Convert.ToString(cell.Value, CultureInfo.InvariantCulture)?.Trim() ?? "";
-			if (e.ColumnIndex == OSC_TOGGLE_HOTKEY_COLUMN && OscHotkey.TryParse(text, out Keys hotkey))
-				text = OscHotkey.Format(hotkey);
+			if (e.ColumnIndex == OSC_TOGGLE_HOTKEY_COLUMN && OscHotkey.tryParse(text, out Keys hotkey))
+				text = OscHotkey.format(hotkey);
 			cell.Value = text;
 			ResetOscToggleHint();
 			RefreshApplyButtonEnabled();
@@ -686,8 +686,8 @@ namespace WindowsOscVolumeControl {
 				if (float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float fv) && float.IsFinite(fv))
 					text = FaderFloatUtil.FormatGridFloat(fv);
 			} else if ((e.ColumnIndex == OSC_FADER_HOTKEY_MINUS_COLUMN || e.ColumnIndex == OSC_FADER_HOTKEY_PLUS_COLUMN)
-			           && OscHotkey.TryParse(text, out Keys hk)) {
-				text = OscHotkey.Format(hk);
+			           && OscHotkey.tryParse(text, out Keys hk)) {
+				text = OscHotkey.format(hk);
 			}
 			cell.Value = text;
 			ClearFaderTestFeedback();
@@ -698,7 +698,7 @@ namespace WindowsOscVolumeControl {
 			int insertIndex = dataGridViewOscToggles.Rows.Count;
 			if (insertIndex > 0 && IsOscToggleAddRow(dataGridViewOscToggles.Rows[insertIndex - 1]))
 				insertIndex--;
-			dataGridViewOscToggles.Rows.Insert(insertIndex, binding?.Name ?? "", binding?.Address ?? "", binding != null ? OscHotkey.Format(binding.Hotkey) : "", "", "");
+			dataGridViewOscToggles.Rows.Insert(insertIndex, binding?.name ?? "", binding?.address ?? "", binding != null ? OscHotkey.format(binding.hotkey) : "", "", "");
 			ConfigureOscToggleDataRow(dataGridViewOscToggles.Rows[insertIndex]);
 			EnsureOscToggleAddRow();
 			if (binding == null) {
@@ -717,14 +717,14 @@ namespace WindowsOscVolumeControl {
 			object[] vals = binding == null
 				? ["", "", "", "", "", "", "", "", "", ""]
 				: [
-					binding.Name,
-					binding.Address,
-					s(binding.Step),
-					s(binding.Minimum),
-					s(binding.Maximum),
-					OscHotkey.Format(binding.HotkeyMinus),
+					binding.name,
+					binding.address,
+					s(binding.step),
+					s(binding.minimum),
+					s(binding.maximum),
+					OscHotkey.format(binding.hotkeyMinus),
 					"",
-					OscHotkey.Format(binding.HotkeyPlus),
+					OscHotkey.format(binding.hotkeyPlus),
 					"",
 					"",
 				];
@@ -774,12 +774,12 @@ namespace WindowsOscVolumeControl {
 			int rowIndex = _hotkeyOwnerGrid.CurrentCell.RowIndex;
 			if (rowIndex < 0)
 				return;
-			if (!OscHotkey.TryValidate(hotkey, out string error)) {
+			if (!OscHotkey.tryValidate(hotkey, out string error)) {
 				ShowOscToggleError(error);
 				RefreshApplyButtonEnabled();
 				return;
 			}
-			SetHotkeyCellDisplay(_hotkeyOwnerGrid, rowIndex, _hotkeyOwnerColumn, OscHotkey.Format(OscHotkey.Normalize(hotkey)));
+			SetHotkeyCellDisplay(_hotkeyOwnerGrid, rowIndex, _hotkeyOwnerColumn, OscHotkey.format(OscHotkey.normalize(hotkey)));
 			ResetOscToggleHint();
 			ClearFaderTestFeedback();
 			RefreshApplyButtonEnabled();
@@ -800,18 +800,18 @@ namespace WindowsOscVolumeControl {
 				e.SuppressKeyPress = true;
 				return;
 			}
-			if (OscHotkey.IsModifierKey(e.KeyCode)) {
+			if (OscHotkey.isModifierKey(e.KeyCode)) {
 				e.SuppressKeyPress = true;
 				return;
 			}
-			Keys k = OscHotkey.Normalize(e.KeyData);
-			if (!OscHotkey.TryValidate(k, out string err)) {
+			Keys k = OscHotkey.normalize(e.KeyData);
+			if (!OscHotkey.tryValidate(k, out string err)) {
 				ShowOscToggleError(err);
 				RefreshApplyButtonEnabled();
 				e.SuppressKeyPress = true;
 				return;
 			}
-			SetHotkeyCellDisplay(dataGridViewOscToggles, r, OSC_TOGGLE_HOTKEY_COLUMN, OscHotkey.Format(k));
+			SetHotkeyCellDisplay(dataGridViewOscToggles, r, OSC_TOGGLE_HOTKEY_COLUMN, OscHotkey.format(k));
 			ResetOscToggleHint();
 			RefreshApplyButtonEnabled();
 			e.SuppressKeyPress = true;
@@ -833,18 +833,18 @@ namespace WindowsOscVolumeControl {
 				e.SuppressKeyPress = true;
 				return;
 			}
-			if (OscHotkey.IsModifierKey(e.KeyCode)) {
+			if (OscHotkey.isModifierKey(e.KeyCode)) {
 				e.SuppressKeyPress = true;
 				return;
 			}
-			Keys k = OscHotkey.Normalize(e.KeyData);
-			if (!OscHotkey.TryValidate(k, out string err)) {
+			Keys k = OscHotkey.normalize(e.KeyData);
+			if (!OscHotkey.tryValidate(k, out string err)) {
 				ShowOscToggleError(err);
 				RefreshApplyButtonEnabled();
 				e.SuppressKeyPress = true;
 				return;
 			}
-			SetHotkeyCellDisplay(dataGridViewOscFaders, r, c, OscHotkey.Format(k));
+			SetHotkeyCellDisplay(dataGridViewOscFaders, r, c, OscHotkey.format(k));
 			ClearFaderTestFeedback();
 			RefreshApplyButtonEnabled();
 			e.SuppressKeyPress = true;
@@ -895,11 +895,11 @@ namespace WindowsOscVolumeControl {
 				e.SuppressKeyPress = true;
 				return;
 			}
-			if (OscHotkey.IsModifierKey(e.KeyCode)) {
+			if (OscHotkey.isModifierKey(e.KeyCode)) {
 				e.SuppressKeyPress = true;
 				return;
 			}
-			ApplyHotkeyToOwnerEditTarget(OscHotkey.Normalize(e.KeyData));
+			ApplyHotkeyToOwnerEditTarget(OscHotkey.normalize(e.KeyData));
 			e.SuppressKeyPress = true;
 		}
 
@@ -945,11 +945,11 @@ namespace WindowsOscVolumeControl {
 		}
 
 		void PositionNearBottomRightOfWorkingArea() {
-			const int marginPx = 12;
+			const int MARGIN_PX = 12;
 			Rectangle wa = Screen.FromPoint(Cursor.Position).WorkingArea;
 			StartPosition = FormStartPosition.Manual;
-			int x = wa.Right - Width - marginPx;
-			int y = wa.Bottom - Height - marginPx;
+			int x = wa.Right - Width - MARGIN_PX;
+			int y = wa.Bottom - Height - MARGIN_PX;
 			if (x < wa.Left) x = wa.Left;
 			if (y < wa.Top) y = wa.Top;
 			Location = new Point(x, y);
@@ -1011,28 +1011,28 @@ namespace WindowsOscVolumeControl {
 				ShowOscToggleError(hkError ?? "Duplicate hotkey.");
 				return;
 			}
-			string testFaderPath = OscController.NormalizeBindingAddress(oscFaders[0].Address);
+			string testFaderPath = OscController.NormalizeBindingAddress(oscFaders[0].address);
 			buttonSaveAndTest.Enabled = false;
 			SetConnectionInputsEnabled(false);
 			try {
 				var appConfig = new AppConfig {
-					OscController = newCfg,
-					Mixer = new MixerController.Config {
+					oscController = newCfg,
+					mixer = new MixerController.Config {
 						ValueCacheTtlMs = (uint)numericUpDownFaderVolumeCacheTtlMs.Value,
 					},
-					TrayApp = new TrayApp.Config {
-						FaderBindings = oscFaders.Select(f => new OscFaderBinding(f)).ToList(),
-						Bindings = oscToggles.Select(b => new OscToggleBinding(b)).ToList(),
+					trayApp = new TrayApp.Config {
+						faderBindings = oscFaders.Select(f => new OscFaderBinding(f)).ToList(),
+						bindings = oscToggles.Select(b => new OscToggleBinding(b)).ToList(),
 					},
-					Osd = OSDController.Config.Clamped(new OSDController.Config {
+					osd = OSDController.Config.Clamped(new OSDController.Config {
 						HeightPx = (int)numericUpDownOsdHeightPx.Value,
 						DisplayDurationMs = (uint)numericUpDownOsdDisplayDurationMs.Value,
 					}),
 				};
-				_tray.CommitConfigFromSettingsForm(appConfig);
+				_tray.commitConfigFromSettingsForm(appConfig);
 				ResetOscToggleHint();
 				RefreshConfigStoreDiskFeedback();
-				Icon = _tray.ApplyTrayIconState(AppTrayIconState.StartingOrInvalidConfig);
+				Icon = _tray.ApplyTrayIconState(AppTrayIconState.STARTING_OR_INVALID_CONFIG);
 				labelNetworkFeedback.Text = "Ping test: running…";
 				labelNetworkFeedback.ForeColor = Color.Black;
 				labelOscBaseFeedback.Text = "Testing /info ...";
@@ -1045,7 +1045,7 @@ namespace WindowsOscVolumeControl {
 					labelNetworkFeedback.ForeColor = v.color;
 				});
 				int pingTimeoutMs = (int)Math.Min(newCfg.timeoutMs, int.MaxValue);
-				Task<(string text, Color color)> pingTask = NetworkPingTest.PingFeedbackAsync(newCfg.EndPoint.Address, timeoutMs: pingTimeoutMs, probeProgress: pingUi);
+				Task<(string text, Color color)> pingTask = NetworkPingTest.PingFeedbackAsync(newCfg.endPoint.Address, timeoutMs: pingTimeoutMs, probeProgress: pingUi);
 
 				async Task<(bool infoOk, TimeSpan infoElapsed, float? fader, TimeSpan faderQueryElapsed)> runOscTestsAsync() {
 					void postUi(Action action) {
@@ -1096,15 +1096,15 @@ namespace WindowsOscVolumeControl {
 
 				bool faderOk = fader != null;
 				if (infoOk && faderOk)
-					Icon = _tray.ApplyTrayIconState(AppTrayIconState.Ok);
+					Icon = _tray.ApplyTrayIconState(AppTrayIconState.OK);
 				else
-					Icon = _tray.ApplyTrayIconState(AppTrayIconState.NetworkError, showErrorOsdIfNotOk: false);
+					Icon = _tray.ApplyTrayIconState(AppTrayIconState.NETWORK_ERROR, showErrorOsdIfNotOk: false);
 			} catch (Exception ex) {
 				textBoxInfoResult.Text = "";
 				labelOscBaseFeedback.Text = "Error: " + ex.Message;
 				labelOscBaseFeedback.ForeColor = Color.Red;
 				labelFaderTestResult.Text = "";
-				Icon = _tray.ApplyTrayIconState(AppTrayIconState.NetworkError, showErrorOsdIfNotOk: false);
+				Icon = _tray.ApplyTrayIconState(AppTrayIconState.NETWORK_ERROR, showErrorOsdIfNotOk: false);
 			} finally {
 				SetConnectionInputsEnabled(true);
 				RefreshApplyButtonEnabled();

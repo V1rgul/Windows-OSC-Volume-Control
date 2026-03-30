@@ -4,74 +4,74 @@ using System.Windows.Forms;
 namespace WindowsOscVolumeControl;
 
 public sealed class OscToggleBinding {
-	public string Name { get; set; } = "";
-	public string Address { get; set; } = "";
-	public Keys Hotkey { get; set; } = Keys.None;
+	public string name { get; set; } = "";
+	public string address { get; set; } = "";
+	public Keys hotkey { get; set; } = Keys.None;
 
 	public OscToggleBinding() { }
 
 	public OscToggleBinding(OscToggleBinding other) {
 		ArgumentNullException.ThrowIfNull(other);
-		Name = other.Name;
-		Address = other.Address;
-		Hotkey = other.Hotkey;
+		name = other.name;
+		address = other.address;
+		hotkey = other.hotkey;
 	}
 
-	public static OscToggleBinding CreateDefaultMasterMute() => new() {
-		Name = "MAIN",
-		Address = "/main/st/mix/on",
-		Hotkey = Keys.VolumeMute,
+	public static OscToggleBinding createDefaultMasterMute() => new() {
+		name = "MAIN",
+		address = "/main/st/mix/on",
+		hotkey = Keys.VolumeMute,
 	};
 }
 
 static class OscHotkey {
-	static readonly KeysConverter Converter = new();
-	const Keys SupportedModifiers = Keys.Control | Keys.Shift | Keys.Alt;
+	static readonly KeysConverter CONVERTER = new();
+	const Keys SUPPORTED_MODIFIERS = Keys.Control | Keys.Shift | Keys.Alt;
 
-	public static Keys Normalize(Keys hotkey) {
+	public static Keys normalize(Keys hotkey) {
 		Keys keyCode = hotkey & Keys.KeyCode;
-		Keys modifiers = hotkey & SupportedModifiers;
+		Keys modifiers = hotkey & SUPPORTED_MODIFIERS;
 		return keyCode | modifiers;
 	}
 
-	public static bool IsModifierKey(Keys key) => (key & Keys.KeyCode) switch {
+	public static bool isModifierKey(Keys key) => (key & Keys.KeyCode) switch {
 		Keys.ShiftKey or Keys.LShiftKey or Keys.RShiftKey => true,
 		Keys.ControlKey or Keys.LControlKey or Keys.RControlKey => true,
 		Keys.Menu or Keys.LMenu or Keys.RMenu => true,
 		_ => false,
 	};
 
-	public static bool TryParse(string? text, out Keys hotkey) {
+	public static bool tryParse(string? text, out Keys hotkey) {
 		hotkey = Keys.None;
 		text = text?.Trim();
 		if (string.IsNullOrEmpty(text))
 			return false;
 		try {
-			object? value = Converter.ConvertFromInvariantString(text);
+			object? value = CONVERTER.ConvertFromInvariantString(text);
 			if (value is not Keys keys)
 				return false;
-			hotkey = Normalize(keys);
-			return hotkey != Keys.None && !IsModifierKey(hotkey);
+			hotkey = normalize(keys);
+			return hotkey != Keys.None && !isModifierKey(hotkey);
 		} catch (NotSupportedException) {
 			return false;
 		}
 	}
 
-	public static string Format(Keys hotkey) {
-		hotkey = Normalize(hotkey);
+	public static string format(Keys hotkey) {
+		hotkey = normalize(hotkey);
 		if (hotkey == Keys.None)
 			return "";
-		return Converter.ConvertToInvariantString(hotkey) ?? "";
+		return CONVERTER.ConvertToInvariantString(hotkey) ?? "";
 	}
 
-	public static bool TryValidate(Keys hotkey, out string error) {
-		hotkey = Normalize(hotkey);
+	public static bool tryValidate(Keys hotkey, out string error) {
+		hotkey = normalize(hotkey);
 		Keys keyCode = hotkey & Keys.KeyCode;
 		if (keyCode == Keys.None) {
 			error = "Hotkey is required.";
 			return false;
 		}
-		if (IsModifierKey(keyCode)) {
+		if (isModifierKey(keyCode)) {
 			error = "Hotkey must include a non-modifier key.";
 			return false;
 		}
