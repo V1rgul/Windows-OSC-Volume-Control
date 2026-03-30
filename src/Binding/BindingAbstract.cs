@@ -1,6 +1,6 @@
 namespace WindowsOscVolumeControl;
 
-public abstract class OscBindingAbstract {
+public abstract class BindingAbstract {
 	private string _name = "";
 	private string _address = "";
 	private string _displayName;
@@ -24,11 +24,11 @@ public abstract class OscBindingAbstract {
 	/// <summary>Label for OSD / tray: <see cref="name"/> when set, otherwise <see cref="address"/> (required for a valid binding). Updated when those properties change.</summary>
 	public string displayName => _displayName;
 
-	protected OscBindingAbstract() {
+	protected BindingAbstract() {
 		refreshDisplayName();
 	}
 
-	protected OscBindingAbstract(OscBindingAbstract other) {
+	protected BindingAbstract(BindingAbstract other) {
 		ArgumentNullException.ThrowIfNull(other);
 		_name = other._name;
 		_address = other._address;

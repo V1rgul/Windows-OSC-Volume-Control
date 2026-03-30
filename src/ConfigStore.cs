@@ -35,7 +35,7 @@ public sealed class ConfigStore {
 
 	public void adoptAppConfig(AppConfig fromForm) {
 		ArgumentNullException.ThrowIfNull(fromForm);
-		appConfig = fromForm.deepClone();
+		appConfig = new AppConfig(fromForm);
 	}
 
 	public void loadFromDisk() {
@@ -51,19 +51,11 @@ public sealed class ConfigStore {
 			var repairNotes = new List<string>();
 			OscController.Config osc = buildOscConfigFromMap(map, repairNotes);
 			MixerController.Config mixer = buildMixerConfigFromMap(map, repairNotes);
-			List<OscBindingFader> faders = parseOscFaderBindings(map);
-			if (faders.Count == 0) {
-				faders = cloneDefaultFaderBindings();
-				repairNotes.Add("No valid fader bindings in file; using defaults.");
-			}
-			List<OscBindingToggle> oscToggles = parseOscToggleBindings(map);
+			BindingManager.Config bindingConfig = buildBindingManagerConfigFromMap(map, repairNotes);
 			appConfig = new AppConfig {
 				oscController = osc,
 				mixer = mixer,
-				trayApp = new TrayApp.Config {
-					faderBindings = faders,
-					bindings = oscToggles,
-				},
+				trayApp = bindingConfig,
 				osd = buildOsdConfigFromMap(map, repairNotes),
 			};
 			lastDiskOutcome = repairNotes.Count > 0
@@ -95,7 +87,7 @@ public sealed class ConfigStore {
 			"osdDisplayDurationMs=" + osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture),
 		};
 		for (int i = 0; i < faders.Count; i++) {
-			OscBindingFader b = faders[i];
+			BindingFader b = faders[i];
 			string p = i.ToString(CultureInfo.InvariantCulture);
 			lines.Add("oscFader." + p + ".name=" + b.name.Trim());
 			lines.Add("oscFader." + p + ".address=" + b.address.Trim());
@@ -106,7 +98,7 @@ public sealed class ConfigStore {
 			lines.Add("oscFader." + p + ".hotkeyPlus=" + KeysUtil.format(b.hotkeyPlus));
 		}
 		for (int i = 0; i < toggles.Count; i++) {
-			OscBindingToggle binding = toggles[i];
+			BindingToggle binding = toggles[i];
 			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".name=" + binding.name.Trim());
 			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".address=" + binding.address.Trim());
 			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".hotkey=" + KeysUtil.format(binding.hotkey));
@@ -121,9 +113,31 @@ public sealed class ConfigStore {
 		}
 	}
 
-	static List<OscBindingFader> cloneDefaultFaderBindings() {
-		var trayDefaults = new TrayApp.Config();
-		return trayDefaults.faderBindings.Select(f => new OscBindingFader(f)).ToList();
+	static List<BindingFader> cloneDefaultFaderBindings() {
+		var trayDefaults = new BindingManager.Config();
+		return trayDefaults.faderBindings.Select(f => new BindingFader(f)).ToList();
+	}
+
+	static List<BindingToggle> cloneDefaultToggleBindings() {
+		var trayDefaults = new BindingManager.Config();
+		return trayDefaults.bindings.Select(t => new BindingToggle(t)).ToList();
+	}
+
+	static BindingManager.Config buildBindingManagerConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
+		List<BindingFader> faders = parseOscFaderBindings(map);
+		if (faders.Count == 0) {
+			faders = cloneDefaultFaderBindings();
+			repairNotes.Add("No valid fader bindings in file; using defaults.");
+		}
+		List<BindingToggle> toggles = parseOscToggleBindings(map);
+		if (toggles.Count == 0) {
+			toggles = cloneDefaultToggleBindings();
+			repairNotes.Add("No valid toggle bindings in file; using defaults.");
+		}
+		return new BindingManager.Config {
+			faderBindings = faders,
+			bindings = toggles,
+		};
 	}
 
 	static OscController.Config buildOscConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
@@ -139,7 +153,7 @@ public sealed class ConfigStore {
 
 		if (map.TryGetValue("ip", out string? ipStr)
 		    && map.TryGetValue("port", out string? portStr)
-		    && OscConnectionConfigParse.TryParseIpPort(ipStr, portStr, out IPAddress ip, out int port, out _, out _)) {
+		    && OscConnectionConfigParse.tryParseIpPort(ipStr, portStr, out IPAddress ip, out int port, out _, out _)) {
 			return new OscController.Config {
 				endPoint = new IPEndPoint(ip, port),
 				timeoutMs = timeout,
@@ -198,8 +212,8 @@ public sealed class ConfigStore {
 		return map;
 	}
 
-	static List<OscBindingFader> parseOscFaderBindings(IReadOnlyDictionary<string, string> map) {
-		var rows = new Dictionary<int, OscBindingFader>();
+	static List<BindingFader> parseOscFaderBindings(IReadOnlyDictionary<string, string> map) {
+		var rows = new Dictionary<int, BindingFader>();
 		foreach ((string key, string value) in map) {
 			if (!key.StartsWith("oscFader.", StringComparison.OrdinalIgnoreCase))
 				continue;
@@ -210,8 +224,8 @@ public sealed class ConfigStore {
 			if (!int.TryParse(rest[..dot], NumberStyles.Integer, CultureInfo.InvariantCulture, out int index) || index < 0)
 				continue;
 			string field = rest[(dot + 1)..];
-			if (!rows.TryGetValue(index, out OscBindingFader? row)) {
-				row = new OscBindingFader();
+			if (!rows.TryGetValue(index, out BindingFader? row)) {
+				row = new BindingFader();
 				rows[index] = row;
 			}
 			switch (field.ToLowerInvariant()) {
@@ -244,9 +258,9 @@ public sealed class ConfigStore {
 			}
 		}
 
-		var result = new List<OscBindingFader>(rows.Count);
+		var result = new List<BindingFader>(rows.Count);
 		foreach (int index in rows.Keys.OrderBy(i => i)) {
-			OscBindingFader row = rows[index];
+			BindingFader row = rows[index];
 			if (string.IsNullOrWhiteSpace(row.name) || string.IsNullOrWhiteSpace(row.address))
 				continue;
 			if (!float.IsFinite(row.step) || !float.IsFinite(row.minimum) || !float.IsFinite(row.maximum) || row.minimum > row.maximum)
@@ -254,7 +268,7 @@ public sealed class ConfigStore {
 			row.step = Math.Clamp(FaderFloatUtil.RoundToBindingDecimals(row.step), MixerController.Config.MIN_FADER_STEP, MixerController.Config.MAX_FADER_STEP);
 			float minR = FaderFloatUtil.RoundToBindingDecimals(row.minimum);
 			float maxR = FaderFloatUtil.RoundToBindingDecimals(row.maximum);
-			result.Add(new OscBindingFader {
+			result.Add(new BindingFader {
 				name = row.name.Trim(),
 				address = row.address.Trim(),
 				step = row.step,
@@ -267,8 +281,8 @@ public sealed class ConfigStore {
 		return result;
 	}
 
-	static List<OscBindingToggle> parseOscToggleBindings(IReadOnlyDictionary<string, string> map) {
-		var rows = new Dictionary<int, OscBindingToggle>();
+	static List<BindingToggle> parseOscToggleBindings(IReadOnlyDictionary<string, string> map) {
+		var rows = new Dictionary<int, BindingToggle>();
 		foreach ((string key, string value) in map) {
 			if (!key.StartsWith("oscToggle.", StringComparison.OrdinalIgnoreCase))
 				continue;
@@ -279,8 +293,8 @@ public sealed class ConfigStore {
 			if (!int.TryParse(rest[..dot], NumberStyles.Integer, CultureInfo.InvariantCulture, out int index) || index < 0)
 				continue;
 			string field = rest[(dot + 1)..];
-			if (!rows.TryGetValue(index, out OscBindingToggle? row)) {
-				row = new OscBindingToggle();
+			if (!rows.TryGetValue(index, out BindingToggle? row)) {
+				row = new BindingToggle();
 				rows[index] = row;
 			}
 			switch (field.ToLowerInvariant()) {
@@ -297,12 +311,12 @@ public sealed class ConfigStore {
 			}
 		}
 
-		var result = new List<OscBindingToggle>(rows.Count);
+		var result = new List<BindingToggle>(rows.Count);
 		foreach (int index in rows.Keys.OrderBy(i => i)) {
-			OscBindingToggle row = rows[index];
+			BindingToggle row = rows[index];
 			if (string.IsNullOrWhiteSpace(row.name) || string.IsNullOrWhiteSpace(row.address) || row.hotkey == Keys.None)
 				continue;
-			result.Add(new OscBindingToggle {
+			result.Add(new BindingToggle {
 				name = row.name.Trim(),
 				address = row.address.Trim(),
 				hotkey = KeysUtil.normalize(row.hotkey),

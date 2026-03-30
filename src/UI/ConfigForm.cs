@@ -27,21 +27,21 @@ namespace WindowsOscVolumeControl {
 
 		readonly MixerController _mixer;
 		readonly TrayController _trayController;
-		readonly TrayApp _tray;
+		readonly global::Application _tray;
 		readonly ConfigStore _configStore;
 		readonly ResourceLoader _resources;
 		TextBox? _hotkeyEditingTextBox;
 		DataGridView? _hotkeyOwnerGrid;
 		int _hotkeyOwnerColumn = -1;
 
-		public ConfigForm(MixerController mixer, TrayController trayController, TrayApp tray, ConfigStore configStore) {
+		public ConfigForm(MixerController mixer, TrayController trayController, global::Application tray, ConfigStore configStore, ResourceLoader resources) {
 			InitializeComponent();
 			ApplyConfigNumericBoundsFromPolicy();
 			this._mixer = mixer;
 			this._trayController = trayController;
 			this._tray = tray;
 			this._configStore = configStore;
-			_resources = tray.Resources;
+			_resources = resources;
 			HookNumericUpDownEditTextChanged(numericUpDownQueryTimeoutMs, QueryTimeoutNudEdit_TextChanged);
 			HookNumericUpDownEditTextChanged(numericUpDownFaderVolumeCacheTtlMs, VolumeCacheNudEdit_TextChanged);
 			HookNumericUpDownEditTextChanged(numericUpDownOsdHeightPx, OsdHeightNudEdit_TextChanged);
@@ -198,15 +198,15 @@ namespace WindowsOscVolumeControl {
 
 		void LoadOscFaderBindings() {
 			dataGridViewOscFaders.Rows.Clear();
-			foreach (OscBindingFader binding in _configStore.appConfig.trayApp?.faderBindings ?? [])
-				AddOscFaderRow(new OscBindingFader(binding));
+			foreach (BindingFader binding in _configStore.appConfig.trayApp?.faderBindings ?? [])
+				AddOscFaderRow(new BindingFader(binding));
 			EnsureOscFaderAddRow();
 		}
 
 		void LoadOscToggleBindings() {
 			dataGridViewOscToggles.Rows.Clear();
-			foreach (OscBindingToggle binding in _configStore.appConfig.trayApp?.bindings ?? [])
-				AddOscToggleRow(new OscBindingToggle(binding));
+			foreach (BindingToggle binding in _configStore.appConfig.trayApp?.bindings ?? [])
+				AddOscToggleRow(new BindingToggle(binding));
 			EnsureOscToggleAddRow();
 			ResetOscToggleHint();
 		}
@@ -293,9 +293,9 @@ namespace WindowsOscVolumeControl {
 			ConfigureOscToggleAddRow(dataGridViewOscToggles.Rows[rowIndex]);
 		}
 
-		bool IpFieldOk() => OscConnectionConfigParse.IsIpFieldSyntaxOk(textBoxIP.Text);
+		bool IpFieldOk() => OscConnectionConfigParse.isIpFieldSyntaxOk(textBoxIP.Text);
 
-		bool PortFieldOk() => OscConnectionConfigParse.IsPortFieldSyntaxOk(textBoxPort.Text);
+		bool PortFieldOk() => OscConnectionConfigParse.isPortFieldSyntaxOk(textBoxPort.Text);
 
 		static bool NumericUpDownTextInRange(NumericUpDown nud) {
 			string s = nud.Text.Trim();
@@ -355,7 +355,7 @@ namespace WindowsOscVolumeControl {
 			return true;
 		}
 
-		bool TryReadOscFaderBindings(out List<OscBindingFader> bindings, out string? error) {
+		bool TryReadOscFaderBindings(out List<BindingFader> bindings, out string? error) {
 			bindings = [];
 			error = null;
 			for (int rowIndex = 0; rowIndex < dataGridViewOscFaders.Rows.Count; rowIndex++) {
@@ -407,7 +407,7 @@ namespace WindowsOscVolumeControl {
 					error = $"OSC fader row {rowIndex + 1} (+): {ep}";
 					return false;
 				}
-				bindings.Add(new OscBindingFader {
+				bindings.Add(new BindingFader {
 					name = name,
 					address = address,
 					step = step,
@@ -424,7 +424,7 @@ namespace WindowsOscVolumeControl {
 			return true;
 		}
 
-		bool TryReadOscToggleBindings(out List<OscBindingToggle> bindings, out string? error) {
+		bool TryReadOscToggleBindings(out List<BindingToggle> bindings, out string? error) {
 			bindings = [];
 			error = null;
 			for (int rowIndex = 0; rowIndex < dataGridViewOscToggles.Rows.Count; rowIndex++) {
@@ -449,7 +449,7 @@ namespace WindowsOscVolumeControl {
 					return false;
 				}
 				hotkey = KeysUtil.normalize(hotkey);
-				bindings.Add(new OscBindingToggle {
+				bindings.Add(new BindingToggle {
 					name = name,
 					address = address,
 					hotkey = hotkey,
@@ -458,11 +458,11 @@ namespace WindowsOscVolumeControl {
 			return true;
 		}
 
-		static bool TryValidateHotkeysGlobally(IReadOnlyList<OscBindingFader> faders, IReadOnlyList<OscBindingToggle> toggles, out string? error) {
+		static bool TryValidateHotkeysGlobally(IReadOnlyList<BindingFader> faders, IReadOnlyList<BindingToggle> toggles, out string? error) {
 			error = null;
 			var claimed = new Dictionary<Keys, string>();
 			for (int i = 0; i < faders.Count; i++) {
-				OscBindingFader f = faders[i];
+				BindingFader f = faders[i];
 				string rowLabel = $"OSC fader row {i + 1}";
 				if (f.hotkeyMinus != Keys.None) {
 					Keys k = KeysUtil.normalize(f.hotkeyMinus);
@@ -482,7 +482,7 @@ namespace WindowsOscVolumeControl {
 				}
 			}
 			for (int i = 0; i < toggles.Count; i++) {
-				OscBindingToggle t = toggles[i];
+				BindingToggle t = toggles[i];
 				Keys k = KeysUtil.normalize(t.hotkey);
 				if (claimed.TryGetValue(k, out string? prev)) {
 					error = $"OSC toggle \"{t.name}\" ({KeysUtil.format(k)}) conflicts with {prev}.";
@@ -501,9 +501,9 @@ namespace WindowsOscVolumeControl {
 			if (!IpFieldOk() || !PortFieldOk() || !QueryTimeoutFieldOk() || !VolumeCacheFieldOk()
 			    || !OsdHeightFieldOk() || !OsdDisplayDurationFieldOk())
 				return false;
-			if (!TryReadOscFaderBindings(out List<OscBindingFader> faders, out _))
+			if (!TryReadOscFaderBindings(out List<BindingFader> faders, out _))
 				return false;
-			if (!TryReadOscToggleBindings(out List<OscBindingToggle> toggles, out _))
+			if (!TryReadOscToggleBindings(out List<BindingToggle> toggles, out _))
 				return false;
 			return TryValidateHotkeysGlobally(faders, toggles, out _);
 		}
@@ -543,7 +543,7 @@ namespace WindowsOscVolumeControl {
 
 		bool TryReadUiForApply(out OscController.Config cfg, out string? ipError, out string? portError) {
 			cfg = default!;
-			if (!OscConnectionConfigParse.TryParseIpPort(textBoxIP.Text, textBoxPort.Text,
+			if (!OscConnectionConfigParse.tryParseIpPort(textBoxIP.Text, textBoxPort.Text,
 				    out IPAddress ip, out int port, out ipError, out portError))
 				return false;
 			cfg = new OscController.Config {
@@ -695,7 +695,7 @@ namespace WindowsOscVolumeControl {
 			RefreshApplyButtonEnabled();
 		}
 
-		void AddOscToggleRow(OscBindingToggle? binding = null) {
+		void AddOscToggleRow(BindingToggle? binding = null) {
 			int insertIndex = dataGridViewOscToggles.Rows.Count;
 			if (insertIndex > 0 && IsOscToggleAddRow(dataGridViewOscToggles.Rows[insertIndex - 1]))
 				insertIndex--;
@@ -710,7 +710,7 @@ namespace WindowsOscVolumeControl {
 			RefreshApplyButtonEnabled();
 		}
 
-		void AddOscFaderRow(OscBindingFader? binding = null) {
+		void AddOscFaderRow(BindingFader? binding = null) {
 			int insertIndex = dataGridViewOscFaders.Rows.Count;
 			if (insertIndex > 0 && IsOscFaderAddRow(dataGridViewOscFaders.Rows[insertIndex - 1]))
 				insertIndex--;
@@ -999,12 +999,12 @@ namespace WindowsOscVolumeControl {
 				}
 				return;
 			}
-			if (!TryReadOscFaderBindings(out List<OscBindingFader> oscFaders, out string? faderGridError)) {
+			if (!TryReadOscFaderBindings(out List<BindingFader> oscFaders, out string? faderGridError)) {
 				labelFaderTestResult.Text = faderGridError ?? "OSC faders are invalid.";
 				labelFaderTestResult.ForeColor = Color.Red;
 				return;
 			}
-			if (!TryReadOscToggleBindings(out List<OscBindingToggle> oscToggles, out string? toggleError)) {
+			if (!TryReadOscToggleBindings(out List<BindingToggle> oscToggles, out string? toggleError)) {
 				ShowOscToggleError(toggleError ?? "OSC toggles are invalid.");
 				return;
 			}
@@ -1021,9 +1021,9 @@ namespace WindowsOscVolumeControl {
 					mixer = new MixerController.Config {
 						ValueCacheTtlMs = (uint)numericUpDownFaderVolumeCacheTtlMs.Value,
 					},
-					trayApp = new TrayApp.Config {
-						faderBindings = oscFaders.Select(f => new OscBindingFader(f)).ToList(),
-						bindings = oscToggles.Select(b => new OscBindingToggle(b)).ToList(),
+					trayApp = new BindingManager.Config {
+						faderBindings = oscFaders.Select(f => new BindingFader(f)).ToList(),
+						bindings = oscToggles.Select(b => new BindingToggle(b)).ToList(),
 					},
 					osd = OSDController.Config.Clamped(new OSDController.Config {
 						HeightPx = (int)numericUpDownOsdHeightPx.Value,

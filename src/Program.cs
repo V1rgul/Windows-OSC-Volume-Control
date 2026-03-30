@@ -4,6 +4,6 @@ static class Program
 	static void Main()
 	{
 		ApplicationConfiguration.Initialize();
-		Application.Run(new TrayApp());
+		System.Windows.Forms.Application.Run(new global::Application());
 	}
 }
