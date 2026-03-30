@@ -1,70 +1,58 @@
+using System.Collections.Frozen;
+using System.Diagnostics;
+
 namespace WindowsOscVolumeControl;
 
-/// <summary>Runtime OSC fader/toggle rows and hotkey → binding maps built from tray configuration.</summary>
+/// <summary>Runtime OSC fader/toggle rows and hotkey → slot map built from tray configuration.</summary>
 public sealed class OscBindingManager {
-	readonly object _sync = new();
-	List<OscBindingFader> _faderBindings = [];
-	Dictionary<Keys, OscBindingFader> _faderMinusByHotkey = [];
-	Dictionary<Keys, OscBindingFader> _faderPlusByHotkey = [];
-	List<OscBindingToggle> _oscToggleBindings = [];
-	Dictionary<Keys, OscBindingToggle> _oscTogglesByHotkey = [];
+	/// <summary>One hotkey’s target binding and action kind.</summary>
+	public readonly struct Slot {
+		public enum Kind {
+			TOGGLE,
+			UP,
+			DOWN,
+		}
 
-	internal IReadOnlyList<OscBindingToggle> oscToggleBindings {
-		get {
-			lock (_sync)
-				return _oscToggleBindings.Select(b => new OscBindingToggle(b)).ToArray();
+		public OscBindingAbstract binding { get; }
+		public Kind kind { get; }
+
+		public Slot(OscBindingAbstract binding, Kind kind) {
+			this.binding = binding;
+			this.kind = kind;
 		}
 	}
 
-	internal IReadOnlyList<OscBindingFader> OscFaderBindings {
-		get {
-			lock (_sync)
-				return _faderBindings.Select(f => new OscBindingFader(f)).ToArray();
-		}
-	}
+	volatile FrozenDictionary<Keys, Slot> _byHotkey = FrozenDictionary<Keys, Slot>.Empty;
 
-	/// <summary>Rebuilds maps from config and returns every hotkey the keyboard hook should watch.</summary>
-	internal HashSet<Keys> rebuildFromConfig(IEnumerable<OscBindingFader> faders, IEnumerable<OscBindingToggle> toggles) {
-		List<OscBindingFader> fd = faders.Select(f => new OscBindingFader(f)).ToList();
-		List<OscBindingToggle> tg = toggles.Select(t => new OscBindingToggle(t) { hotkey = KeysUtil.normalize(t.hotkey) }).ToList();
-		var minus = new Dictionary<Keys, OscBindingFader>();
-		var plus = new Dictionary<Keys, OscBindingFader>();
-		var toggleMap = new Dictionary<Keys, OscBindingToggle>();
-		var allKeys = new HashSet<Keys>();
-		foreach (OscBindingFader f in fd) {
-			if (f.hotkeyMinus != Keys.None) {
-				Keys k = KeysUtil.normalize(f.hotkeyMinus);
-				minus[k] = f;
-				allKeys.Add(k);
+	/// <summary>Rebuilds the snapshot from config. Hotkeys are expected already normalized (e.g. ConfigStore / settings form). Duplicate keys (e.g. hand-edited file): TOGGLE then DOWN then UP per row, last write wins.</summary>
+	internal void rebuildFromConfig(IEnumerable<OscBindingFader> faders, IEnumerable<OscBindingToggle> toggles) {
+		var map = new Dictionary<Keys, Slot>();
+		foreach (OscBindingToggle t in toggles) {
+			var row = new OscBindingToggle(t);
+			if (row.hotkey != Keys.None)
+				map[row.hotkey] = new Slot(row, Slot.Kind.TOGGLE);
+		}
+		foreach (OscBindingFader f in faders) {
+			var row = new OscBindingFader(f);
+			if (row.hotkeyMinus != Keys.None) {
+				Keys k = row.hotkeyMinus;
+				if (map.ContainsKey(k))
+					Trace.WriteLine("OscBindingManager: duplicate hotkey " + k + ", overwriting with fader DOWN");
+				map[k] = new Slot(row, Slot.Kind.DOWN);
 			}
-			if (f.hotkeyPlus != Keys.None) {
-				Keys k = KeysUtil.normalize(f.hotkeyPlus);
-				plus[k] = f;
-				allKeys.Add(k);
+			if (row.hotkeyPlus != Keys.None) {
+				Keys k = row.hotkeyPlus;
+				if (map.ContainsKey(k))
+					Trace.WriteLine("OscBindingManager: duplicate hotkey " + k + ", overwriting with fader UP");
+				map[k] = new Slot(row, Slot.Kind.UP);
 			}
 		}
-		foreach (OscBindingToggle t in tg) {
-			if (t.hotkey == Keys.None)
-				continue;
-			Keys k = KeysUtil.normalize(t.hotkey);
-			toggleMap[k] = t;
-			allKeys.Add(k);
-		}
-		lock (_sync) {
-			_faderBindings = fd;
-			_faderMinusByHotkey = minus;
-			_faderPlusByHotkey = plus;
-			_oscToggleBindings = tg;
-			_oscTogglesByHotkey = toggleMap;
-		}
-		return allKeys;
+		_byHotkey = map.ToFrozenDictionary();
 	}
 
-	internal void tryGetForHotkey(Keys hotkey, out OscBindingFader? fPlus, out OscBindingFader? fMinus, out OscBindingToggle? toggle) {
-		lock (_sync) {
-			_faderPlusByHotkey.TryGetValue(hotkey, out fPlus);
-			_faderMinusByHotkey.TryGetValue(hotkey, out fMinus);
-			_oscTogglesByHotkey.TryGetValue(hotkey, out toggle);
-		}
-	}
+	internal bool hasSlotForHotkey(Keys hotkey) =>
+		_byHotkey.ContainsKey(hotkey);
+
+	internal bool tryGetSlot(Keys hotkey, out Slot slot) =>
+		_byHotkey.TryGetValue(hotkey, out slot);
 }

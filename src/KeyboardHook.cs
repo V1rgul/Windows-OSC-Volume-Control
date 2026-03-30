@@ -16,13 +16,11 @@ namespace WindowsOscVolumeControl {
 
 		delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
-		public Action<Keys> OnConfiguredHotkeyPressed = _ => { };
-
 		readonly IntPtr _hookId;
 		readonly LowLevelKeyboardProc _proc;
 		readonly object _configuredHotkeysSync = new();
-		HashSet<Keys> _configuredHotkeys = [];
-		Dictionary<int, Keys> _pressedConfiguredHotkeys = [];
+		volatile Func<Keys, Action?> _keyCallback = static _ => null;
+		HashSet<int> _pressedConfiguredHotkeys = [];
 		bool _configuredHotkeysEnabled = true;
 		bool _disposed;
 
@@ -38,23 +36,19 @@ namespace WindowsOscVolumeControl {
 			return SetWindowsHookEx(13, proc, GetModuleHandle(moduleName), 0);
 		}
 
-		void QueueConfiguredHotkey(Keys hotkey) {
-			var handler = OnConfiguredHotkeyPressed;
-			ThreadPool.QueueUserWorkItem(_ => handler(hotkey));
+		void queueDispatch(Action dispatch) {
+			ThreadPool.QueueUserWorkItem(_ => dispatch());
 		}
 
 		static bool IsKeyDown(IntPtr wParam) => wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN;
 		static bool IsKeyUp(IntPtr wParam) => wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP;
 
-		public void SetConfiguredHotkeys(IEnumerable<Keys> hotkeys) {
-			ArgumentNullException.ThrowIfNull(hotkeys);
-			lock (_configuredHotkeysSync) {
-				_configuredHotkeys = hotkeys
-					.Select(KeysUtil.normalize)
-					.Where(hotkey => hotkey != Keys.None)
-					.ToHashSet();
+		/// <summary>Called when hotkey bindings change; <paramref name="keyCallback"/> is invoked from the hook thread (keys are already normalized).</summary>
+		public void setKeyCallback(Func<Keys, Action?> keyCallback) {
+			ArgumentNullException.ThrowIfNull(keyCallback);
+			_keyCallback = keyCallback;
+			lock (_configuredHotkeysSync)
 				_pressedConfiguredHotkeys.Clear();
-			}
 		}
 
 		public void SetConfiguredHotkeysEnabled(bool enabled) {
@@ -80,10 +74,10 @@ namespace WindowsOscVolumeControl {
 
 		static bool IsVirtualKeyDown(int vkCode) => (GetAsyncKeyState(vkCode) & 0x8000) != 0;
 
-		bool TryHandleConfiguredHotkey(IntPtr wParam, int vkCode, out Keys firedHotkey) {
-			firedHotkey = Keys.None;
+		bool tryHandleConfiguredHotkey(IntPtr wParam, int vkCode) {
 			if (IsModifierVirtualKey(vkCode))
 				return false;
+			Action? dispatch = null;
 			lock (_configuredHotkeysSync) {
 				if (!_configuredHotkeysEnabled)
 					return false;
@@ -92,23 +86,20 @@ namespace WindowsOscVolumeControl {
 				if (!IsKeyDown(wParam))
 					return false;
 				Keys candidate = KeysUtil.normalize((Keys)vkCode | GetActiveModifiers());
-				if (!_configuredHotkeys.Contains(candidate))
+				dispatch = _keyCallback(candidate);
+				if (dispatch == null)
 					return false;
-				if (_pressedConfiguredHotkeys.ContainsKey(vkCode))
-					return true;
-				_pressedConfiguredHotkeys[vkCode] = candidate;
-				firedHotkey = candidate;
-				return true;
+				_pressedConfiguredHotkeys.Add(vkCode);
 			}
+			queueDispatch(dispatch);
+			return true;
 		}
 
 		IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam) {
 			// Key-up (and key-up repeat) would run the handler twice, e.g. mute toggles then toggles back.
 			if (nCode >= 0) {
 				int vkCode = Marshal.ReadInt32(lParam);
-				if (TryHandleConfiguredHotkey(wParam, vkCode, out Keys firedHotkey)) {
-					if (firedHotkey != Keys.None)
-						QueueConfiguredHotkey(firedHotkey);
+				if (tryHandleConfiguredHotkey(wParam, vkCode)) {
 					return (IntPtr)1;
 				}
 			}
