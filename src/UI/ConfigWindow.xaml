@@ -93,8 +93,16 @@
             </DockPanel>
         </Border>
 
-        <TabControl Margin="8">
-            <TabItem Header="General">
+        <Grid Margin="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Border
+                Grid.Column="0"
+                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                BorderThickness="0,0,1,0"
+                Padding="0,0,8,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,0,0,8">
                         <GroupBox Header="Config file" Margin="0,0,0,8">
@@ -169,12 +177,13 @@
                         </GroupBox>
                     </StackPanel>
                 </ScrollViewer>
-            </TabItem>
-
-            <TabItem Header="OSC bindings">
-                <DockPanel>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" DockPanel.Dock="Top">
-                        <StackPanel>
+            </Border>
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
                             <ItemsControl ItemsSource="{Binding Bindings}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type local:BindingEditor}">
@@ -359,10 +368,9 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                             <Button Margin="0,8,0,0" Padding="14,8" HorizontalAlignment="Center" Click="buttonAddBinding_Click">Add binding</Button>
-                        </StackPanel>
-                    </ScrollViewer>
-                </DockPanel>
-            </TabItem>
-        </TabControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
     </DockPanel>
 </Window>
