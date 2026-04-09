@@ -68,13 +68,13 @@ public sealed class BindingManager {
 			if (row.hotkeyMinus != Keys.None) {
 				Keys k = row.hotkeyMinus;
 				if (map.ContainsKey(k))
-					Trace.WriteLine("OscBindingManager: duplicate hotkey " + k + ", overwriting with fader DOWN");
+					AppTrace.BindingManager.TraceEvent(TraceEventType.Warning, 0, $"Duplicate hotkey {k}, overwriting with fader DOWN");
 				map[k] = new Slot(row, Slot.Kind.DOWN);
 			}
 			if (row.hotkeyPlus != Keys.None) {
 				Keys k = row.hotkeyPlus;
 				if (map.ContainsKey(k))
-					Trace.WriteLine("OscBindingManager: duplicate hotkey " + k + ", overwriting with fader UP");
+					AppTrace.BindingManager.TraceEvent(TraceEventType.Warning, 0, $"Duplicate hotkey {k}, overwriting with fader UP");
 				map[k] = new Slot(row, Slot.Kind.UP);
 			}
 		}

@@ -49,11 +49,11 @@ public sealed class ConfigStore {
 		try {
 			IReadOnlyDictionary<string, string> map = parseKeyValueLines(File.ReadAllText(path));
 			var repairNotes = new List<string>();
-			OscController.Config osc = buildOscConfigFromMap(map, repairNotes);
+			OscTransport.Config osc = buildOscConfigFromMap(map, repairNotes);
 			MixerController.Config mixer = buildMixerConfigFromMap(map, repairNotes);
 			BindingManager.Config bindingConfig = buildBindingManagerConfigFromMap(map, repairNotes);
 			appConfig = new AppConfig {
-				oscController = osc,
+				oscTransport = osc,
 				mixer = mixer,
 				trayApp = bindingConfig,
 				osd = buildOsdConfigFromMap(map, repairNotes),
@@ -73,7 +73,7 @@ public sealed class ConfigStore {
 
 	public void tryPersistToDisk() {
 		AppConfig cfg = appConfig;
-		var osc = cfg.oscController;
+		var osc = cfg.oscTransport;
 		var mixer = cfg.mixer;
 		OSDController.Config osd = OSDController.Config.Clamped(cfg.osd);
 		var toggles = cfg.trayApp?.bindings ?? [];
@@ -81,7 +81,7 @@ public sealed class ConfigStore {
 		var lines = new List<string> {
 			"ip=" + osc.endPoint.Address.ToString(),
 			"port=" + osc.endPoint.Port.ToString(CultureInfo.InvariantCulture),
-			"timeoutMs=" + osc.timeoutMs.ToString(CultureInfo.InvariantCulture),
+			"timeoutMs=" + mixer.timeoutMs.ToString(CultureInfo.InvariantCulture),
 			"valueCacheTtlMs=" + mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture),
 			"osdHeightPx=" + osd.HeightPx.ToString(CultureInfo.InvariantCulture),
 			"osdDisplayDurationMs=" + osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture),
@@ -103,11 +103,20 @@ public sealed class ConfigStore {
 			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".address=" + binding.address.Trim());
 			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".hotkey=" + KeysUtil.format(binding.hotkey));
 		}
+		string path = configPath;
+		string tmpPath = path + ".tmp";
 		try {
-			File.WriteAllText(configPath, string.Join(Environment.NewLine, lines) + Environment.NewLine);
+			File.WriteAllText(tmpPath, string.Join(Environment.NewLine, lines) + Environment.NewLine);
+			File.Move(tmpPath, path, true);
 			lastDiskOutcome = AppConfigDiskOutcome.SAVED_OK;
 			lastDiskFeedback = "Saved to disk.";
 		} catch (Exception ex) {
+			try {
+				if (File.Exists(tmpPath))
+					File.Delete(tmpPath);
+			} catch {
+				// Best-effort cleanup only.
+			}
 			lastDiskOutcome = AppConfigDiskOutcome.SAVE_FAILED;
 			lastDiskFeedback = "Save failed: " + ex.Message;
 		}
@@ -140,31 +149,29 @@ public sealed class ConfigStore {
 		};
 	}
 
-	static OscController.Config buildOscConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
-		var baseOsc = new OscController.Config();
-		uint timeout = baseOsc.timeoutMs;
-		if (map.TryGetValue("timeoutMs", out string? toStr)) {
-			if (uint.TryParse(toStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint to)
-			    && to >= OscController.Config.MIN_QUERY_TIMEOUT_MS)
-				timeout = Math.Min(to, OscController.Config.MAX_QUERY_TIMEOUT_MS);
-			else
-				repairNotes.Add("timeoutMs invalid; using default.");
-		}
-
+	static OscTransport.Config buildOscConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
 		if (map.TryGetValue("ip", out string? ipStr)
 		    && map.TryGetValue("port", out string? portStr)
 		    && OscConnectionConfigParse.tryParseIpPort(ipStr, portStr, out IPAddress ip, out int port, out _, out _)) {
-			return new OscController.Config {
+			return new OscTransport.Config {
 				endPoint = new IPEndPoint(ip, port),
-				timeoutMs = timeout,
 			};
 		}
 		repairNotes.Add("OSC IP/port missing or invalid; using connection defaults.");
-		return new OscController.Config { timeoutMs = timeout };
+		return new OscTransport.Config();
 	}
 
 	static MixerController.Config buildMixerConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
 		var mixerDefaults = new MixerController.Config();
+		uint timeoutMs = mixerDefaults.timeoutMs;
+		if (map.TryGetValue("timeoutMs", out string? toStr)) {
+			if (uint.TryParse(toStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint to)
+			    && to >= MixerController.Config.MIN_TIMEOUT_MS)
+				timeoutMs = Math.Min(to, MixerController.Config.MAX_TIMEOUT_MS);
+			else
+				repairNotes.Add("timeoutMs invalid; using default.");
+		}
+
 		uint valueCacheTtlMs = mixerDefaults.ValueCacheTtlMs;
 		if (map.TryGetValue("valueCacheTtlMs", out string? ttlStr)) {
 			if (uint.TryParse(ttlStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint ttl))
@@ -172,7 +179,10 @@ public sealed class ConfigStore {
 			else
 				repairNotes.Add("valueCacheTtlMs invalid; using default.");
 		}
-		return new MixerController.Config { ValueCacheTtlMs = valueCacheTtlMs };
+		return new MixerController.Config {
+			timeoutMs = timeoutMs,
+			ValueCacheTtlMs = valueCacheTtlMs,
+		};
 	}
 
 	static OSDController.Config buildOsdConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {

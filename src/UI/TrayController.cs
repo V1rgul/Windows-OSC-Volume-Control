@@ -10,7 +10,8 @@ public enum AppTrayIconState {
 }
 
 /// <summary>Tray <see cref="NotifyIcon"/>, context menu host, and status icons from <see cref="ResourceLoader"/>.</summary>
-public sealed class TrayController {
+public sealed class TrayController : IDisposable {
+	const string DEFAULT_TEXT = "Windows OSC Volume Control";
 	readonly NotifyIcon _trayIcon;
 	readonly ResourceLoader _resources;
 
@@ -19,7 +20,7 @@ public sealed class TrayController {
 		_trayIcon = new NotifyIcon() {
 			ContextMenuStrip = new ContextMenuStrip(),
 			Visible = true,
-			Text = "Windows OSC Volume Control"
+			Text = DEFAULT_TEXT
 		};
 		ApplyState(AppTrayIconState.STARTING_OR_INVALID_CONFIG);
 		ContextMenuStrip menu = _trayIcon.ContextMenuStrip!;
@@ -28,6 +29,15 @@ public sealed class TrayController {
 	}
 
 	public void hide() => _trayIcon.Visible = false;
+
+	public void setStatusText(string? detail) {
+		string text = string.IsNullOrWhiteSpace(detail)
+			? DEFAULT_TEXT
+			: DEFAULT_TEXT + " - " + detail.Trim();
+		if (text.Length > 63)
+			text = text[..63];
+		_trayIcon.Text = text;
+	}
 
 	public AppTrayIconState State { get; private set; } = AppTrayIconState.STARTING_OR_INVALID_CONFIG;
 
@@ -45,5 +55,11 @@ public sealed class TrayController {
 		Icon icon = Resolve(state);
 		_trayIcon.Icon = icon;
 		return icon;
+	}
+
+	public void Dispose() {
+		_trayIcon.Visible = false;
+		_trayIcon.ContextMenuStrip?.Dispose();
+		_trayIcon.Dispose();
 	}
 }

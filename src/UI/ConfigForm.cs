@@ -27,14 +27,14 @@ namespace WindowsOscVolumeControl {
 
 		readonly MixerController _mixer;
 		readonly TrayController _trayController;
-		readonly global::Application _tray;
+		readonly Application _tray;
 		readonly ConfigStore _configStore;
 		readonly ResourceLoader _resources;
 		TextBox? _hotkeyEditingTextBox;
 		DataGridView? _hotkeyOwnerGrid;
 		int _hotkeyOwnerColumn = -1;
 
-		public ConfigForm(MixerController mixer, TrayController trayController, global::Application tray, ConfigStore configStore, ResourceLoader resources) {
+		public ConfigForm(MixerController mixer, TrayController trayController, Application tray, ConfigStore configStore, ResourceLoader resources) {
 			InitializeComponent();
 			ApplyConfigNumericBoundsFromPolicy();
 			this._mixer = mixer;
@@ -50,7 +50,7 @@ namespace WindowsOscVolumeControl {
 			SetupOscToggleGridUi();
 			SetupOscFaderGridUi();
 			LoadFieldsFromOsc();
-			SyncTitlebarIconFromTray();
+			syncTitlebarIconFromTray();
 			RefreshApplyButtonEnabled();
 		}
 
@@ -101,8 +101,8 @@ namespace WindowsOscVolumeControl {
 		}
 
 		void ApplyConfigNumericBoundsFromPolicy() {
-			numericUpDownQueryTimeoutMs.Minimum = OscController.Config.MIN_QUERY_TIMEOUT_MS;
-			numericUpDownQueryTimeoutMs.Maximum = OscController.Config.MAX_QUERY_TIMEOUT_MS;
+			numericUpDownQueryTimeoutMs.Minimum = MixerController.Config.MIN_TIMEOUT_MS;
+			numericUpDownQueryTimeoutMs.Maximum = MixerController.Config.MAX_TIMEOUT_MS;
 			numericUpDownFaderVolumeCacheTtlMs.Minimum = MixerController.Config.MIN_VALUE_CACHE_TTL_MS;
 			numericUpDownFaderVolumeCacheTtlMs.Maximum = MixerController.Config.MAX_VALUE_CACHE_TTL_MS;
 			numericUpDownOsdHeightPx.Minimum = OSDController.Config.MIN_HEIGHT_PX;
@@ -163,7 +163,7 @@ namespace WindowsOscVolumeControl {
 			}
 		}
 
-		void SyncTitlebarIconFromTray() => Icon = _trayController.TrayIconSnapshot;
+		public void syncTitlebarIconFromTray() => Icon = _trayController.TrayIconSnapshot;
 
 		static void SetNumericUpDownClamped(NumericUpDown nud, uint value) {
 			if (value < (uint)nud.Minimum) value = (uint)nud.Minimum;
@@ -182,10 +182,10 @@ namespace WindowsOscVolumeControl {
 		}
 
 		void LoadFieldsFromOsc() {
-			OscController.Config c = new(_configStore.appConfig.oscController);
+			OscTransport.Config c = new(_configStore.appConfig.oscTransport);
 			textBoxIP.Text = c.endPoint.Address.ToString();
 			textBoxPort.Text = c.endPoint.Port.ToString();
-			SetNumericUpDownClamped(numericUpDownQueryTimeoutMs, c.timeoutMs);
+			SetNumericUpDownClamped(numericUpDownQueryTimeoutMs, _configStore.appConfig.mixer.timeoutMs);
 			uint ttl = Math.Min(_configStore.appConfig.mixer.ValueCacheTtlMs, MixerController.Config.MAX_VALUE_CACHE_TTL_MS);
 			SetNumericUpDownClamped(numericUpDownFaderVolumeCacheTtlMs, ttl);
 			OSDController.Config osd = OSDController.Config.Clamped(_configStore.appConfig.osd);
@@ -398,7 +398,6 @@ namespace WindowsOscVolumeControl {
 					error = $"OSC fader row {rowIndex + 1}: Minimum must be ≤ Maximum after rounding.";
 					return false;
 				}
-				_ = OscController.NormalizeBindingAddress(address);
 				if (!TryParseOptionalHotkey(hkMinusS, out Keys hkMinus, out string? em)) {
 					error = $"OSC fader row {rowIndex + 1} (−): {em}";
 					return false;
@@ -541,14 +540,13 @@ namespace WindowsOscVolumeControl {
 			ClearFaderTestFeedback();
 		}
 
-		bool TryReadUiForApply(out OscController.Config cfg, out string? ipError, out string? portError) {
+		bool TryReadUiForApply(out OscTransport.Config cfg, out string? ipError, out string? portError) {
 			cfg = default!;
 			if (!OscConnectionConfigParse.tryParseIpPort(textBoxIP.Text, textBoxPort.Text,
 				    out IPAddress ip, out int port, out ipError, out portError))
 				return false;
-			cfg = new OscController.Config {
+			cfg = new OscTransport.Config {
 				endPoint = new IPEndPoint(ip, port),
-				timeoutMs = (uint)numericUpDownQueryTimeoutMs.Value,
 			};
 			return true;
 		}
@@ -940,7 +938,7 @@ namespace WindowsOscVolumeControl {
 
 		private void ConfigForm_Load(object sender, EventArgs e) {
 			PositionNearBottomRightOfWorkingArea();
-			SyncTitlebarIconFromTray();
+			syncTitlebarIconFromTray();
 			RefreshAutostartFeedback();
 			RefreshConfigStoreDiskFeedback();
 		}
@@ -988,7 +986,7 @@ namespace WindowsOscVolumeControl {
 			labelOscBaseFeedback.Text = "";
 			textBoxInfoResult.Text = "";
 			labelFaderTestResult.Text = "";
-			if (!TryReadUiForApply(out OscController.Config newCfg, out string? ipErr, out string? portErr)) {
+			if (!TryReadUiForApply(out OscTransport.Config newCfg, out string? ipErr, out string? portErr)) {
 				if (ipErr != null) {
 					labelNetworkFeedback.Text = ipErr;
 					labelNetworkFeedback.ForeColor = Color.Red;
@@ -1012,13 +1010,15 @@ namespace WindowsOscVolumeControl {
 				ShowOscToggleError(hkError ?? "Duplicate hotkey.");
 				return;
 			}
-			string testFaderPath = OscController.NormalizeBindingAddress(oscFaders[0].address);
+			string testFaderPath = oscFaders[0].address.Trim();
 			buttonSaveAndTest.Enabled = false;
 			SetConnectionInputsEnabled(false);
 			try {
+				_tray.beginConfigValidation();
 				var appConfig = new AppConfig {
-					oscController = newCfg,
+					oscTransport = newCfg,
 					mixer = new MixerController.Config {
+						timeoutMs = (uint)numericUpDownQueryTimeoutMs.Value,
 						ValueCacheTtlMs = (uint)numericUpDownFaderVolumeCacheTtlMs.Value,
 					},
 					trayApp = new BindingManager.Config {
@@ -1033,7 +1033,7 @@ namespace WindowsOscVolumeControl {
 				_tray.commitConfigFromSettingsForm(appConfig);
 				ResetOscToggleHint();
 				RefreshConfigStoreDiskFeedback();
-				Icon = _tray.applyTrayIconState(AppTrayIconState.STARTING_OR_INVALID_CONFIG);
+				syncTitlebarIconFromTray();
 				labelNetworkFeedback.Text = "Ping test: running…";
 				labelNetworkFeedback.ForeColor = Color.Black;
 				labelOscBaseFeedback.Text = "Testing /info ...";
@@ -1045,7 +1045,7 @@ namespace WindowsOscVolumeControl {
 					labelNetworkFeedback.Text = v.text;
 					labelNetworkFeedback.ForeColor = v.color;
 				});
-				int pingTimeoutMs = (int)Math.Min(newCfg.timeoutMs, int.MaxValue);
+				int pingTimeoutMs = (int)Math.Min(appConfig.mixer.timeoutMs, int.MaxValue);
 				Task<(string text, Color color)> pingTask = NetworkPingTest.PingFeedbackAsync(newCfg.endPoint.Address, timeoutMs: pingTimeoutMs, probeProgress: pingUi);
 
 				async Task<(bool infoOk, TimeSpan infoElapsed, float? fader, TimeSpan faderQueryElapsed)> runOscTestsAsync() {
@@ -1053,10 +1053,10 @@ namespace WindowsOscVolumeControl {
 						if (IsDisposed) return;
 						BeginInvoke(action);
 					}
-					var sw = Stopwatch.StartNew();
 					var info = await _mixer.QueryInfoAsync().ConfigureAwait(false);
-					sw.Stop();
-					TimeSpan elapsed = sw.Elapsed;
+					TimeSpan elapsed = _mixer.tryGetMeasuredLatency("/info", out TimeSpan measuredInfoLatency)
+						? measuredInfoLatency
+						: throw new InvalidOperationException("Missing measured /info latency after successful query.");
 					postUi(() => {
 						if (IsDisposed) return;
 						if (info.Ok) {
@@ -1095,18 +1095,14 @@ namespace WindowsOscVolumeControl {
 				labelNetworkFeedback.Text = ping.text;
 				labelNetworkFeedback.ForeColor = ping.color;
 
-				bool faderOk = fader != null;
-				if (infoOk && faderOk)
-					Icon = _tray.applyTrayIconState(AppTrayIconState.OK);
-				else
-					Icon = _tray.applyTrayIconState(AppTrayIconState.NETWORK_ERROR, showErrorOsdIfNotOk: false);
 			} catch (Exception ex) {
 				textBoxInfoResult.Text = "";
 				labelOscBaseFeedback.Text = "Error: " + ex.Message;
 				labelOscBaseFeedback.ForeColor = Color.Red;
 				labelFaderTestResult.Text = "";
-				Icon = _tray.applyTrayIconState(AppTrayIconState.NETWORK_ERROR, showErrorOsdIfNotOk: false);
 			} finally {
+				_tray.finishConfigValidation();
+				syncTitlebarIconFromTray();
 				SetConnectionInputsEnabled(true);
 				RefreshApplyButtonEnabled();
 				RefreshConfigStoreDiskFeedback();

@@ -4,6 +4,6 @@ static class Program
 	static void Main()
 	{
 		ApplicationConfiguration.Initialize();
-		System.Windows.Forms.Application.Run(new global::Application());
+		System.Windows.Forms.Application.Run(new WindowsOscVolumeControl.Application());
 	}
 }

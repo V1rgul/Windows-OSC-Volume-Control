@@ -1,45 +1,83 @@
 using System.Collections.Generic;
-using System.Net;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Drawing;
 using System.Windows.Forms;
-using WindowsOscVolumeControl;
 
+namespace WindowsOscVolumeControl;
 
-public class Application : ApplicationContext
-{
+public abstract partial record Error {
+	public abstract partial record Application : Error {
+		public sealed record StartupHealthFault : Application;
+	}
+}
+
+public class Application : ApplicationContext {
 	readonly ConfigStore _configStore = new();
 	readonly ResourceLoader _resources = new();
-	private TrayController _tray;
-
-	private KeyboardHook _hook;
-	private OSDController _osd;
-	private MixerController _mixer;
-	private ConfigForm? _configForm;
 	readonly BindingManager _oscBindings = new();
+	readonly ErrorList<Error> _applicationErrors = new();
+	readonly StatusController _statusController = new();
+	TrayController _tray;
+	KeyboardHook _hook;
+	OSDController _osd;
+	OscTransport _transport;
+	MixerController _mixer;
+	ConfigForm? _configForm;
+	StatusController.MergedState _lastMergedState = StatusController.MergedState.STARTING_OR_INVALID_CONFIG;
 
+	public Application() {
+		_configStore.loadFromDisk();
 
+		_osd = new OSDController(_configStore.appConfig.osd);
+		_ = _osd.Handle;
+
+		_tray = new TrayController(_resources, openConfig, closeApp);
+		_transport = new OscTransport(_configStore.appConfig.oscTransport);
+		_mixer = new MixerController(_transport, _configStore.appConfig.mixer);
+		_hook = new KeyboardHook();
+
+		_statusController.attach("startupHealth", _applicationErrors);
+		_statusController.attach("mixerRuntime", _mixer.errors);
+		_statusController.attach("keyboardHook", _hook.errors);
+		_statusController.mergedStateChanged += onMergedStateChanged;
+		_statusController.visibleErrorsChanged += onVisibleErrorsChanged;
+		_mixer.eventReceived += onMixerEvent;
+
+		_applicationErrors.setError(new Error.Generic.Starting(), true);
+		rebuildHotkeysFromConfig(_configStore.appConfig.trayApp?.faderBindings ?? [], _configStore.appConfig.trayApp?.bindings ?? []);
+		syncStatusUi();
+
+		Task startupTask = runStartupHealthAsync();
+		_ = startupTask.ContinueWith(t => {
+			AppTrace.Application.TraceEvent(TraceEventType.Error, 0, $"Startup health failed: {t.Exception}");
+			_applicationErrors.setError(new Error.Application.StartupHealthFault(), true);
+			_applicationErrors.setError(new Error.Generic.Starting(), false);
+		}, TaskContinuationOptions.OnlyOnFaulted);
+	}
 
 	void rebuildHotkeysFromConfig(IEnumerable<BindingFader> faders, IEnumerable<BindingToggle> toggles) {
 		_oscBindings.rebuildFromConfig(faders, toggles);
 		_hook.setKeyCallback(k => {
 			if (!_oscBindings.tryGetSlot(k, out BindingManager.Slot slot))
 				return null;
-			return () => _ = handleOscHotkeyAsync(slot.binding, slot.kind);
+			return () => handleOscHotkey(slot.binding, slot.kind);
 		});
 	}
 
 	internal void setOscToggleHotkeysEnabled(bool enabled) => _hook.SetConfiguredHotkeysEnabled(enabled);
 
-	internal Icon applyTrayIconState(AppTrayIconState state, bool showErrorOsdIfNotOk = false) {
-		_tray.ApplyState(state);
-		if (showErrorOsdIfNotOk && state != AppTrayIconState.OK)
-			_osd.ShowError();
-		return _tray.TrayIconSnapshot;
+	public void beginConfigValidation() {
+		_applicationErrors.setError(new Error.Application.StartupHealthFault(), false);
+		_applicationErrors.setError(new Error.Generic.Starting(), true);
 	}
+
+	public void finishConfigValidation() =>
+		_applicationErrors.setError(new Error.Generic.Starting(), false);
 
 	public void applyConfigFromStore() {
 		AppConfig cfg = _configStore.appConfig;
-		_mixer.ClearFaderSampleCache();
-		_mixer.Osc.ApplyConfig(cfg.oscController);
+		_transport.applyConfig(cfg.oscTransport);
 		_mixer.ApplyConfig(cfg.mixer);
 		_osd.ApplyConfig(cfg.osd);
 		rebuildHotkeysFromConfig(cfg.trayApp?.faderBindings ?? [], cfg.trayApp?.bindings ?? []);
@@ -52,26 +90,80 @@ public class Application : ApplicationContext
 		_configStore.tryPersistToDisk();
 	}
 
-	public Application() {
-		_configStore.loadFromDisk();
-
-		_mixer = new MixerController(new OscController(_configStore.appConfig.oscController), _configStore.appConfig.mixer);
-
-		_osd = new OSDController(_configStore.appConfig.osd);
-		// Reading Control.Handle forces WinForms to create the native window (HWND) for this form on the current thread. Until that exists, InvokeRequired is not meaningful and ui() could run OSD updates on a background thread.
-		_ = _osd.Handle;
-
-		_tray = new TrayController(_resources, openConfig, closeApp);
-
-		_hook = new KeyboardHook();
-
-		rebuildHotkeysFromConfig(_configStore.appConfig.trayApp?.faderBindings ?? [], _configStore.appConfig.trayApp?.bindings ?? []);
-		_ = runStartupHealthAsync();
+	async Task runStartupHealthAsync() {
+		await _mixer.TestConnectionAsync().ConfigureAwait(false);
+		_applicationErrors.setError(new Error.Application.StartupHealthFault(), false);
+		_applicationErrors.setError(new Error.Generic.Starting(), false);
 	}
 
-	async Task runStartupHealthAsync() {
-		bool ok = await _mixer.TestConnectionAsync().ConfigureAwait(false);
-		ui(() => applyTrayIconState(ok ? AppTrayIconState.OK : AppTrayIconState.NETWORK_ERROR, showErrorOsdIfNotOk: !ok));
+	void onMergedStateChanged(StatusController.MergedState state) {
+		ui(() => {
+			bool enteringNetworkError = state == StatusController.MergedState.NETWORK_ERROR
+				&& _lastMergedState != StatusController.MergedState.NETWORK_ERROR;
+			_lastMergedState = state;
+			_tray.ApplyState(mapMergedState(state));
+			if (enteringNetworkError)
+				_osd.ShowError();
+			if (_configForm != null && !_configForm.IsDisposed)
+				_configForm.syncTitlebarIconFromTray();
+		});
+	}
+
+	void onVisibleErrorsChanged() {
+		string summary = formatVisibleErrors(_statusController.getVisibleErrors());
+		ui(() => _tray.setStatusText(summary));
+	}
+
+	void syncStatusUi() {
+		_lastMergedState = _statusController.getMergedState();
+		_tray.ApplyState(mapMergedState(_lastMergedState));
+		_tray.setStatusText(formatVisibleErrors(_statusController.getVisibleErrors()));
+	}
+
+	static AppTrayIconState mapMergedState(StatusController.MergedState state) => state switch {
+		StatusController.MergedState.OK => AppTrayIconState.OK,
+		StatusController.MergedState.NETWORK_ERROR => AppTrayIconState.NETWORK_ERROR,
+		_ => AppTrayIconState.STARTING_OR_INVALID_CONFIG,
+	};
+
+	static string formatVisibleErrors(IReadOnlyCollection<Error> errors) {
+		if (errors.Count == 0)
+			return "";
+
+		return string.Join("; ", errors.Select(static error => error switch {
+			Error.Generic.Starting => "Starting",
+			Error.MixerController.Network => "Mixer network error",
+			Error.MixerController.InvalidReply => "Mixer invalid reply",
+			Error.KeyboardHook.InstallFailed => "Keyboard hook install failed",
+			Error.Application.StartupHealthFault => "Startup health fault",
+			_ => error.GetType().Name,
+		}));
+	}
+
+	void onMixerEvent(MixerController.Event evt) {
+		ui(() => {
+			switch (evt) {
+				case MixerController.Event.FaderChanged f when tryGetFaderBinding(f.address, out BindingFader? binding):
+					_osd.ShowLevel(binding.displayName, binding.minimum, binding.maximum, f.newLevel, f.volumeIncreased, binding.step);
+					break;
+				case MixerController.Event.ToggleChanged t when tryGetToggleBinding(t.address, out BindingToggle? binding):
+					_osd.ShowToggle(binding.displayName, t.nowOn);
+					break;
+				case MixerController.Event.OperationFailed:
+					_osd.ShowError();
+					break;
+			}
+		});
+	}
+
+	bool tryGetFaderBinding(string address, [NotNullWhen(true)] out BindingFader? binding) {
+		binding = _configStore.appConfig.trayApp?.faderBindings.FirstOrDefault(f => string.Equals(f.address, address, StringComparison.Ordinal));
+		return binding != null;
+	}
+
+	bool tryGetToggleBinding(string address, [NotNullWhen(true)] out BindingToggle? binding) {
+		binding = _configStore.appConfig.trayApp?.bindings.FirstOrDefault(t => string.Equals(t.address, address, StringComparison.Ordinal));
+		return binding != null;
 	}
 
 	void openConfig() {
@@ -88,57 +180,44 @@ public class Application : ApplicationContext
 	}
 
 	void ui(Action action) {
-		if (_osd.IsDisposed) return;
-		void Run() {
-			if (_osd.IsDisposed) return;
+		if (_osd.IsDisposed)
+			return;
+
+		void run() {
+			if (_osd.IsDisposed)
+				return;
 			action();
 		}
+
 		if (_osd.IsHandleCreated && _osd.InvokeRequired)
-			_osd.BeginInvoke(Run);
+			_osd.BeginInvoke(run);
 		else
-			Run();
+			run();
 	}
 
-	async Task handleOscHotkeyAsync(BindingAbstract binding, BindingManager.Slot.Kind kind) {
+	void handleOscHotkey(BindingAbstract binding, BindingManager.Slot.Kind kind) {
 		string display = binding.displayName;
-		bool networkFailed = false;
-
 		if (kind == BindingManager.Slot.Kind.TOGGLE) {
-			var t = (BindingToggle)binding;
+			var toggleBinding = (BindingToggle)binding;
 			ui(() => _osd.ShowPending(display));
-			bool? current = await _mixer.QueryToggleAsync(t.address).ConfigureAwait(false);
-			if (current == null)
-				networkFailed = true;
-			else {
-				bool nowOn = !current.Value;
-				await _mixer.SetToggleAsync(t.address, nowOn).ConfigureAwait(false);
-				ui(() => _osd.ShowToggle(t.displayName, nowOn));
-			}
-		} else if(kind == BindingManager.Slot.Kind.UP || kind == BindingManager.Slot.Kind.DOWN) {
-			var f = (BindingFader)binding;
-			bool volumeUp = kind == BindingManager.Slot.Kind.UP;
-			if (!_mixer.HasFreshFaderSample(f.address))
-				ui(() => _osd.ShowPending(display, f.step));
-			float? newLevel = await _mixer.NudgeAsync(f.address, volumeUp, f.step, f.minimum, f.maximum).ConfigureAwait(false);
-			if (newLevel == null)
-				networkFailed = true;
-			else {
-				ui(() => _osd.ShowLevel(display, f.minimum, f.maximum, newLevel.Value, volumeUp, f.step));
-			}
+			_mixer.toggle(toggleBinding.address);
+			return;
 		}
 
-		if (networkFailed)
-			ui(() => {
-				_tray.ApplyState(AppTrayIconState.NETWORK_ERROR);
-				_osd.ShowError();
-			});
-		else
-			ui(() => applyTrayIconState(AppTrayIconState.OK));
+		if (kind is BindingManager.Slot.Kind.UP or BindingManager.Slot.Kind.DOWN) {
+			var faderBinding = (BindingFader)binding;
+			if (!_mixer.HasFreshFaderSample(faderBinding.address))
+				ui(() => _osd.ShowPending(display, faderBinding.step));
+			float delta = kind == BindingManager.Slot.Kind.UP ? faderBinding.step : -faderBinding.step;
+			_mixer.nudge(faderBinding.address, delta, faderBinding.minimum, faderBinding.maximum);
+		}
 	}
 
 	void closeApp() {
 		_hook.Dispose();
-		_tray.hide();
+		_transport.Dispose();
+		_osd.Close();
+		_tray.Dispose();
 		System.Windows.Forms.Application.Exit();
 	}
 }

@@ -291,6 +291,12 @@ public class OSDController : Form
 
 	protected override void OnFormClosed(FormClosedEventArgs e)
 	{
+		_autoHideTimer.Stop();
+		_fadeTimer.Stop();
+		_flashTimer.Stop();
+		_autoHideTimer.Dispose();
+		_fadeTimer.Dispose();
+		_flashTimer.Dispose();
 		_cache?.Dispose();
 		_cache = null;
 		base.OnFormClosed(e);

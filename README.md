@@ -37,5 +37,10 @@ Windows tray application that captures configurable global hotkeys and maps them
 
 ## Building
 
-- This project is built with **Visual Studio** (open `Windows-OSC-Volume-Control.sln`, then build `Debug` or `Release`).
+- This project is built with **Visual Studio** (open `Windows-OSC-Volume-Control.slnx`, then build `Debug` or `Release`).
 - The **.NET 8 SDK** is required : [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+
+## Testing
+
+- Unit tests use **xUnit**.
+- Run them with `dotnet test "tests/WindowsOscVolumeControl.Tests/WindowsOscVolumeControl.Tests.csproj"`.
