@@ -24,6 +24,15 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <!-- Binding row: keep horizontal space when soft-deleted (Restore stays aligned). -->
+        <Style x:Key="OscBindingSoftDeleteButtonStyle" TargetType="Button" BasedOn="{StaticResource OscDeleteButtonStyle}">
+            <Setter Property="Visibility" Value="Visible" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding isDeleted}" Value="True">
+                    <Setter Property="Visibility" Value="Hidden" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="OscRestoreButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Visibility" Value="Collapsed" />
             <Style.Triggers>
@@ -188,23 +197,20 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type local:BindingEditor}">
                                         <Border x:Name="BindingOscCardBorder" Margin="0,0,0,8" Padding="0" BorderThickness="1" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" CornerRadius="10" Background="{DynamicResource ControlFillColorDefaultBrush}">
-                                            <Grid>
-                                                <Expander IsExpanded="True" Padding="8" Background="Transparent" HorizontalContentAlignment="Stretch">
-                                                    <Expander.Style>
-                                                        <Style BasedOn="{StaticResource {x:Type Expander}}" TargetType="Expander">
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding isDeleted}" Value="True">
-                                                                    <Setter Property="Opacity" Value="0.4" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Expander.Style>
+                                                <Expander
+                                                    Padding="8"
+                                                    Background="Transparent"
+                                                    HorizontalContentAlignment="Stretch"
+                                                    DataContextChanged="bindingCard_Expander_DataContextChanged"
+                                                    Expanded="bindingCard_Expander_Expanded"
+                                                    Loaded="bindingCard_Expander_Loaded"
+                                                    PreviewKeyDown="bindingCard_Expander_PreviewKeyDown"
+                                                    PreviewMouseDown="bindingCard_Expander_PreviewMouseDown"
+                                                    Unloaded="bindingCard_Expander_Unloaded"
+                                                    IsExpanded="{Binding bindingExpanded, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                                                     <Expander.Header>
-                                                        <!-- Cancel Expander horizontal padding on the left; keep right gutter so Fluent header chevron does not overlap Delete. (Do not MinWidth=card — header is inside the toggle beside the chevron column.) -->
-                                                        <Grid
-                                                            MinHeight="32"
-                                                            HorizontalAlignment="Stretch"
-                                                            Margin="-8,0,32,0">
+                                                        <!-- Delete/Restore before Fluent's header chrome so the expand chevron is rightmost. -->
+                                                        <Grid MinHeight="32" HorizontalAlignment="Stretch" Margin="-8,0,8,0">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="Auto" />
@@ -214,12 +220,33 @@
                                                                 Grid.Column="0"
                                                                 Margin="8,0,8,0"
                                                                 VerticalAlignment="Center"
-                                                                Text="{Binding name, UpdateSourceTrigger=PropertyChanged}" />
+                                                                Text="{Binding name, UpdateSourceTrigger=PropertyChanged}">
+                                                                <TextBox.Style>
+                                                                    <Style BasedOn="{StaticResource {x:Type TextBox}}" TargetType="TextBox">
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding isDeleted}" Value="True">
+                                                                                <Setter Property="IsEnabled" Value="False" />
+                                                                                <Setter Property="Opacity" Value="0.45" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBox.Style>
+                                                            </TextBox>
                                                             <Grid
                                                                 Grid.Column="1"
                                                                 MinWidth="120"
                                                                 Margin="0,0,8,0"
                                                                 VerticalAlignment="Center">
+                                                                <Grid.Style>
+                                                                    <Style TargetType="Grid">
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding isDeleted}" Value="True">
+                                                                                <Setter Property="IsEnabled" Value="False" />
+                                                                                <Setter Property="Opacity" Value="0.45" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Grid.Style>
                                                                 <TextBlock
                                                                     VerticalAlignment="Center"
                                                                     Foreground="{DynamicResource TextFillColorPrimaryBrush}"
@@ -253,13 +280,33 @@
                                                                     </ComboBox.Style>
                                                                 </ComboBox>
                                                             </Grid>
-                                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                                                <Button Margin="0,0,8,0" Padding="10,6" Click="buttonBindingDelete_Click" Content="Delete" Style="{StaticResource OscSoftDeleteButtonStyle}" />
-                                                                <Button Padding="10,6" Click="buttonBindingRestore_Click" Content="Restore" Style="{StaticResource OscRestoreButtonStyle}" />
+                                                            <StackPanel
+                                                                Grid.Column="2"
+                                                                Margin="0,0,8,0"
+                                                                VerticalAlignment="Center"
+                                                                Orientation="Horizontal">
+                                                                <Button Margin="0,0,8,0" Padding="10,6" Click="buttonBindingDelete_Click" Content="Delete" Style="{StaticResource OscBindingSoftDeleteButtonStyle}" />
+                                                                <Button
+                                                                    Padding="10,6"
+                                                                    Click="buttonBindingRestore_Click"
+                                                                    Content="Restore"
+                                                                    Style="{StaticResource OscRestoreButtonStyle}"
+                                                                    Tag="{x:Static local:ConfigWindow.BindingCardRestoreTag}" />
                                                             </StackPanel>
                                                         </Grid>
                                                     </Expander.Header>
-                                                    <StackPanel Margin="0,8,0,0" TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                                    <Grid>
+                                                        <Grid.Style>
+                                                            <Style TargetType="Grid">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding isDeleted}" Value="True">
+                                                                        <Setter Property="IsEnabled" Value="False" />
+                                                                        <Setter Property="Opacity" Value="0.45" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Grid.Style>
+                                                        <StackPanel Margin="0,8,0,0" TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="180" />
@@ -283,26 +330,30 @@
                                                             <ItemsControl.ItemTemplate>
                                                                 <DataTemplate DataType="{x:Type local:HotkeyActionEditor}">
                                                                     <Border Margin="0,0,0,8" Padding="8" BorderThickness="1" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" Background="{DynamicResource ControlFillColorSecondaryBrush}" CornerRadius="6">
-                                                                        <Border.Style>
-                                                                            <Style TargetType="Border">
-                                                                                <Setter Property="Opacity" Value="1" />
-                                                                                <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding isDeleted}" Value="True">
-                                                                                        <Setter Property="Opacity" Value="0.45" />
-                                                                                    </DataTrigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </Border.Style>
                                                                         <Grid VerticalAlignment="Center">
                                                                             <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="Auto" />
-                                                                                <ColumnDefinition Width="*" MinWidth="120" />
-                                                                                <ColumnDefinition Width="Auto" />
-                                                                                <ColumnDefinition Width="*" MinWidth="120" />
-                                                                                <ColumnDefinition Width="Auto" />
-                                                                                <ColumnDefinition Width="Auto" />
+                                                                                <ColumnDefinition Width="*" />
                                                                                 <ColumnDefinition Width="Auto" />
                                                                             </Grid.ColumnDefinitions>
+                                                                            <Border Grid.Column="0" Background="Transparent" IsEnabled="{Binding isNotDeleted}">
+                                                                                <Border.Style>
+                                                                                    <Style TargetType="Border">
+                                                                                        <Setter Property="Opacity" Value="1" />
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding isDeleted}" Value="True">
+                                                                                                <Setter Property="Opacity" Value="0.45" />
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </Border.Style>
+                                                                                <Grid VerticalAlignment="Center">
+                                                                                    <Grid.ColumnDefinitions>
+                                                                                        <ColumnDefinition Width="Auto" />
+                                                                                        <ColumnDefinition Width="*" MinWidth="120" />
+                                                                                        <ColumnDefinition Width="Auto" />
+                                                                                        <ColumnDefinition Width="*" MinWidth="120" />
+                                                                                        <ColumnDefinition Width="Auto" />
+                                                                                    </Grid.ColumnDefinitions>
                                                                             <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Text="Hotkey" />
                                                                             <Button
                                                                                 Grid.Column="1"
@@ -336,23 +387,29 @@
                                                                                 DisplayMemberPath="displayName"
                                                                                 ItemsSource="{Binding choiceList}"
                                                                                 SelectedItem="{Binding selectedChoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                                            <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,24,0">
-                                                                                <TextBox MinWidth="100" Margin="0,0,8,0" Text="{Binding floatValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
-                                                                                <CheckBox VerticalAlignment="Center" Content="On" IsChecked="{Binding boolValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsBoolInput, Converter={StaticResource BoolToVisibility}}" />
+                                                                                    <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                                                                                        <TextBox MinWidth="100" Margin="0,0,8,0" Text="{Binding floatValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
+                                                                                        <CheckBox VerticalAlignment="Center" Content="On" IsChecked="{Binding boolValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsBoolInput, Converter={StaticResource BoolToVisibility}}" />
+                                                                                    </StackPanel>
+                                                                                </Grid>
+                                                                            </Border>
+                                                                            <StackPanel
+                                                                                Grid.Column="1"
+                                                                                Margin="12,0,0,0"
+                                                                                VerticalAlignment="Center"
+                                                                                Orientation="Horizontal">
+                                                                                <Button
+                                                                                    Margin="0,0,8,0"
+                                                                                    Padding="10,6"
+                                                                                    Click="buttonHotkeyRestore_Click"
+                                                                                    Content="Restore"
+                                                                                    Style="{StaticResource OscRestoreButtonStyle}" />
+                                                                                <Button
+                                                                                    Padding="10,6"
+                                                                                    Click="buttonHotkeyDelete_Click"
+                                                                                    Content="Delete"
+                                                                                    Style="{StaticResource OscSoftDeleteButtonStyle}" />
                                                                             </StackPanel>
-                                                                            <Button
-                                                                                Grid.Column="5"
-                                                                                Margin="0,0,8,0"
-                                                                                Padding="10,6"
-                                                                                Click="buttonHotkeyRestore_Click"
-                                                                                Content="Restore"
-                                                                                Style="{StaticResource OscRestoreButtonStyle}" />
-                                                                            <Button
-                                                                                Grid.Column="6"
-                                                                                Padding="10,6"
-                                                                                Click="buttonHotkeyDelete_Click"
-                                                                                Content="Delete"
-                                                                                Style="{StaticResource OscSoftDeleteButtonStyle}" />
                                                                         </Grid>
                                                                     </Border>
                                                                 </DataTemplate>
@@ -360,9 +417,9 @@
                                                         </ItemsControl>
                                                         <Button HorizontalAlignment="Center" Margin="0,4,0,0" Padding="12,6" Click="buttonAddHotkeyToBinding_Click">Add hotkey</Button>
                                                     </StackPanel>
+                                                        <Border Background="#66000000" Visibility="{Binding isDeleted, Converter={StaticResource BoolToVisibility}}" IsHitTestVisible="False" />
+                                                    </Grid>
                                                 </Expander>
-                                                <Border Background="#66000000" Visibility="{Binding isDeleted, Converter={StaticResource BoolToVisibility}}" IsHitTestVisible="False" />
-                                            </Grid>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

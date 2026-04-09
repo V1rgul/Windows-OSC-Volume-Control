@@ -1,15 +1,20 @@
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Key = System.Windows.Input.Key;
-using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using Keyboard = System.Windows.Input.Keyboard;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using MouseButton = System.Windows.Input.MouseButton;
+using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using KeyboardFocusChangedEventArgs = System.Windows.Input.KeyboardFocusChangedEventArgs;
 using TraversalRequest = System.Windows.Input.TraversalRequest;
 using Brush = System.Windows.Media.Brush;
@@ -19,11 +24,15 @@ namespace WindowsOscVolumeControl;
 
 public partial class ConfigWindow : Window {
 	public const string HotkeyAssignmentCaptureTag = "HotkeyAssignmentCapture";
+	public const string BindingCardRestoreTag = "BindingCardRestore";
 
 	readonly MixerController _mixer;
 	readonly TrayController _trayController;
 	readonly AppCoordinator _appCoordinator;
 	readonly ConfigStore _configStore;
+
+	/// <summary>Fluent Expander template: <see cref="Expander"/> → HeaderSite → ChevronGrid.</summary>
+	readonly Dictionary<Expander, (BindingEditor bed, PropertyChangedEventHandler handler)> _bindingCardChevronDimHooks = [];
 
 	public ObservableCollection<BindingEditor> Bindings { get; } = [];
 
@@ -49,6 +58,75 @@ public partial class ConfigWindow : Window {
 			cur = VisualTreeHelper.GetParent(cur);
 		}
 		return null;
+	}
+
+	static bool isUnderBindingCardRestore(DependencyObject? hit) {
+		while (hit != null) {
+			if (hit is System.Windows.Controls.Button { Tag: string s } && s == BindingCardRestoreTag)
+				return true;
+			hit = VisualTreeHelper.GetParent(hit);
+		}
+		return false;
+	}
+
+	const double BINDING_CARD_SOFT_DELETE_CHEVRON_OPACITY = 0.38;
+
+	static bool tryFindFluentExpanderChevronGrid(Expander exp, out UIElement? chevronGrid) {
+		chevronGrid = null;
+		exp.ApplyTemplate();
+		if (exp.Template?.FindName("HeaderSite", exp) is not ToggleButton headerSite)
+			return false;
+		headerSite.ApplyTemplate();
+		if (headerSite.Template?.FindName("ChevronGrid", headerSite) is not UIElement grid)
+			return false;
+		chevronGrid = grid;
+		return true;
+	}
+
+	void applyBindingCardChevronDim(Expander exp) {
+		if (!tryFindFluentExpanderChevronGrid(exp, out UIElement? grid))
+			return;
+		bool dim = exp.DataContext is BindingEditor { isDeleted: true };
+		grid.Opacity = dim ? BINDING_CARD_SOFT_DELETE_CHEVRON_OPACITY : 1d;
+	}
+
+	void hookBindingCardChevronDim(Expander exp) {
+		unhookBindingCardChevronDim(exp);
+		if (exp.DataContext is not BindingEditor bed)
+			return;
+		PropertyChangedEventHandler h = (_, args) => {
+			if (args.PropertyName is not null && args.PropertyName != nameof(BindingEditor.isDeleted))
+				return;
+			exp.Dispatcher.BeginInvoke(DispatcherPriority.DataBind, new Action(() => applyBindingCardChevronDim(exp)));
+		};
+		bed.PropertyChanged += h;
+		_bindingCardChevronDimHooks[exp] = (bed, h);
+		applyBindingCardChevronDim(exp);
+	}
+
+	void unhookBindingCardChevronDim(Expander exp) {
+		if (!_bindingCardChevronDimHooks.Remove(exp, out (BindingEditor bed, PropertyChangedEventHandler handler) pair))
+			return;
+		pair.bed.PropertyChanged -= pair.handler;
+	}
+
+	void bindingCard_Expander_Loaded(object sender, RoutedEventArgs e) {
+		if (sender is not Expander exp)
+			return;
+		exp.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => hookBindingCardChevronDim(exp)));
+	}
+
+	void bindingCard_Expander_Unloaded(object sender, RoutedEventArgs e) {
+		if (sender is not Expander exp)
+			return;
+		unhookBindingCardChevronDim(exp);
+	}
+
+	void bindingCard_Expander_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e) {
+		if (sender is not Expander exp)
+			return;
+		unhookBindingCardChevronDim(exp);
+		hookBindingCardChevronDim(exp);
 	}
 
 	void loadFromConfigStore() {
@@ -181,6 +259,34 @@ public partial class ConfigWindow : Window {
 	void buttonBindingRestore_Click(object sender, RoutedEventArgs e) {
 		if (sender is FrameworkElement { DataContext: BindingEditor item })
 			item.isDeleted = false;
+	}
+
+	void bindingCard_Expander_Expanded(object sender, RoutedEventArgs e) {
+		if (sender is not Expander exp)
+			return;
+		if (exp.DataContext is not BindingEditor bed || !bed.isDeleted)
+			return;
+		exp.IsExpanded = false;
+	}
+
+	void bindingCard_Expander_PreviewMouseDown(object sender, MouseButtonEventArgs e) {
+		if (e.ChangedButton != MouseButton.Left)
+			return;
+		if (sender is not Expander exp || exp.DataContext is not BindingEditor bed || !bed.isDeleted)
+			return;
+		if (isUnderBindingCardRestore(e.OriginalSource as DependencyObject))
+			return;
+		e.Handled = true;
+	}
+
+	void bindingCard_Expander_PreviewKeyDown(object sender, KeyEventArgs e) {
+		if (sender is not Expander exp || exp.DataContext is not BindingEditor bed || !bed.isDeleted)
+			return;
+		if (e.Key != Key.Space && e.Key != Key.Enter)
+			return;
+		if (isUnderBindingCardRestore(Keyboard.FocusedElement as DependencyObject))
+			return;
+		e.Handled = true;
 	}
 
 	void buttonAddHotkeyToBinding_Click(object sender, RoutedEventArgs e) {

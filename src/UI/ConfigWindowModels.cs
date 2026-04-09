@@ -44,6 +44,7 @@ public sealed class BindingEditor : ObservableObject {
 	string _minimum = "0";
 	string _maximum = "1";
 	bool _isDeleted;
+	bool _bindingExpanded = true;
 	// Stable list instance: ComboBox matches SelectedItem by reference; rebuilding the list each get left the box blank.
 	IReadOnlyList<HotkeyActionChoice>? _actionChoices;
 
@@ -84,7 +85,23 @@ public sealed class BindingEditor : ObservableObject {
 
 	public bool isDeleted {
 		get => _isDeleted;
-		set => setProperty(ref _isDeleted, value);
+		set {
+			if (!setProperty(ref _isDeleted, value))
+				return;
+			raisePropertyChanged(nameof(isNotDeleted));
+			if (value)
+				bindingExpanded = false;
+			else
+				bindingExpanded = true;
+		}
+	}
+
+	public bool isNotDeleted => !_isDeleted;
+
+	/// <summary>Two-way with the binding card Expander; collapsed while soft-deleted.</summary>
+	public bool bindingExpanded {
+		get => _bindingExpanded;
+		set => setProperty(ref _bindingExpanded, value);
 	}
 
 	public ObservableCollection<HotkeyActionEditor> hotkeys { get; } = [];
@@ -247,8 +264,14 @@ public sealed class HotkeyActionEditor : ObservableObject {
 
 	public bool isDeleted {
 		get => _isDeleted;
-		set => setProperty(ref _isDeleted, value);
+		set {
+			if (!setProperty(ref _isDeleted, value))
+				return;
+			raisePropertyChanged(nameof(isNotDeleted));
+		}
 	}
+
+	public bool isNotDeleted => !_isDeleted;
 
 	public string hotkeyText {
 		get {
