@@ -79,8 +79,7 @@ public sealed class ConfigStore {
 		var osc = cfg.oscTransport;
 		var mixer = cfg.mixer;
 		OSDController.Config osd = OSDController.Config.Clamped(cfg.osd);
-		var toggles = cfg.trayApp?.bindings ?? [];
-		var faders = cfg.trayApp?.faderBindings ?? [];
+		List<BindingAbstract> bindings = cfg.trayApp?.bindings ?? [];
 		var lines = new List<string> {
 			"ip=" + osc.endPoint.Address.ToString(),
 			"port=" + osc.endPoint.Port.ToString(CultureInfo.InvariantCulture),
@@ -89,22 +88,41 @@ public sealed class ConfigStore {
 			"osdHeightPx=" + osd.HeightPx.ToString(CultureInfo.InvariantCulture),
 			"osdDisplayDurationMs=" + osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture),
 		};
-		for (int i = 0; i < faders.Count; i++) {
-			BindingFader b = faders[i];
+		for (int i = 0; i < bindings.Count; i++) {
+			BindingAbstract b = bindings[i];
 			string p = i.ToString(CultureInfo.InvariantCulture);
-			lines.Add("oscFader." + p + ".name=" + b.name.Trim());
-			lines.Add("oscFader." + p + ".address=" + b.address.Trim());
-			lines.Add("oscFader." + p + ".step=" + FaderFloatUtil.FormatGridFloat(b.step));
-			lines.Add("oscFader." + p + ".minimum=" + FaderFloatUtil.FormatGridFloat(b.minimum));
-			lines.Add("oscFader." + p + ".maximum=" + FaderFloatUtil.FormatGridFloat(b.maximum));
-			lines.Add("oscFader." + p + ".hotkeyMinus=" + HotkeyUtil.format(b.hotkeyMinus));
-			lines.Add("oscFader." + p + ".hotkeyPlus=" + HotkeyUtil.format(b.hotkeyPlus));
-		}
-		for (int i = 0; i < toggles.Count; i++) {
-			BindingToggle binding = toggles[i];
-			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".name=" + binding.name.Trim());
-			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".address=" + binding.address.Trim());
-			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".hotkey=" + HotkeyUtil.format(binding.hotkey));
+			lines.Add("osc." + p + ".name=" + b.name.Trim());
+			lines.Add("osc." + p + ".address=" + b.address.Trim());
+			if (b is BindingFader f) {
+				lines.Add("osc." + p + ".type=fader");
+				lines.Add("osc." + p + ".minimum=" + FaderFloatUtil.FormatGridFloat(f.minimum));
+				lines.Add("osc." + p + ".maximum=" + FaderFloatUtil.FormatGridFloat(f.maximum));
+			} else if (b is BindingToggle) {
+				lines.Add("osc." + p + ".type=toggle");
+			}
+
+			for (int h = 0; h < b.hotkeys.Count; h++) {
+				HotkeyAction ha = b.hotkeys[h];
+				string hp = h.ToString(CultureInfo.InvariantCulture);
+				lines.Add("osc." + p + ".hotkey." + hp + ".key=" + HotkeyUtil.format(ha.hotkey));
+				switch (ha) {
+					case HotkeyActionFaderSet fs:
+						lines.Add("osc." + p + ".hotkey." + hp + ".action=set");
+						lines.Add("osc." + p + ".hotkey." + hp + ".value=" + FaderFloatUtil.FormatGridFloat(fs.value));
+						break;
+					case HotkeyActionFaderDelta fd:
+						lines.Add("osc." + p + ".hotkey." + hp + ".action=delta");
+						lines.Add("osc." + p + ".hotkey." + hp + ".value=" + FaderFloatUtil.FormatGridFloat(fd.delta));
+						break;
+					case HotkeyActionToggleSet ts:
+						lines.Add("osc." + p + ".hotkey." + hp + ".action=set");
+						lines.Add("osc." + p + ".hotkey." + hp + ".value=" + (ts.on ? "true" : "false"));
+						break;
+					case HotkeyActionToggleFlip:
+						lines.Add("osc." + p + ".hotkey." + hp + ".action=toggle");
+						break;
+				}
+			}
 		}
 		string path = configPath;
 		string? directory = Path.GetDirectoryName(path);
@@ -128,31 +146,22 @@ public sealed class ConfigStore {
 		}
 	}
 
-	static List<BindingFader> cloneDefaultFaderBindings() {
+	static List<BindingAbstract> cloneDefaultBindings() {
 		var trayDefaults = new BindingManager.Config();
-		return trayDefaults.faderBindings.Select(f => new BindingFader(f)).ToList();
-	}
-
-	static List<BindingToggle> cloneDefaultToggleBindings() {
-		var trayDefaults = new BindingManager.Config();
-		return trayDefaults.bindings.Select(t => new BindingToggle(t)).ToList();
+		return trayDefaults.bindings.Select(static b => b switch {
+			BindingFader f => (BindingAbstract)new BindingFader(f),
+			BindingToggle t => new BindingToggle(t),
+			_ => throw new InvalidOperationException("Unknown binding type."),
+		}).ToList();
 	}
 
 	static BindingManager.Config buildBindingManagerConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
-		List<BindingFader> faders = parseOscFaderBindings(map);
-		if (faders.Count == 0) {
-			faders = cloneDefaultFaderBindings();
-			repairNotes.Add("No valid fader bindings in file; using defaults.");
+		List<BindingAbstract> list = parseOscBindings(map);
+		if (list.Count == 0) {
+			list = cloneDefaultBindings();
+			repairNotes.Add("No valid OSC bindings in file; using defaults.");
 		}
-		List<BindingToggle> toggles = parseOscToggleBindings(map);
-		if (toggles.Count == 0) {
-			toggles = cloneDefaultToggleBindings();
-			repairNotes.Add("No valid toggle bindings in file; using defaults.");
-		}
-		return new BindingManager.Config {
-			faderBindings = faders,
-			bindings = toggles,
-		};
+		return new BindingManager.Config { bindings = list };
 	}
 
 	static OscTransport.Config buildOscConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
@@ -228,116 +237,176 @@ public sealed class ConfigStore {
 		return map;
 	}
 
-	static List<BindingFader> parseOscFaderBindings(IReadOnlyDictionary<string, string> map) {
-		var rows = new Dictionary<int, BindingFader>();
+	sealed class OscBindingLoadRow {
+		public string name = "";
+		public string address = "";
+		public string type = "";
+		public float minimum;
+		public float maximum;
+		public readonly Dictionary<int, OscHotkeyLoadRow> hotkeyRows = new();
+	}
+
+	sealed class OscHotkeyLoadRow {
+		public string keyText = "";
+		public string action = "";
+		public string valueText = "";
+	}
+
+	static bool tryParseOscBindingKey(string key, out int bindingIndex, out string remainder) {
+		remainder = "";
+		bindingIndex = -1;
+		if (!key.StartsWith("osc.", StringComparison.OrdinalIgnoreCase))
+			return false;
+		string rest = key["osc.".Length..];
+		int dot = rest.IndexOf('.');
+		if (dot <= 0)
+			return false;
+		if (!int.TryParse(rest[..dot], NumberStyles.Integer, CultureInfo.InvariantCulture, out int idx) || idx < 0)
+			return false;
+		bindingIndex = idx;
+		remainder = rest[(dot + 1)..];
+		return true;
+	}
+
+	static List<BindingAbstract> parseOscBindings(IReadOnlyDictionary<string, string> map) {
+		var rows = new Dictionary<int, OscBindingLoadRow>();
 		foreach ((string key, string value) in map) {
-			if (!key.StartsWith("oscFader.", StringComparison.OrdinalIgnoreCase))
+			if (!tryParseOscBindingKey(key, out int bi, out string rem))
 				continue;
-			string rest = key["oscFader.".Length..];
-			int dot = rest.IndexOf('.');
-			if (dot <= 0)
-				continue;
-			if (!int.TryParse(rest[..dot], NumberStyles.Integer, CultureInfo.InvariantCulture, out int index) || index < 0)
-				continue;
-			string field = rest[(dot + 1)..];
-			if (!rows.TryGetValue(index, out BindingFader? row)) {
-				row = new BindingFader();
-				rows[index] = row;
+			if (!rows.TryGetValue(bi, out OscBindingLoadRow? row)) {
+				row = new OscBindingLoadRow();
+				rows[bi] = row;
 			}
-			switch (field.ToLowerInvariant()) {
-				case "name":
-					row.name = value.Trim();
-					break;
-				case "address":
-					row.address = value.Trim();
-					break;
-				case "step":
-					if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float st) && float.IsFinite(st))
-						row.step = st;
-					break;
-				case "minimum":
-					if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float mn) && float.IsFinite(mn))
-						row.minimum = mn;
-					break;
-				case "maximum":
-					if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float mx) && float.IsFinite(mx))
-						row.maximum = mx;
-					break;
-				case "hotkeyminus":
-					if (HotkeyUtil.tryParse(value, out HotkeyGesture hm))
-						row.hotkeyMinus = hm;
-					break;
-				case "hotkeyplus":
-					if (HotkeyUtil.tryParse(value, out HotkeyGesture hp))
-						row.hotkeyPlus = hp;
-					break;
+			if (rem.StartsWith("hotkey.", StringComparison.OrdinalIgnoreCase)) {
+				string hkRest = rem["hotkey.".Length..];
+				int dot = hkRest.IndexOf('.');
+				if (dot <= 0)
+					continue;
+				if (!int.TryParse(hkRest[..dot], NumberStyles.Integer, CultureInfo.InvariantCulture, out int hj) || hj < 0)
+					continue;
+				string field = hkRest[(dot + 1)..];
+				if (!row.hotkeyRows.TryGetValue(hj, out OscHotkeyLoadRow? hk))
+					row.hotkeyRows[hj] = hk = new OscHotkeyLoadRow();
+				switch (field.ToLowerInvariant()) {
+					case "key":
+						hk.keyText = value.Trim();
+						break;
+					case "action":
+						hk.action = value.Trim();
+						break;
+					case "value":
+						hk.valueText = value.Trim();
+						break;
+				}
+			} else {
+				switch (rem.ToLowerInvariant()) {
+					case "name":
+						row.name = value.Trim();
+						break;
+					case "address":
+						row.address = value.Trim();
+						break;
+					case "type":
+						row.type = value.Trim();
+						break;
+					case "minimum":
+						if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float mn) && float.IsFinite(mn))
+							row.minimum = mn;
+						break;
+					case "maximum":
+						if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float mx) && float.IsFinite(mx))
+							row.maximum = mx;
+						break;
+				}
 			}
 		}
 
-		var result = new List<BindingFader>(rows.Count);
+		var result = new List<BindingAbstract>();
 		foreach (int index in rows.Keys.OrderBy(i => i)) {
-			BindingFader row = rows[index];
-			if (string.IsNullOrWhiteSpace(row.name) || string.IsNullOrWhiteSpace(row.address))
+			OscBindingLoadRow r = rows[index];
+			if (string.IsNullOrWhiteSpace(r.name) || string.IsNullOrWhiteSpace(r.address))
 				continue;
-			if (!float.IsFinite(row.step) || !float.IsFinite(row.minimum) || !float.IsFinite(row.maximum) || row.minimum > row.maximum)
+			string t = r.type.Trim().ToLowerInvariant();
+			if (t is not ("fader" or "toggle"))
 				continue;
-			row.step = Math.Clamp(FaderFloatUtil.RoundToBindingDecimals(row.step), MixerController.Config.MIN_FADER_STEP, MixerController.Config.MAX_FADER_STEP);
-			float minR = FaderFloatUtil.RoundToBindingDecimals(row.minimum);
-			float maxR = FaderFloatUtil.RoundToBindingDecimals(row.maximum);
-			result.Add(new BindingFader {
-				name = row.name.Trim(),
-				address = row.address.Trim(),
-				step = row.step,
-				minimum = minR,
-				maximum = maxR,
-				hotkeyMinus = HotkeyUtil.normalize(row.hotkeyMinus),
-				hotkeyPlus = HotkeyUtil.normalize(row.hotkeyPlus),
-			});
+
+			var hotkeys = new List<HotkeyAction>();
+			foreach (int hj in r.hotkeyRows.Keys.OrderBy(j => j)) {
+				OscHotkeyLoadRow hk = r.hotkeyRows[hj];
+				if (!HotkeyUtil.tryParse(hk.keyText, out HotkeyGesture gesture))
+					continue;
+				gesture = HotkeyUtil.normalize(gesture);
+				if (gesture.isNone)
+					continue;
+				HotkeyAction? action = tryBuildHotkeyActionFromFile(t, hk.action, hk.valueText);
+				if (action == null)
+					continue;
+				action.hotkey = gesture;
+				hotkeys.Add(action);
+			}
+
+			if (t == "fader") {
+				if (!float.IsFinite(r.minimum) || !float.IsFinite(r.maximum) || r.minimum > r.maximum)
+					continue;
+				float minR = FaderFloatUtil.RoundToBindingDecimals(r.minimum);
+				float maxR = FaderFloatUtil.RoundToBindingDecimals(r.maximum);
+				result.Add(new BindingFader {
+					name = r.name.Trim(),
+					address = r.address.Trim(),
+					minimum = minR,
+					maximum = maxR,
+					hotkeys = hotkeys,
+				});
+			} else {
+				result.Add(new BindingToggle {
+					name = r.name.Trim(),
+					address = r.address.Trim(),
+					hotkeys = hotkeys,
+				});
+			}
 		}
 		return result;
 	}
 
-	static List<BindingToggle> parseOscToggleBindings(IReadOnlyDictionary<string, string> map) {
-		var rows = new Dictionary<int, BindingToggle>();
-		foreach ((string key, string value) in map) {
-			if (!key.StartsWith("oscToggle.", StringComparison.OrdinalIgnoreCase))
-				continue;
-			string rest = key["oscToggle.".Length..];
-			int dot = rest.IndexOf('.');
-			if (dot <= 0)
-				continue;
-			if (!int.TryParse(rest[..dot], NumberStyles.Integer, CultureInfo.InvariantCulture, out int index) || index < 0)
-				continue;
-			string field = rest[(dot + 1)..];
-			if (!rows.TryGetValue(index, out BindingToggle? row)) {
-				row = new BindingToggle();
-				rows[index] = row;
-			}
-			switch (field.ToLowerInvariant()) {
-				case "name":
-					row.name = value.Trim();
-					break;
-				case "address":
-					row.address = value.Trim();
-					break;
-				case "hotkey":
-					if (HotkeyUtil.tryParse(value, out HotkeyGesture hotkey))
-						row.hotkey = hotkey;
-					break;
-			}
+	static HotkeyAction? tryBuildHotkeyActionFromFile(string bindingType, string actionToken, string valueText) {
+		string a = actionToken.Trim().ToLowerInvariant();
+		if (bindingType == "fader") {
+			if (a == "set" && float.TryParse(valueText, NumberStyles.Float, CultureInfo.InvariantCulture, out float sv) && float.IsFinite(sv))
+				return new HotkeyActionFaderSet { value = FaderFloatUtil.RoundToBindingDecimals(sv) };
+			if (a == "delta" && float.TryParse(valueText, NumberStyles.Float, CultureInfo.InvariantCulture, out float dv) && float.IsFinite(dv))
+				return new HotkeyActionFaderDelta { delta = FaderFloatUtil.RoundToBindingDecimals(dv) };
+			return null;
 		}
+		if (bindingType == "toggle") {
+			if (a == "toggle")
+				return new HotkeyActionToggleFlip();
+			if (a == "set" && tryParseBoolLoose(valueText, out bool on))
+				return new HotkeyActionToggleSet { on = on };
+		}
+		return null;
+	}
 
-		var result = new List<BindingToggle>(rows.Count);
-		foreach (int index in rows.Keys.OrderBy(i => i)) {
-			BindingToggle row = rows[index];
-			if (string.IsNullOrWhiteSpace(row.name) || string.IsNullOrWhiteSpace(row.address) || row.hotkey.isNone)
-				continue;
-			result.Add(new BindingToggle {
-				name = row.name.Trim(),
-				address = row.address.Trim(),
-				hotkey = HotkeyUtil.normalize(row.hotkey),
-			});
+	static bool tryParseBoolLoose(string text, out bool on) {
+		on = false;
+		string s = text.Trim();
+		if (bool.TryParse(s, out on))
+			return true;
+		if (s == "1") {
+			on = true;
+			return true;
 		}
-		return result;
+		if (s == "0") {
+			on = false;
+			return true;
+		}
+		if (s.Equals("on", StringComparison.OrdinalIgnoreCase)) {
+			on = true;
+			return true;
+		}
+		if (s.Equals("off", StringComparison.OrdinalIgnoreCase)) {
+			on = false;
+			return true;
+		}
+		return false;
 	}
 }

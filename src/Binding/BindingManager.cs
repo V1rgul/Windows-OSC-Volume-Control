@@ -11,71 +11,74 @@ public sealed class BindingManager {
 
 		public Config(Config from) {
 			ArgumentNullException.ThrowIfNull(from);
-			faderBindings = from.faderBindings.Select(f => new BindingFader(f)).ToList();
-			bindings = from.bindings.Select(b => new BindingToggle(b)).ToList();
+			bindings = from.bindings.Select(cloneBinding).ToList();
 		}
 
-		/// <summary>Default out-of-box fader row (cosmetic name only; not resolved by code).</summary>
+		static BindingAbstract cloneBinding(BindingAbstract b) => b switch {
+			BindingFader f => new BindingFader(f),
+			BindingToggle t => new BindingToggle(t),
+			_ => throw new InvalidOperationException("Unknown binding type: " + b.GetType().Name),
+		};
+
 		public static BindingFader createDefaultFaderBinding() => new() {
 			name = "MAIN",
 			address = "/main/st/mix/fader",
-			step = 0.02f,
 			minimum = 0f,
 			maximum = 1f,
-			hotkeyMinus = new HotkeyGesture { keyCode = HotkeyGesture.VK_VOLUME_DOWN },
-			hotkeyPlus = new HotkeyGesture { keyCode = HotkeyGesture.VK_VOLUME_UP },
+			hotkeys = [
+				new HotkeyActionFaderDelta {
+					hotkey = new HotkeyGesture { keyCode = HotkeyGesture.VK_VOLUME_DOWN },
+					delta = -0.02f,
+				},
+				new HotkeyActionFaderDelta {
+					hotkey = new HotkeyGesture { keyCode = HotkeyGesture.VK_VOLUME_UP },
+					delta = 0.02f,
+				},
+			],
 		};
 
 		public static BindingToggle createDefaultToggleBinding() => new() {
 			name = "MAIN",
 			address = "/main/st/mix/on",
-			hotkey = new HotkeyGesture { keyCode = HotkeyGesture.VK_VOLUME_MUTE },
+			hotkeys = [
+				new HotkeyActionToggleFlip {
+					hotkey = new HotkeyGesture { keyCode = HotkeyGesture.VK_VOLUME_MUTE },
+				},
+			],
 		};
 
-		public List<BindingFader> faderBindings { get; set; } = [createDefaultFaderBinding()];
-		public List<BindingToggle> bindings { get; set; } = [createDefaultToggleBinding()];
+		public List<BindingAbstract> bindings { get; set; } = [createDefaultFaderBinding(), createDefaultToggleBinding()];
 	}
 
-	/// <summary>One hotkey’s target binding and action kind.</summary>
+	/// <summary>One hotkey’s target binding and action.</summary>
 	public readonly struct Slot {
-		public enum Kind {
-			TOGGLE,
-			UP,
-			DOWN,
-		}
-
 		public BindingAbstract binding { get; }
-		public Kind kind { get; }
+		public HotkeyAction action { get; }
 
-		public Slot(BindingAbstract binding, Kind kind) {
+		public Slot(BindingAbstract binding, HotkeyAction action) {
 			this.binding = binding;
-			this.kind = kind;
+			this.action = action;
 		}
 	}
 
 	volatile FrozenDictionary<HotkeyGesture, Slot> _byHotkey = FrozenDictionary<HotkeyGesture, Slot>.Empty;
 
-	/// <summary>Rebuilds the snapshot from config. Hotkeys are expected already normalized (e.g. ConfigStore / settings form). Duplicate keys (e.g. hand-edited file): TOGGLE then DOWN then UP per row, last write wins.</summary>
-	internal void rebuildFromConfig(IEnumerable<BindingFader> faders, IEnumerable<BindingToggle> toggles) {
+	/// <summary>Rebuilds the snapshot from config. Duplicate keys: last write wins.</summary>
+	internal void rebuildFromConfig(IEnumerable<BindingAbstract> bindings) {
 		var map = new Dictionary<HotkeyGesture, Slot>();
-		foreach (BindingToggle t in toggles) {
-			var row = new BindingToggle(t);
-			if (!row.hotkey.isNone)
-				map[row.hotkey] = new Slot(row, Slot.Kind.TOGGLE);
-		}
-		foreach (BindingFader f in faders) {
-			var row = new BindingFader(f);
-			if (!row.hotkeyMinus.isNone) {
-				HotkeyGesture k = row.hotkeyMinus;
+		foreach (BindingAbstract b in bindings) {
+			BindingAbstract row = b switch {
+				BindingFader f => new BindingFader(f),
+				BindingToggle t => new BindingToggle(t),
+				_ => throw new InvalidOperationException("Unknown binding type: " + b.GetType().Name),
+			};
+			foreach (HotkeyAction ha in row.hotkeys) {
+				if (ha.hotkey.isNone)
+					continue;
+				HotkeyGesture k = ha.hotkey;
 				if (map.ContainsKey(k))
-					AppTrace.BindingManager.TraceEvent(TraceEventType.Warning, 0, $"Duplicate hotkey {HotkeyUtil.format(k)}, overwriting with fader DOWN");
-				map[k] = new Slot(row, Slot.Kind.DOWN);
-			}
-			if (!row.hotkeyPlus.isNone) {
-				HotkeyGesture k = row.hotkeyPlus;
-				if (map.ContainsKey(k))
-					AppTrace.BindingManager.TraceEvent(TraceEventType.Warning, 0, $"Duplicate hotkey {HotkeyUtil.format(k)}, overwriting with fader UP");
-				map[k] = new Slot(row, Slot.Kind.UP);
+					AppTrace.BindingManager.TraceEvent(TraceEventType.Warning, 0, $"Duplicate hotkey {HotkeyUtil.format(k)}, overwriting");
+				map[k] = new Slot(row, ha.clone());
 			}
 		}
 		_byHotkey = map.ToFrozenDictionary();

@@ -45,7 +45,7 @@ public sealed class AppCoordinator : IDisposable {
 		_mixer.eventReceived += onMixerEvent;
 
 		_applicationErrors.setError(new Error.Generic.Starting(), true);
-		rebuildHotkeysFromConfig(_configStore.appConfig.trayApp?.faderBindings ?? [], _configStore.appConfig.trayApp?.bindings ?? []);
+		rebuildHotkeysFromConfig(_configStore.appConfig.trayApp?.bindings ?? []);
 		syncStatusUi();
 
 		Task startupTask = runStartupHealthAsync();
@@ -56,12 +56,12 @@ public sealed class AppCoordinator : IDisposable {
 		}, TaskContinuationOptions.OnlyOnFaulted);
 	}
 
-	void rebuildHotkeysFromConfig(IEnumerable<BindingFader> faders, IEnumerable<BindingToggle> toggles) {
-		_oscBindings.rebuildFromConfig(faders, toggles);
+	void rebuildHotkeysFromConfig(IEnumerable<BindingAbstract> bindings) {
+		_oscBindings.rebuildFromConfig(bindings);
 		_hook.setKeyCallback(k => {
 			if (!_oscBindings.tryGetSlot(k, out BindingManager.Slot slot))
 				return null;
-			return () => handleOscHotkey(slot.binding, slot.kind);
+			return () => handleOscHotkey(slot.binding, slot.action);
 		});
 	}
 
@@ -80,7 +80,7 @@ public sealed class AppCoordinator : IDisposable {
 		_transport.applyConfig(cfg.oscTransport);
 		_mixer.ApplyConfig(cfg.mixer);
 		_osd.ApplyConfig(cfg.osd);
-		rebuildHotkeysFromConfig(cfg.trayApp?.faderBindings ?? [], cfg.trayApp?.bindings ?? []);
+		rebuildHotkeysFromConfig(cfg.trayApp?.bindings ?? []);
 	}
 
 	public void commitConfigFromSettingsForm(AppConfig newConfig) {
@@ -143,7 +143,7 @@ public sealed class AppCoordinator : IDisposable {
 		ui(() => {
 			switch (evt) {
 				case MixerController.Event.FaderChanged f when tryGetFaderBinding(f.address, out BindingFader? binding):
-					_osd.ShowLevel(binding.displayName, binding.minimum, binding.maximum, f.newLevel, f.volumeIncreased, binding.step);
+					_osd.ShowLevel(binding.displayName, binding.minimum, binding.maximum, f.newLevel, f.volumeIncreased, guessFaderStepForOsd(binding));
 					break;
 				case MixerController.Event.ToggleChanged t when tryGetToggleBinding(t.address, out BindingToggle? toggleBinding):
 					_osd.ShowToggle(toggleBinding.displayName, t.nowOn);
@@ -156,13 +156,23 @@ public sealed class AppCoordinator : IDisposable {
 	}
 
 	bool tryGetFaderBinding(string address, [NotNullWhen(true)] out BindingFader? binding) {
-		binding = _configStore.appConfig.trayApp?.faderBindings.FirstOrDefault(f => string.Equals(f.address, address, StringComparison.Ordinal));
+		binding = _configStore.appConfig.trayApp?.bindings.OfType<BindingFader>()
+			.FirstOrDefault(f => string.Equals(f.address, address, StringComparison.Ordinal));
 		return binding != null;
 	}
 
 	bool tryGetToggleBinding(string address, [NotNullWhen(true)] out BindingToggle? binding) {
-		binding = _configStore.appConfig.trayApp?.bindings.FirstOrDefault(t => string.Equals(t.address, address, StringComparison.Ordinal));
+		binding = _configStore.appConfig.trayApp?.bindings.OfType<BindingToggle>()
+			.FirstOrDefault(t => string.Equals(t.address, address, StringComparison.Ordinal));
 		return binding != null;
+	}
+
+	static float guessFaderStepForOsd(BindingFader f) {
+		foreach (HotkeyAction ha in f.hotkeys) {
+			if (ha is HotkeyActionFaderDelta d && d.delta != 0f)
+				return Math.Abs(d.delta);
+		}
+		return 0.02f;
 	}
 
 	void openConfig() {
@@ -194,21 +204,25 @@ public sealed class AppCoordinator : IDisposable {
 		_ = _dispatcher.BeginInvoke(action, DispatcherPriority.Normal);
 	}
 
-	void handleOscHotkey(BindingAbstract binding, BindingManager.Slot.Kind kind) {
+	void handleOscHotkey(BindingAbstract binding, HotkeyAction action) {
 		string display = binding.displayName;
-		if (kind == BindingManager.Slot.Kind.TOGGLE) {
-			var toggleBinding = (BindingToggle)binding;
-			ui(() => _osd.ShowPending(display));
-			_mixer.toggle(toggleBinding.address);
-			return;
-		}
-
-		if (kind is BindingManager.Slot.Kind.UP or BindingManager.Slot.Kind.DOWN) {
-			var faderBinding = (BindingFader)binding;
-			if (!_mixer.HasFreshFaderSample(faderBinding.address))
-				ui(() => _osd.ShowPending(display, faderBinding.step));
-			float delta = kind == BindingManager.Slot.Kind.UP ? faderBinding.step : -faderBinding.step;
-			_mixer.nudge(faderBinding.address, delta, faderBinding.minimum, faderBinding.maximum);
+		switch (action) {
+			case HotkeyActionFaderSet fs when binding is BindingFader fader:
+				_mixer.setFader(fader.address, fs.value, fader.minimum, fader.maximum);
+				break;
+			case HotkeyActionFaderDelta fd when binding is BindingFader fader2:
+				if (!_mixer.HasFreshFaderSample(fader2.address))
+					ui(() => _osd.ShowPending(display, Math.Abs(fd.delta)));
+				_mixer.nudge(fader2.address, fd.delta, fader2.minimum, fader2.maximum);
+				break;
+			case HotkeyActionToggleSet ts when binding is BindingToggle toggle:
+				ui(() => _osd.ShowPending(display));
+				_mixer.setToggle(toggle.address, ts.on);
+				break;
+			case HotkeyActionToggleFlip when binding is BindingToggle toggle2:
+				ui(() => _osd.ShowPending(display));
+				_mixer.toggle(toggle2.address);
+				break;
 		}
 	}
 

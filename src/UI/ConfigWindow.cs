@@ -5,22 +5,27 @@ using System.IO;
 using System.Net;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Threading;
 using Key = System.Windows.Input.Key;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using Keyboard = System.Windows.Input.Keyboard;
 using KeyboardFocusChangedEventArgs = System.Windows.Input.KeyboardFocusChangedEventArgs;
+using TraversalRequest = System.Windows.Input.TraversalRequest;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
 
 namespace WindowsOscVolumeControl;
 
 public partial class ConfigWindow : Window {
+	public const string HotkeyAssignmentCaptureTag = "HotkeyAssignmentCapture";
+
 	readonly MixerController _mixer;
 	readonly TrayController _trayController;
 	readonly AppCoordinator _appCoordinator;
 	readonly ConfigStore _configStore;
 
-	public ObservableCollection<FaderBindingEditor> FaderBindings { get; } = [];
-	public ObservableCollection<ToggleBindingEditor> ToggleBindings { get; } = [];
+	public ObservableCollection<BindingEditor> Bindings { get; } = [];
 
 	public ConfigWindow(MixerController mixer, TrayController trayController, AppCoordinator appCoordinator, ConfigStore configStore) {
 		InitializeComponent();
@@ -36,6 +41,16 @@ public partial class ConfigWindow : Window {
 
 	public void syncTitlebarIconFromTray() => Icon = _trayController.windowIconSourceSnapshot;
 
+	static T? findDataContextAncestor<T>(DependencyObject start) where T : class {
+		DependencyObject? cur = start;
+		while (cur != null) {
+			if (cur is FrameworkElement { DataContext: T match })
+				return match;
+			cur = VisualTreeHelper.GetParent(cur);
+		}
+		return null;
+	}
+
 	void loadFromConfigStore() {
 		AppConfig cfg = _configStore.appConfig;
 		IpTextBox.Text = cfg.oscTransport.endPoint.Address.ToString();
@@ -50,12 +65,9 @@ public partial class ConfigWindow : Window {
 		InfoResultTextBox.Text = "";
 		NetworkFeedbackTextBlock.Text = "";
 		StatusTextBlock.Text = "";
-		FaderBindings.Clear();
-		foreach (BindingFader binding in cfg.trayApp?.faderBindings ?? [])
-			FaderBindings.Add(FaderBindingEditor.fromBinding(binding));
-		ToggleBindings.Clear();
-		foreach (BindingToggle binding in cfg.trayApp?.bindings ?? [])
-			ToggleBindings.Add(ToggleBindingEditor.fromBinding(binding));
+		Bindings.Clear();
+		foreach (BindingAbstract binding in cfg.trayApp?.bindings ?? [])
+			Bindings.Add(BindingEditor.fromBinding(binding));
 	}
 
 	async void buttonApplySaveAndTest_Click(object sender, RoutedEventArgs e) {
@@ -149,59 +161,80 @@ public partial class ConfigWindow : Window {
 			: "Autostart is currently not registered.";
 	}
 
-	void buttonAddFader_Click(object sender, RoutedEventArgs e) => FaderBindings.Add(new FaderBindingEditor());
-	void buttonRemoveFader_Click(object sender, RoutedEventArgs e) => removeItem<FaderBindingEditor>(sender, FaderBindings);
-	void buttonAddToggle_Click(object sender, RoutedEventArgs e) => ToggleBindings.Add(new ToggleBindingEditor());
-	void buttonRemoveToggle_Click(object sender, RoutedEventArgs e) => removeItem<ToggleBindingEditor>(sender, ToggleBindings);
-
-	static void removeItem<T>(object sender, Collection<T> collection) {
-		if (sender is FrameworkElement { DataContext: T item })
-			collection.Remove(item);
+	void buttonAddBinding_Click(object sender, RoutedEventArgs e) {
+		var ed = new BindingEditor {
+			type = BindingEditorType.FADER,
+			name = "",
+			address = "",
+			minimum = "0",
+			maximum = "1",
+		};
+		ed.hotkeys.Add(ed.createHotkeyEditor());
+		Bindings.Add(ed);
 	}
 
-	void buttonClearFaderMinus_Click(object sender, RoutedEventArgs e) {
-		if (sender is FrameworkElement { DataContext: FaderBindingEditor item })
-			item.hotkeyMinus = HotkeyGesture.None;
+	void buttonBindingDelete_Click(object sender, RoutedEventArgs e) {
+		if (sender is FrameworkElement { DataContext: BindingEditor item })
+			item.isDeleted = true;
 	}
 
-	void buttonClearFaderPlus_Click(object sender, RoutedEventArgs e) {
-		if (sender is FrameworkElement { DataContext: FaderBindingEditor item })
-			item.hotkeyPlus = HotkeyGesture.None;
+	void buttonBindingRestore_Click(object sender, RoutedEventArgs e) {
+		if (sender is FrameworkElement { DataContext: BindingEditor item })
+			item.isDeleted = false;
 	}
 
-	void buttonClearToggleHotkey_Click(object sender, RoutedEventArgs e) {
-		if (sender is FrameworkElement { DataContext: ToggleBindingEditor item })
-			item.hotkey = HotkeyGesture.None;
-	}
-
-	void hotkeyControl_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) =>
-		_appCoordinator.setConfiguredHotkeysEnabled(false);
-
-	void hotkeyControl_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) =>
-		_appCoordinator.setConfiguredHotkeysEnabled(true);
-
-	void faderHotkeyMinus_PreviewKeyDown(object sender, KeyEventArgs e) {
-		if (sender is FrameworkElement { DataContext: FaderBindingEditor item })
-			applyHotkey(e, hotkey => item.hotkeyMinus = hotkey, () => item.hotkeyMinus = HotkeyGesture.None);
-	}
-
-	void faderHotkeyPlus_PreviewKeyDown(object sender, KeyEventArgs e) {
-		if (sender is FrameworkElement { DataContext: FaderBindingEditor item })
-			applyHotkey(e, hotkey => item.hotkeyPlus = hotkey, () => item.hotkeyPlus = HotkeyGesture.None);
-	}
-
-	void toggleHotkey_PreviewKeyDown(object sender, KeyEventArgs e) {
-		if (sender is FrameworkElement { DataContext: ToggleBindingEditor item })
-			applyHotkey(e, hotkey => item.hotkey = hotkey, () => item.hotkey = HotkeyGesture.None);
-	}
-
-	void applyHotkey(KeyEventArgs e, Action<HotkeyGesture> setter, Action clear) {
-		if (e.Key is Key.Delete or Key.Back) {
-			clear();
-			e.Handled = true;
+	void buttonAddHotkeyToBinding_Click(object sender, RoutedEventArgs e) {
+		if (sender is not DependencyObject d)
 			return;
-		}
+		BindingEditor? bed = findDataContextAncestor<BindingEditor>(d);
+		if (bed == null)
+			return;
+		bed.hotkeys.Add(bed.createHotkeyEditor());
+	}
 
+	void buttonHotkeyDelete_Click(object sender, RoutedEventArgs e) {
+		if (sender is FrameworkElement { DataContext: HotkeyActionEditor item })
+			item.isDeleted = true;
+	}
+
+	void buttonHotkeyRestore_Click(object sender, RoutedEventArgs e) {
+		if (sender is FrameworkElement { DataContext: HotkeyActionEditor item })
+			item.isDeleted = false;
+	}
+
+	void hotkeyControl_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) {
+		_appCoordinator.setConfiguredHotkeysEnabled(false);
+		if (sender is FrameworkElement { DataContext: HotkeyActionEditor item }) {
+			item.isHotkeyCaptureActive = true;
+			item.hotkey = HotkeyGesture.None;
+			StatusTextBlock.Text = "";
+		}
+	}
+
+	void hotkeyControl_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) {
+		if (sender is FrameworkElement { DataContext: HotkeyActionEditor item })
+			item.isHotkeyCaptureActive = false;
+		_appCoordinator.setConfiguredHotkeysEnabled(true);
+	}
+
+	void configWindow_PreviewKeyDown(object sender, KeyEventArgs e) {
+		if (e.Key is not Key.Tab)
+			return;
+		if (Keyboard.FocusedElement is not System.Windows.Controls.Button focusedBtn)
+			return;
+		if (focusedBtn.Tag is not string tag || tag != HotkeyAssignmentCaptureTag)
+			return;
+		if (focusedBtn.DataContext is not HotkeyActionEditor item)
+			return;
+		applyHotkey(e, focusedBtn, hotkey => item.hotkey = hotkey);
+	}
+
+	void hotkeyRow_PreviewKeyDown(object sender, KeyEventArgs e) {
+		if (sender is FrameworkElement fe && fe.DataContext is HotkeyActionEditor item)
+			applyHotkey(e, fe, hotkey => item.hotkey = hotkey);
+	}
+
+	void applyHotkey(KeyEventArgs e, FrameworkElement hotkeyCaptureElement, Action<HotkeyGesture> setter) {
 		HotkeyGesture hotkey = HotkeyUtil.fromKeyEventArgs(e);
 		if (hotkey.isNone) {
 			e.Handled = true;
@@ -218,6 +251,13 @@ public partial class ConfigWindow : Window {
 		setter(hotkey);
 		StatusTextBlock.Text = "";
 		e.Handled = true;
+		hotkeyCaptureElement.Dispatcher.BeginInvoke(DispatcherPriority.Background, moveFocusAwayAfterAssign, hotkeyCaptureElement);
+	}
+
+	static void moveFocusAwayAfterAssign(object? captureElement) {
+		if (captureElement is not FrameworkElement fe)
+			return;
+		_ = fe.MoveFocus(new TraversalRequest(System.Windows.Input.FocusNavigationDirection.Next));
 	}
 
 	static Brush brushForTone(FeedbackTone tone) => tone switch {
@@ -245,76 +285,69 @@ public partial class ConfigWindow : Window {
 		if (!tryParseUInt(OsdDurationTextBox.Text, OSDController.Config.MIN_DISPLAY_DURATION_MS, OSDController.Config.MAX_DISPLAY_DURATION_MS, "OSD display duration", out uint osdDuration, out error))
 			return false;
 
-		List<BindingFader> faders = new(FaderBindings.Count);
-		for (int i = 0; i < FaderBindings.Count; i++) {
-			FaderBindingEditor editor = FaderBindings[i];
-			if (isFaderBlank(editor))
+		var built = new List<BindingAbstract>();
+		for (int i = 0; i < Bindings.Count; i++) {
+			BindingEditor editor = Bindings[i];
+			if (editor.isDeleted || isBindingBlank(editor))
 				continue;
 
 			if (string.IsNullOrWhiteSpace(editor.name) || string.IsNullOrWhiteSpace(editor.address)) {
-				error = $"Fader binding {i + 1} requires name and OSC address.";
+				error = $"Binding {i + 1} requires name and OSC address.";
 				return false;
 			}
 
-			if (!tryParseFloat(editor.step, "Fader step", out float step, out error)
-			    || !tryParseFloat(editor.minimum, "Fader minimum", out float min, out error)
-			    || !tryParseFloat(editor.maximum, "Fader maximum", out float max, out error))
-				return false;
-
-			if (min > max) {
-				error = $"Fader binding {i + 1}: minimum must be less than or equal to maximum.";
-				return false;
+			if (editor.type == BindingEditorType.FADER) {
+				if (!tryParseFloat(editor.minimum, "Minimum", out float min, out error)
+				    || !tryParseFloat(editor.maximum, "Maximum", out float max, out error))
+					return false;
+				if (min > max) {
+					error = $"Binding {i + 1}: minimum must be less than or equal to maximum.";
+					return false;
+				}
+				min = FaderFloatUtil.RoundToBindingDecimals(min);
+				max = FaderFloatUtil.RoundToBindingDecimals(max);
+				var fader = new BindingFader {
+					name = editor.name.Trim(),
+					address = editor.address.Trim(),
+					minimum = min,
+					maximum = max,
+				};
+				for (int h = 0; h < editor.hotkeys.Count; h++) {
+					HotkeyActionEditor hk = editor.hotkeys[h];
+					if (hk.isDeleted || isHotkeyRowBlank(hk))
+						continue;
+					if (!hk.tryBuildModel(editor.type, out HotkeyAction? action, out string? hkErr)) {
+						error = $"Binding {i + 1}, hotkey {h + 1}: {hkErr}";
+						return false;
+					}
+					fader.hotkeys.Add(action);
+				}
+				built.Add(fader);
+			} else {
+				var toggle = new BindingToggle {
+					name = editor.name.Trim(),
+					address = editor.address.Trim(),
+				};
+				for (int h = 0; h < editor.hotkeys.Count; h++) {
+					HotkeyActionEditor hk = editor.hotkeys[h];
+					if (hk.isDeleted || isHotkeyRowBlank(hk))
+						continue;
+					if (!hk.tryBuildModel(editor.type, out HotkeyAction? action, out string? hkErr)) {
+						error = $"Binding {i + 1}, hotkey {h + 1}: {hkErr}";
+						return false;
+					}
+					toggle.hotkeys.Add(action);
+				}
+				built.Add(toggle);
 			}
-
-			if (!editor.hotkeyMinus.isNone && !HotkeyUtil.tryValidate(editor.hotkeyMinus, out string hotkeyMinusError)) {
-				error = $"Fader binding {i + 1} hotkey −: {hotkeyMinusError}";
-				return false;
-			}
-			if (!editor.hotkeyPlus.isNone && !HotkeyUtil.tryValidate(editor.hotkeyPlus, out string hotkeyPlusError)) {
-				error = $"Fader binding {i + 1} hotkey +: {hotkeyPlusError}";
-				return false;
-			}
-
-			faders.Add(new BindingFader {
-				name = editor.name.Trim(),
-				address = editor.address.Trim(),
-				step = Math.Clamp(FaderFloatUtil.RoundToBindingDecimals(step), MixerController.Config.MIN_FADER_STEP, MixerController.Config.MAX_FADER_STEP),
-				minimum = FaderFloatUtil.RoundToBindingDecimals(min),
-				maximum = FaderFloatUtil.RoundToBindingDecimals(max),
-				hotkeyMinus = HotkeyUtil.normalize(editor.hotkeyMinus),
-				hotkeyPlus = HotkeyUtil.normalize(editor.hotkeyPlus),
-			});
 		}
 
-		if (faders.Count == 0) {
-			error = "Add at least one valid fader binding.";
+		if (built.OfType<BindingFader>().FirstOrDefault() == null) {
+			error = "Add at least one non-deleted fader binding with name and address.";
 			return false;
 		}
 
-		List<BindingToggle> toggles = new(ToggleBindings.Count);
-		for (int i = 0; i < ToggleBindings.Count; i++) {
-			ToggleBindingEditor editor = ToggleBindings[i];
-			if (isToggleBlank(editor))
-				continue;
-
-			if (string.IsNullOrWhiteSpace(editor.name) || string.IsNullOrWhiteSpace(editor.address) || editor.hotkey.isNone) {
-				error = $"Toggle binding {i + 1} requires name, OSC address, and hotkey.";
-				return false;
-			}
-
-			if (!HotkeyUtil.tryValidate(editor.hotkey, out string toggleHotkeyError)) {
-				error = $"Toggle binding {i + 1}: {toggleHotkeyError}";
-				return false;
-			}
-
-			toggles.Add(new BindingToggle {
-				name = editor.name.Trim(),
-				address = editor.address.Trim(),
-				hotkey = HotkeyUtil.normalize(editor.hotkey),
-			});
-		}
-
-		if (!tryValidateHotkeysGlobally(faders, toggles, out error))
+		if (!tryValidateHotkeysGlobally(built, out error))
 			return false;
 
 		config = new AppConfig {
@@ -329,10 +362,7 @@ public partial class ConfigWindow : Window {
 				HeightPx = osdHeight,
 				DisplayDurationMs = osdDuration,
 			},
-			trayApp = new BindingManager.Config {
-				faderBindings = faders,
-				bindings = toggles,
-			},
+			trayApp = new BindingManager.Config { bindings = built },
 		};
 		return true;
 	}
@@ -378,50 +408,31 @@ public partial class ConfigWindow : Window {
 		return true;
 	}
 
-	static bool isFaderBlank(FaderBindingEditor editor) =>
+	static bool isBindingBlank(BindingEditor editor) =>
 		string.IsNullOrWhiteSpace(editor.name)
 		&& string.IsNullOrWhiteSpace(editor.address)
-		&& string.IsNullOrWhiteSpace(editor.step)
 		&& string.IsNullOrWhiteSpace(editor.minimum)
 		&& string.IsNullOrWhiteSpace(editor.maximum)
-		&& editor.hotkeyMinus.isNone
-		&& editor.hotkeyPlus.isNone;
+		&& editor.hotkeys.Count == 0;
 
-	static bool isToggleBlank(ToggleBindingEditor editor) =>
-		string.IsNullOrWhiteSpace(editor.name)
-		&& string.IsNullOrWhiteSpace(editor.address)
-		&& editor.hotkey.isNone;
+	static bool isHotkeyRowBlank(HotkeyActionEditor hk) => hk.hotkey.isNone;
 
-	static bool tryValidateHotkeysGlobally(IReadOnlyList<BindingFader> faders, IReadOnlyList<BindingToggle> toggles, out string? error) {
+	static bool tryValidateHotkeysGlobally(IReadOnlyList<BindingAbstract> bindings, out string? error) {
 		error = null;
 		var claimed = new Dictionary<HotkeyGesture, string>();
-		for (int i = 0; i < faders.Count; i++) {
-			BindingFader f = faders[i];
-			if (!f.hotkeyMinus.isNone) {
-				HotkeyGesture key = HotkeyUtil.normalize(f.hotkeyMinus);
+		for (int bi = 0; bi < bindings.Count; bi++) {
+			BindingAbstract b = bindings[bi];
+			for (int hi = 0; hi < b.hotkeys.Count; hi++) {
+				HotkeyAction ha = b.hotkeys[hi];
+				if (ha.hotkey.isNone)
+					continue;
+				HotkeyGesture key = HotkeyUtil.normalize(ha.hotkey);
 				if (claimed.TryGetValue(key, out string? previous)) {
-					error = $"Fader binding {i + 1} hotkey − ({HotkeyUtil.format(key)}) conflicts with {previous}.";
+					error = $"Hotkey {HotkeyUtil.format(key)} is used more than once (conflicts with {previous}).";
 					return false;
 				}
-				claimed[key] = $"fader binding {i + 1} (−)";
+				claimed[key] = $"binding {bi + 1}, hotkey {hi + 1}";
 			}
-			if (!f.hotkeyPlus.isNone) {
-				HotkeyGesture key = HotkeyUtil.normalize(f.hotkeyPlus);
-				if (claimed.TryGetValue(key, out string? previous)) {
-					error = $"Fader binding {i + 1} hotkey + ({HotkeyUtil.format(key)}) conflicts with {previous}.";
-					return false;
-				}
-				claimed[key] = $"fader binding {i + 1} (+)";
-			}
-		}
-		for (int i = 0; i < toggles.Count; i++) {
-			BindingToggle toggle = toggles[i];
-			HotkeyGesture key = HotkeyUtil.normalize(toggle.hotkey);
-			if (claimed.TryGetValue(key, out string? previous)) {
-				error = $"Toggle binding {i + 1} hotkey ({HotkeyUtil.format(key)}) conflicts with {previous}.";
-				return false;
-			}
-			claimed[key] = $"toggle binding {i + 1}";
 		}
 		return true;
 	}

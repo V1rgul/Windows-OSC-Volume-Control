@@ -51,8 +51,15 @@ public class UnitTest1 {
 		BindingFader fader = BindingManager.Config.createDefaultFaderBinding();
 		BindingToggle toggle = BindingManager.Config.createDefaultToggleBinding();
 
-		Assert.Equal(HotkeyGesture.VK_VOLUME_DOWN, fader.hotkeyMinus.keyCode);
-		Assert.Equal(HotkeyGesture.VK_VOLUME_UP, fader.hotkeyPlus.keyCode);
-		Assert.Equal(HotkeyGesture.VK_VOLUME_MUTE, toggle.hotkey.keyCode);
+		Assert.Equal(2, fader.hotkeys.Count);
+		Assert.Single(toggle.hotkeys);
+		var down = Assert.IsType<HotkeyActionFaderDelta>(fader.hotkeys[0]);
+		var up = Assert.IsType<HotkeyActionFaderDelta>(fader.hotkeys[1]);
+		Assert.Equal(HotkeyGesture.VK_VOLUME_DOWN, down.hotkey.keyCode);
+		Assert.Equal(HotkeyGesture.VK_VOLUME_UP, up.hotkey.keyCode);
+		Assert.Equal(-0.02f, down.delta);
+		Assert.Equal(0.02f, up.delta);
+		var flip = Assert.IsType<HotkeyActionToggleFlip>(toggle.hotkeys[0]);
+		Assert.Equal(HotkeyGesture.VK_VOLUME_MUTE, flip.hotkey.keyCode);
 	}
 }

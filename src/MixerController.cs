@@ -132,6 +132,31 @@ public sealed class MixerController {
 		}
 	}
 
+	/// <summary>Sets fader to an absolute level; clears pending delta and updates cache so later <see cref="nudge"/> uses the new baseline.</summary>
+	public void setFader(string path, float value, float min, float max) {
+		if (!float.IsFinite(value) || !float.IsFinite(min) || !float.IsFinite(max) || min > max)
+			return;
+
+		float clamped = Math.Clamp(FaderFloatUtil.RoundToBindingDecimals(value), min, max);
+		clamped = Math.Clamp(clamped, min, max);
+
+		lock (_lock) {
+			MixerAddressState.Fader fader = getOrAddFaderState(path);
+			float? prev = fader.tryGetCachedValueTyped(_config.ValueCacheTtlMs);
+			bool increased = prev == null || clamped >= prev.Value;
+			fader.clearPending();
+			fader.updateCache(clamped);
+			sendAndEmit(
+				path,
+				clamped,
+				new Event.FaderChanged {
+					address = path,
+					newLevel = clamped,
+					volumeIncreased = increased,
+				});
+		}
+	}
+
 	public void toggle(string address) {
 		lock (_lock) {
 			MixerAddressState.Toggle toggleState = getOrAddToggleState(address);
@@ -143,6 +168,22 @@ public sealed class MixerController {
 			}
 
 			refreshCache(address, toggleState);
+		}
+	}
+
+	/// <summary>Sets toggle to an explicit on/off state; clears pending flip and updates cache.</summary>
+	public void setToggle(string address, bool on) {
+		lock (_lock) {
+			MixerAddressState.Toggle toggleState = getOrAddToggleState(address);
+			toggleState.clearPending();
+			toggleState.updateCache(on);
+			sendAndEmit(
+				address,
+				on ? 1f : 0f,
+				new Event.ToggleChanged {
+					address = address,
+					nowOn = on,
+				});
 		}
 	}
 
