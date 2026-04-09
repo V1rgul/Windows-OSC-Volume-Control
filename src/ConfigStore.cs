@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net;
 namespace WindowsOscVolumeControl;
@@ -18,8 +19,12 @@ public enum AppConfigDiskOutcome {
 /// <summary>Loads and persists <see cref="AppConfig"/>; owns the in-memory snapshot.</summary>
 public sealed class ConfigStore {
 	const string FILE_NAME = "Windows-OSC-Volume-Control.config";
+	const string APP_DIRECTORY_NAME = "Windows-OSC-Volume-Control";
 
-	public string configPath => Path.Combine(AppContext.BaseDirectory, FILE_NAME);
+	public string configPath => Path.Combine(
+		Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+		APP_DIRECTORY_NAME,
+		FILE_NAME);
 
 	public AppConfig appConfig { get; private set; }
 
@@ -102,8 +107,11 @@ public sealed class ConfigStore {
 			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".hotkey=" + HotkeyUtil.format(binding.hotkey));
 		}
 		string path = configPath;
+		string? directory = Path.GetDirectoryName(path);
 		string tmpPath = path + ".tmp";
 		try {
+			if (!string.IsNullOrWhiteSpace(directory))
+				Directory.CreateDirectory(directory);
 			File.WriteAllText(tmpPath, string.Join(Environment.NewLine, lines) + Environment.NewLine);
 			File.Move(tmpPath, path, true);
 			lastDiskOutcome = AppConfigDiskOutcome.SAVED_OK;

@@ -15,7 +15,7 @@ Windows tray application that captures configurable global hotkeys and maps them
 - **Connection health feedback**: Startup connection test and runtime failure detection update tray state and surface errors.
 - **Connection settings**: Configure OSC target IP, port, and query timeout in the settings window, with connectivity checks.
 - **Optional autostart**: Register/unregister in the configuration window with dynamic current-state feedback.
-- **Resilient config persistence**: Stores settings next to the executable and falls back to defaults for missing/invalid entries.
+- **Resilient config persistence**: Stores settings in `%APPDATA%` and falls back to defaults for missing/invalid entries.
 
 ## Typical use cases
 
