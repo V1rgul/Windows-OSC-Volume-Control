@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
-using System.Windows.Forms;
+using System.Windows.Input;
 
 namespace WindowsOscVolumeControl;
 
@@ -25,7 +25,7 @@ public partial class KeyboardHook : IDisposable {
 	readonly IntPtr _hookId;
 	readonly LowLevelKeyboardProc _proc;
 	readonly object _configuredHotkeysSync = new();
-	volatile Func<Keys, Action?> _keyCallback = static _ => null;
+	volatile Func<HotkeyGesture, Action?> _keyCallback = static _ => null;
 	HashSet<int> _pressedConfiguredHotkeys = [];
 	bool _configuredHotkeysEnabled = true;
 	bool _disposed;
@@ -56,7 +56,7 @@ public partial class KeyboardHook : IDisposable {
 	static bool IsKeyUp(IntPtr wParam) => wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP;
 
 	/// <summary>Called when hotkey bindings change; <paramref name="keyCallback"/> is invoked from the hook thread (keys are already normalized).</summary>
-	public void setKeyCallback(Func<Keys, Action?> keyCallback) {
+	public void setKeyCallback(Func<HotkeyGesture, Action?> keyCallback) {
 		ArgumentNullException.ThrowIfNull(keyCallback);
 		_keyCallback = keyCallback;
 		lock (_configuredHotkeysSync)
@@ -71,16 +71,17 @@ public partial class KeyboardHook : IDisposable {
 		}
 	}
 
-	static bool IsModifierVirtualKey(int vkCode) => KeysUtil.isModifierKey((Keys)vkCode);
+	static bool IsModifierVirtualKey(int vkCode) =>
+		HotkeyUtil.isModifierKey(KeyInterop.KeyFromVirtualKey(vkCode));
 
-	static Keys GetActiveModifiers() {
-		Keys modifiers = Keys.None;
+	static HotkeyModifiers GetActiveModifiers() {
+		HotkeyModifiers modifiers = HotkeyModifiers.NONE;
 		if (IsVirtualKeyDown(VK_CONTROL))
-			modifiers |= Keys.Control;
+			modifiers |= HotkeyModifiers.CONTROL;
 		if (IsVirtualKeyDown(VK_SHIFT))
-			modifiers |= Keys.Shift;
+			modifiers |= HotkeyModifiers.SHIFT;
 		if (IsVirtualKeyDown(VK_MENU))
-			modifiers |= Keys.Alt;
+			modifiers |= HotkeyModifiers.ALT;
 		return modifiers;
 	}
 
@@ -97,7 +98,10 @@ public partial class KeyboardHook : IDisposable {
 				return _pressedConfiguredHotkeys.Remove(vkCode);
 			if (!IsKeyDown(wParam))
 				return false;
-			Keys candidate = KeysUtil.normalize((Keys)vkCode | GetActiveModifiers());
+			HotkeyGesture candidate = HotkeyUtil.normalize(new HotkeyGesture {
+				keyCode = vkCode,
+				modifiers = GetActiveModifiers(),
+			});
 			dispatch = _keyCallback(candidate);
 			if (dispatch == null)
 				return false;

@@ -26,4 +26,33 @@ public class UnitTest1 {
 
 		Assert.Equal("0.13", formatted);
 	}
+
+	[Fact]
+	public void HotkeyUtil_RoundTripsCompoundHotkeys() {
+		bool parsed = HotkeyUtil.tryParse("Ctrl+Shift+A", out HotkeyGesture hotkey);
+
+		Assert.True(parsed);
+		Assert.Equal("Ctrl+Shift+A", HotkeyUtil.format(hotkey));
+	}
+
+	[Theory]
+	[InlineData("VolumeUp", HotkeyGesture.VK_VOLUME_UP)]
+	[InlineData("VolumeDown", HotkeyGesture.VK_VOLUME_DOWN)]
+	[InlineData("VolumeMute", HotkeyGesture.VK_VOLUME_MUTE)]
+	public void HotkeyUtil_ParsesMediaKeys(string text, int expectedKeyCode) {
+		bool parsed = HotkeyUtil.tryParse(text, out HotkeyGesture hotkey);
+
+		Assert.True(parsed);
+		Assert.Equal(expectedKeyCode, hotkey.keyCode);
+	}
+
+	[Fact]
+	public void BindingManager_DefaultBindings_UseVolumeKeys() {
+		BindingFader fader = BindingManager.Config.createDefaultFaderBinding();
+		BindingToggle toggle = BindingManager.Config.createDefaultToggleBinding();
+
+		Assert.Equal(HotkeyGesture.VK_VOLUME_DOWN, fader.hotkeyMinus.keyCode);
+		Assert.Equal(HotkeyGesture.VK_VOLUME_UP, fader.hotkeyPlus.keyCode);
+		Assert.Equal(HotkeyGesture.VK_VOLUME_MUTE, toggle.hotkey.keyCode);
+	}
 }

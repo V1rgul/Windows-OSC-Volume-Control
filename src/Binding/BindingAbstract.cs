@@ -3,7 +3,7 @@ namespace WindowsOscVolumeControl;
 public abstract class BindingAbstract {
 	private string _name = "";
 	private string _address = "";
-	private string _displayName;
+	private string _displayName = "";
 
 	public string name {
 		get => _name;

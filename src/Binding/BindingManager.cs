@@ -22,14 +22,14 @@ public sealed class BindingManager {
 			step = 0.02f,
 			minimum = 0f,
 			maximum = 1f,
-			hotkeyMinus = Keys.VolumeDown,
-			hotkeyPlus = Keys.VolumeUp,
+			hotkeyMinus = new HotkeyGesture { keyCode = HotkeyGesture.VK_VOLUME_DOWN },
+			hotkeyPlus = new HotkeyGesture { keyCode = HotkeyGesture.VK_VOLUME_UP },
 		};
 
 		public static BindingToggle createDefaultToggleBinding() => new() {
 			name = "MAIN",
 			address = "/main/st/mix/on",
-			hotkey = Keys.VolumeMute,
+			hotkey = new HotkeyGesture { keyCode = HotkeyGesture.VK_VOLUME_MUTE },
 		};
 
 		public List<BindingFader> faderBindings { get; set; } = [createDefaultFaderBinding()];
@@ -53,37 +53,37 @@ public sealed class BindingManager {
 		}
 	}
 
-	volatile FrozenDictionary<Keys, Slot> _byHotkey = FrozenDictionary<Keys, Slot>.Empty;
+	volatile FrozenDictionary<HotkeyGesture, Slot> _byHotkey = FrozenDictionary<HotkeyGesture, Slot>.Empty;
 
 	/// <summary>Rebuilds the snapshot from config. Hotkeys are expected already normalized (e.g. ConfigStore / settings form). Duplicate keys (e.g. hand-edited file): TOGGLE then DOWN then UP per row, last write wins.</summary>
 	internal void rebuildFromConfig(IEnumerable<BindingFader> faders, IEnumerable<BindingToggle> toggles) {
-		var map = new Dictionary<Keys, Slot>();
+		var map = new Dictionary<HotkeyGesture, Slot>();
 		foreach (BindingToggle t in toggles) {
 			var row = new BindingToggle(t);
-			if (row.hotkey != Keys.None)
+			if (!row.hotkey.isNone)
 				map[row.hotkey] = new Slot(row, Slot.Kind.TOGGLE);
 		}
 		foreach (BindingFader f in faders) {
 			var row = new BindingFader(f);
-			if (row.hotkeyMinus != Keys.None) {
-				Keys k = row.hotkeyMinus;
+			if (!row.hotkeyMinus.isNone) {
+				HotkeyGesture k = row.hotkeyMinus;
 				if (map.ContainsKey(k))
-					AppTrace.BindingManager.TraceEvent(TraceEventType.Warning, 0, $"Duplicate hotkey {k}, overwriting with fader DOWN");
+					AppTrace.BindingManager.TraceEvent(TraceEventType.Warning, 0, $"Duplicate hotkey {HotkeyUtil.format(k)}, overwriting with fader DOWN");
 				map[k] = new Slot(row, Slot.Kind.DOWN);
 			}
-			if (row.hotkeyPlus != Keys.None) {
-				Keys k = row.hotkeyPlus;
+			if (!row.hotkeyPlus.isNone) {
+				HotkeyGesture k = row.hotkeyPlus;
 				if (map.ContainsKey(k))
-					AppTrace.BindingManager.TraceEvent(TraceEventType.Warning, 0, $"Duplicate hotkey {k}, overwriting with fader UP");
+					AppTrace.BindingManager.TraceEvent(TraceEventType.Warning, 0, $"Duplicate hotkey {HotkeyUtil.format(k)}, overwriting with fader UP");
 				map[k] = new Slot(row, Slot.Kind.UP);
 			}
 		}
 		_byHotkey = map.ToFrozenDictionary();
 	}
 
-	internal bool hasSlotForHotkey(Keys hotkey) =>
+	internal bool hasSlotForHotkey(HotkeyGesture hotkey) =>
 		_byHotkey.ContainsKey(hotkey);
 
-	internal bool tryGetSlot(Keys hotkey, out Slot slot) =>
+	internal bool tryGetSlot(HotkeyGesture hotkey, out Slot slot) =>
 		_byHotkey.TryGetValue(hotkey, out slot);
 }

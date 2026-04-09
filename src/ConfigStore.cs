@@ -1,8 +1,6 @@
 using System.Globalization;
 using System.Linq;
 using System.Net;
-using System.Windows.Forms;
-
 namespace WindowsOscVolumeControl;
 
 /// <summary>Result of the last config load or save; drives UI message and severity.</summary>
@@ -94,14 +92,14 @@ public sealed class ConfigStore {
 			lines.Add("oscFader." + p + ".step=" + FaderFloatUtil.FormatGridFloat(b.step));
 			lines.Add("oscFader." + p + ".minimum=" + FaderFloatUtil.FormatGridFloat(b.minimum));
 			lines.Add("oscFader." + p + ".maximum=" + FaderFloatUtil.FormatGridFloat(b.maximum));
-			lines.Add("oscFader." + p + ".hotkeyMinus=" + KeysUtil.format(b.hotkeyMinus));
-			lines.Add("oscFader." + p + ".hotkeyPlus=" + KeysUtil.format(b.hotkeyPlus));
+			lines.Add("oscFader." + p + ".hotkeyMinus=" + HotkeyUtil.format(b.hotkeyMinus));
+			lines.Add("oscFader." + p + ".hotkeyPlus=" + HotkeyUtil.format(b.hotkeyPlus));
 		}
 		for (int i = 0; i < toggles.Count; i++) {
 			BindingToggle binding = toggles[i];
 			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".name=" + binding.name.Trim());
 			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".address=" + binding.address.Trim());
-			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".hotkey=" + KeysUtil.format(binding.hotkey));
+			lines.Add("oscToggle." + i.ToString(CultureInfo.InvariantCulture) + ".hotkey=" + HotkeyUtil.format(binding.hotkey));
 		}
 		string path = configPath;
 		string tmpPath = path + ".tmp";
@@ -258,11 +256,11 @@ public sealed class ConfigStore {
 						row.maximum = mx;
 					break;
 				case "hotkeyminus":
-					if (KeysUtil.tryParse(value, out var hm))
+					if (HotkeyUtil.tryParse(value, out HotkeyGesture hm))
 						row.hotkeyMinus = hm;
 					break;
 				case "hotkeyplus":
-					if (KeysUtil.tryParse(value, out var hp))
+					if (HotkeyUtil.tryParse(value, out HotkeyGesture hp))
 						row.hotkeyPlus = hp;
 					break;
 			}
@@ -284,8 +282,8 @@ public sealed class ConfigStore {
 				step = row.step,
 				minimum = minR,
 				maximum = maxR,
-				hotkeyMinus = KeysUtil.normalize(row.hotkeyMinus),
-				hotkeyPlus = KeysUtil.normalize(row.hotkeyPlus),
+				hotkeyMinus = HotkeyUtil.normalize(row.hotkeyMinus),
+				hotkeyPlus = HotkeyUtil.normalize(row.hotkeyPlus),
 			});
 		}
 		return result;
@@ -315,7 +313,7 @@ public sealed class ConfigStore {
 					row.address = value.Trim();
 					break;
 				case "hotkey":
-					if (KeysUtil.tryParse(value, out var hotkey))
+					if (HotkeyUtil.tryParse(value, out HotkeyGesture hotkey))
 						row.hotkey = hotkey;
 					break;
 			}
@@ -324,12 +322,12 @@ public sealed class ConfigStore {
 		var result = new List<BindingToggle>(rows.Count);
 		foreach (int index in rows.Keys.OrderBy(i => i)) {
 			BindingToggle row = rows[index];
-			if (string.IsNullOrWhiteSpace(row.name) || string.IsNullOrWhiteSpace(row.address) || row.hotkey == Keys.None)
+			if (string.IsNullOrWhiteSpace(row.name) || string.IsNullOrWhiteSpace(row.address) || row.hotkey.isNone)
 				continue;
 			result.Add(new BindingToggle {
 				name = row.name.Trim(),
 				address = row.address.Trim(),
-				hotkey = KeysUtil.normalize(row.hotkey),
+				hotkey = HotkeyUtil.normalize(row.hotkey),
 			});
 		}
 		return result;

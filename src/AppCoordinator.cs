@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Drawing;
-using System.Windows.Forms;
+using System.Windows;
+using System.Windows.Threading;
 
 namespace WindowsOscVolumeControl;
 
@@ -12,27 +12,27 @@ public abstract partial record Error {
 	}
 }
 
-public class Application : ApplicationContext {
+public sealed class AppCoordinator : IDisposable {
 	readonly ConfigStore _configStore = new();
-	readonly ResourceLoader _resources = new();
 	readonly BindingManager _oscBindings = new();
 	readonly ErrorList<Error> _applicationErrors = new();
 	readonly StatusController _statusController = new();
+	readonly Dispatcher _dispatcher;
 	TrayController _tray;
 	KeyboardHook _hook;
 	OSDController _osd;
 	OscTransport _transport;
 	MixerController _mixer;
-	ConfigForm? _configForm;
+	ConfigWindow? _configWindow;
 	StatusController.MergedState _lastMergedState = StatusController.MergedState.STARTING_OR_INVALID_CONFIG;
+	bool _disposed;
 
-	public Application() {
+	public AppCoordinator() {
+		_dispatcher = System.Windows.Application.Current.Dispatcher;
 		_configStore.loadFromDisk();
 
 		_osd = new OSDController(_configStore.appConfig.osd);
-		_ = _osd.Handle;
-
-		_tray = new TrayController(_resources, openConfig, closeApp);
+		_tray = new TrayController(openConfig, closeApp);
 		_transport = new OscTransport(_configStore.appConfig.oscTransport);
 		_mixer = new MixerController(_transport, _configStore.appConfig.mixer);
 		_hook = new KeyboardHook();
@@ -65,7 +65,7 @@ public class Application : ApplicationContext {
 		});
 	}
 
-	internal void setOscToggleHotkeysEnabled(bool enabled) => _hook.SetConfiguredHotkeysEnabled(enabled);
+	public void setConfiguredHotkeysEnabled(bool enabled) => _hook.SetConfiguredHotkeysEnabled(enabled);
 
 	public void beginConfigValidation() {
 		_applicationErrors.setError(new Error.Application.StartupHealthFault(), false);
@@ -104,8 +104,7 @@ public class Application : ApplicationContext {
 			_tray.ApplyState(mapMergedState(state));
 			if (enteringNetworkError)
 				_osd.ShowError();
-			if (_configForm != null && !_configForm.IsDisposed)
-				_configForm.syncTitlebarIconFromTray();
+			_configWindow?.syncTitlebarIconFromTray();
 		});
 	}
 
@@ -146,8 +145,8 @@ public class Application : ApplicationContext {
 				case MixerController.Event.FaderChanged f when tryGetFaderBinding(f.address, out BindingFader? binding):
 					_osd.ShowLevel(binding.displayName, binding.minimum, binding.maximum, f.newLevel, f.volumeIncreased, binding.step);
 					break;
-				case MixerController.Event.ToggleChanged t when tryGetToggleBinding(t.address, out BindingToggle? binding):
-					_osd.ShowToggle(binding.displayName, t.nowOn);
+				case MixerController.Event.ToggleChanged t when tryGetToggleBinding(t.address, out BindingToggle? toggleBinding):
+					_osd.ShowToggle(toggleBinding.displayName, t.nowOn);
 					break;
 				case MixerController.Event.OperationFailed:
 					_osd.ShowError();
@@ -167,32 +166,32 @@ public class Application : ApplicationContext {
 	}
 
 	void openConfig() {
-		if (_configForm != null && !_configForm.IsDisposed) {
-			if (_configForm.WindowState == FormWindowState.Minimized)
-				_configForm.WindowState = FormWindowState.Normal;
-			_configForm.Activate();
-			return;
-		}
+		ui(() => {
+			if (_configWindow != null) {
+				if (_configWindow.WindowState == WindowState.Minimized)
+					_configWindow.WindowState = WindowState.Normal;
+				_configWindow.Activate();
+				return;
+			}
 
-		_configForm = new ConfigForm(_mixer, _tray, this, _configStore, _resources);
-		_configForm.FormClosed += (_, _) => _configForm = null;
-		_configForm.Show();
+			_configWindow = new ConfigWindow(_mixer, _tray, this, _configStore);
+			_configWindow.Closed += (_, _) => {
+				setConfiguredHotkeysEnabled(true);
+				_configWindow = null;
+			};
+			_configWindow.Show();
+			_configWindow.Activate();
+		});
 	}
 
 	void ui(Action action) {
-		if (_osd.IsDisposed)
+		if (_disposed)
 			return;
-
-		void run() {
-			if (_osd.IsDisposed)
-				return;
+		if (_dispatcher.CheckAccess()) {
 			action();
+			return;
 		}
-
-		if (_osd.IsHandleCreated && _osd.InvokeRequired)
-			_osd.BeginInvoke(run);
-		else
-			run();
+		_ = _dispatcher.BeginInvoke(action, DispatcherPriority.Normal);
 	}
 
 	void handleOscHotkey(BindingAbstract binding, BindingManager.Slot.Kind kind) {
@@ -214,10 +213,17 @@ public class Application : ApplicationContext {
 	}
 
 	void closeApp() {
+		if (_disposed)
+			return;
+
+		_disposed = true;
 		_hook.Dispose();
 		_transport.Dispose();
-		_osd.Close();
 		_tray.Dispose();
-		System.Windows.Forms.Application.Exit();
+		_configWindow?.Close();
+		_osd.Close();
+		System.Windows.Application.Current.Shutdown();
 	}
+
+	public void Dispose() => closeApp();
 }

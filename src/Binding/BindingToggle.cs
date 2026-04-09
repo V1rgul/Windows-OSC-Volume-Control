@@ -1,9 +1,7 @@
-using System.Windows.Forms;
-
 namespace WindowsOscVolumeControl;
 
 public sealed class BindingToggle : BindingAbstract {
-	public Keys hotkey { get; set; } = Keys.None;
+	public HotkeyGesture hotkey { get; set; } = HotkeyGesture.None;
 
 	public BindingToggle() { }
 

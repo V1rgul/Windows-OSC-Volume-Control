@@ -1,13 +1,11 @@
-using System.Windows.Forms;
-
 namespace WindowsOscVolumeControl;
 
 public sealed class BindingFader : BindingAbstract {
 	public float step { get; set; } = 0.02f;
 	public float minimum { get; set; } = 0f;
 	public float maximum { get; set; } = 1f;
-	public Keys hotkeyMinus { get; set; } = Keys.None;
-	public Keys hotkeyPlus { get; set; } = Keys.None;
+	public HotkeyGesture hotkeyMinus { get; set; } = HotkeyGesture.None;
+	public HotkeyGesture hotkeyPlus { get; set; } = HotkeyGesture.None;
 
 	public BindingFader() { }
 

@@ -4,19 +4,32 @@
     <AssemblyName>Windows-OSC-Volume-Control</AssemblyName>
     <RootNamespace>WindowsOscVolumeControl</RootNamespace>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Assets\Icon\app\ok.ico</ApplicationIcon>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="src\**\*.cs" Exclude="src\obj\**\*;src\bin\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ApplicationDefinition Include="src\App.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </ApplicationDefinition>
+    <Page Include="src\UI\*.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
   </ItemGroup>
 
   <ItemGroup>
@@ -33,7 +46,7 @@
     <Folder Include="src\SharpOSC\Properties\" />
   </ItemGroup>
 
-  <!-- Release: framework-dependent publish → small zip; target PC needs .NET 8 Desktop runtime. -->
+  <!-- Release: framework-dependent publish → small zip; target PC needs .NET 10 Desktop runtime. -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <ReleasePublishDir>$(MSBuildProjectDirectory)\bin\Release\publish-zip</ReleasePublishDir>
     <ReleaseZipFile>$(MSBuildProjectDirectory)\bin\Release\$(AssemblyName)-Release.zip</ReleaseZipFile>

@@ -1,5 +1,11 @@
 using System.Drawing;
+using System.IO;
+using System.Windows;
 using System.Windows.Forms;
+using System.Windows.Interop;
+using System.Windows.Media;
+using Image = System.Drawing.Image;
+using BitmapSizeOptions = System.Windows.Media.Imaging.BitmapSizeOptions;
 
 namespace WindowsOscVolumeControl;
 
@@ -9,26 +15,37 @@ public enum AppTrayIconState {
 	OK,
 }
 
-/// <summary>Tray <see cref="NotifyIcon"/>, context menu host, and status icons from <see cref="ResourceLoader"/>.</summary>
 public sealed class TrayController : IDisposable {
 	const string DEFAULT_TEXT = "Windows OSC Volume Control";
 	readonly NotifyIcon _trayIcon;
-	readonly ResourceLoader _resources;
+	readonly Icon _trayErrorGlobal;
+	readonly Icon _trayErrorNetwork;
+	readonly Icon _trayOk;
 
-	public TrayController(ResourceLoader resources, Action onConfigure, Action onExit) {
-		_resources = resources;
-		_trayIcon = new NotifyIcon() {
+	public TrayController(Action onConfigure, Action onExit) {
+		_trayErrorGlobal = loadTrayIconFile("error_global.ico");
+		_trayErrorNetwork = loadTrayIconFile("error_network.ico");
+		_trayOk = loadTrayIconFile("ok.ico");
+		_trayIcon = new NotifyIcon {
 			ContextMenuStrip = new ContextMenuStrip(),
 			Visible = true,
-			Text = DEFAULT_TEXT
+			Text = DEFAULT_TEXT,
 		};
 		ApplyState(AppTrayIconState.STARTING_OR_INVALID_CONFIG);
 		ContextMenuStrip menu = _trayIcon.ContextMenuStrip!;
 		menu.Items.Add("Configure…", null, (_, _) => onConfigure());
 		menu.Items.Add("Exit", null, (_, _) => onExit());
+		_trayIcon.DoubleClick += (_, _) => onConfigure();
 	}
 
-	public void hide() => _trayIcon.Visible = false;
+	static Icon loadTrayIconFile(string fileName) {
+		string path = Path.Combine(AppContext.BaseDirectory, "Assets", "Icon", "app", fileName);
+		try {
+			return new Icon(path);
+		} catch {
+			return SystemIcons.Application;
+		}
+	}
 
 	public void setStatusText(string? detail) {
 		string text = string.IsNullOrWhiteSpace(detail)
@@ -41,18 +58,27 @@ public sealed class TrayController : IDisposable {
 
 	public AppTrayIconState State { get; private set; } = AppTrayIconState.STARTING_OR_INVALID_CONFIG;
 
-	Icon Resolve(AppTrayIconState state) => state switch {
-		AppTrayIconState.OK => _resources.TrayIconOk,
-		AppTrayIconState.NETWORK_ERROR => _resources.TrayIconErrorNetwork,
-		_ => _resources.TrayIconErrorGlobal,
+	Icon resolve(AppTrayIconState state) => state switch {
+		AppTrayIconState.OK => _trayOk,
+		AppTrayIconState.NETWORK_ERROR => _trayErrorNetwork,
+		_ => _trayErrorGlobal,
 	};
 
-	/// <summary>Same icon currently shown on the tray (for syncing the config window titlebar).</summary>
-	public Icon TrayIconSnapshot => Resolve(State);
+	public ImageSource windowIconSourceSnapshot {
+		get {
+			Icon icon = resolve(State);
+			ImageSource source = Imaging.CreateBitmapSourceFromHIcon(
+				icon.Handle,
+				Int32Rect.Empty,
+				BitmapSizeOptions.FromWidthAndHeight(32, 32));
+			source.Freeze();
+			return source;
+		}
+	}
 
 	public Icon ApplyState(AppTrayIconState state) {
 		State = state;
-		Icon icon = Resolve(state);
+		Icon icon = resolve(state);
 		_trayIcon.Icon = icon;
 		return icon;
 	}

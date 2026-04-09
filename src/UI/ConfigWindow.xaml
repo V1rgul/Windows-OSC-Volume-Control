@@ -1,0 +1,231 @@
+<Window
+    x:Class="WindowsOscVolumeControl.ConfigWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:WindowsOscVolumeControl"
+    Title="Windows OSC Volume Control"
+    Width="980"
+    Height="820"
+    MinWidth="860"
+    MinHeight="700">
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Padding="16" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}">
+            <StackPanel>
+                <TextBlock FontSize="24" FontWeight="SemiBold" Text="Settings" />
+                <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" Text="WPF editor with richer binding cards, hotkey buttons, and grouped controls." />
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Padding="16" BorderThickness="1,1,0,0" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left">
+                    <TextBlock x:Name="StatusTextBlock" FontWeight="SemiBold" />
+                    <TextBlock x:Name="DiskFeedbackTextBlock" Margin="0,4,0,0" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" />
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Margin="0,0,8,0" Padding="14,8" Click="buttonReload_Click">Reload from disk</Button>
+                    <Button Padding="18,8" FontWeight="SemiBold" Click="buttonApplySaveAndTest_Click">Apply, save and test</Button>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <TabControl Margin="16">
+            <TabItem Header="General">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,0,0,16">
+                        <GroupBox Header="Config file" Margin="0,0,0,12">
+                            <Grid Margin="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBox x:Name="ConfigPathTextBox" IsReadOnly="True" Margin="0,0,8,8" />
+                                <Button Grid.Column="1" Margin="0,0,0,8" Padding="12,6" Click="buttonOpenConfigFolder_Click">Open folder</Button>
+                                <TextBlock x:Name="ConfigFeedbackTextBlock" Grid.Row="1" Grid.ColumnSpan="2" TextWrapping="Wrap" />
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="Connection" Margin="0,0,0,12">
+                            <Grid Margin="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Margin="0,0,12,8" VerticalAlignment="Center" Text="OSC IP" />
+                                <TextBox x:Name="IpTextBox" Grid.Column="1" Margin="0,0,0,8" />
+                                <TextBlock Grid.Row="1" Margin="0,0,12,8" VerticalAlignment="Center" Text="OSC port" />
+                                <TextBox x:Name="PortTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" />
+                                <TextBlock Grid.Row="2" Margin="0,0,12,8" VerticalAlignment="Center" Text="Query timeout (ms)" />
+                                <TextBox x:Name="TimeoutTextBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" />
+                                <TextBlock Grid.Row="3" Margin="0,0,12,8" VerticalAlignment="Center" Text="Value cache TTL (ms)" />
+                                <TextBox x:Name="CacheTtlTextBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" />
+                                <StackPanel Grid.Row="4" Grid.ColumnSpan="2">
+                                    <TextBlock x:Name="NetworkFeedbackTextBlock" TextWrapping="Wrap" />
+                                    <TextBox x:Name="InfoResultTextBox" Margin="0,8,0,0" MinHeight="96" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AcceptsReturn="True" />
+                                </StackPanel>
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="OSD" Margin="0,0,0,12">
+                            <Grid Margin="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Margin="0,0,12,8" VerticalAlignment="Center" Text="Height (px)" />
+                                <TextBox x:Name="OsdHeightTextBox" Grid.Column="1" Margin="0,0,0,8" />
+                                <TextBlock Grid.Row="1" Margin="0,0,12,0" VerticalAlignment="Center" Text="Display duration (ms)" />
+                                <TextBox x:Name="OsdDurationTextBox" Grid.Row="1" Grid.Column="1" />
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="Autostart">
+                            <DockPanel Margin="12" LastChildFill="False">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <Button Margin="0,0,8,0" Padding="12,6" Click="buttonRegisterAutostart_Click">Register</Button>
+                                    <Button Padding="12,6" Click="buttonDeregisterAutostart_Click">Deregister</Button>
+                                </StackPanel>
+                                <TextBlock x:Name="AutostartFeedbackTextBlock" Margin="0,4,16,4" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Fader bindings">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Margin="0,0,0,12" Padding="12" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" BorderThickness="1" CornerRadius="8">
+                        <DockPanel LastChildFill="False">
+                            <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" Text="Each card supports inline hotkey buttons, numeric bounds, and independent OSC routing." />
+                            <Button DockPanel.Dock="Right" Padding="14,8" Click="buttonAddFader_Click">Add fader binding</Button>
+                        </DockPanel>
+                    </Border>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding FaderBindings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:FaderBindingEditor}">
+                                    <Border Margin="0,0,0,12" Padding="12" BorderThickness="1" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" CornerRadius="10">
+                                        <Expander IsExpanded="True">
+                                            <Expander.Header>
+                                                <DockPanel LastChildFill="False">
+                                                    <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding headerText}" />
+                                                    <Button DockPanel.Dock="Right" Padding="10,4" Click="buttonRemoveFader_Click">Remove</Button>
+                                                </DockPanel>
+                                            </Expander.Header>
+                                            <Grid Margin="0,12,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="180" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="180" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+
+                                                <TextBlock Margin="0,0,12,8" VerticalAlignment="Center" Text="Name" />
+                                                <TextBox Grid.Column="1" Margin="0,0,16,8" Text="{Binding name, UpdateSourceTrigger=PropertyChanged}" />
+                                                <TextBlock Grid.Column="2" Margin="0,0,12,8" VerticalAlignment="Center" Text="OSC address" />
+                                                <TextBox Grid.Column="3" Margin="0,0,0,8" Text="{Binding address, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                <TextBlock Grid.Row="1" Margin="0,0,12,8" VerticalAlignment="Center" Text="Step" />
+                                                <TextBox Grid.Row="1" Grid.Column="1" Margin="0,0,16,8" Text="{Binding step, UpdateSourceTrigger=PropertyChanged}" />
+                                                <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,0,12,8" VerticalAlignment="Center" Text="Minimum" />
+                                                <TextBox Grid.Row="1" Grid.Column="3" Margin="0,0,0,8" Text="{Binding minimum, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                <TextBlock Grid.Row="2" Margin="0,0,12,8" VerticalAlignment="Center" Text="Maximum" />
+                                                <TextBox Grid.Row="2" Grid.Column="1" Margin="0,0,16,8" Text="{Binding maximum, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                <TextBlock Grid.Row="3" Margin="0,0,12,0" VerticalAlignment="Center" Text="Hotkey −" />
+                                                <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,16,0" Orientation="Horizontal">
+                                                    <Button Padding="12,6" PreviewKeyDown="faderHotkeyMinus_PreviewKeyDown" GotKeyboardFocus="hotkeyControl_GotKeyboardFocus" LostKeyboardFocus="hotkeyControl_LostKeyboardFocus" Content="{Binding hotkeyMinusText}" />
+                                                    <Button Margin="8,0,0,0" Padding="10,6" Click="buttonClearFaderMinus_Click">Clear</Button>
+                                                </StackPanel>
+
+                                                <TextBlock Grid.Row="3" Grid.Column="2" Margin="0,0,12,0" VerticalAlignment="Center" Text="Hotkey +" />
+                                                <StackPanel Grid.Row="3" Grid.Column="3" Orientation="Horizontal">
+                                                    <Button Padding="12,6" PreviewKeyDown="faderHotkeyPlus_PreviewKeyDown" GotKeyboardFocus="hotkeyControl_GotKeyboardFocus" LostKeyboardFocus="hotkeyControl_LostKeyboardFocus" Content="{Binding hotkeyPlusText}" />
+                                                    <Button Margin="8,0,0,0" Padding="10,6" Click="buttonClearFaderPlus_Click">Clear</Button>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Expander>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="Toggle bindings">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Margin="0,0,0,12" Padding="12" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" BorderThickness="1" CornerRadius="8">
+                        <DockPanel LastChildFill="False">
+                            <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" Text="Toggle bindings are compact cards with direct hotkey assignment buttons." />
+                            <Button DockPanel.Dock="Right" Padding="14,8" Click="buttonAddToggle_Click">Add toggle binding</Button>
+                        </DockPanel>
+                    </Border>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding ToggleBindings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:ToggleBindingEditor}">
+                                    <Border Margin="0,0,0,12" Padding="12" BorderThickness="1" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" CornerRadius="10">
+                                        <Expander IsExpanded="True">
+                                            <Expander.Header>
+                                                <DockPanel LastChildFill="False">
+                                                    <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding headerText}" />
+                                                    <Button DockPanel.Dock="Right" Padding="10,4" Click="buttonRemoveToggle_Click">Remove</Button>
+                                                </DockPanel>
+                                            </Expander.Header>
+                                            <Grid Margin="0,12,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="180" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+
+                                                <TextBlock Margin="0,0,12,8" VerticalAlignment="Center" Text="Name" />
+                                                <TextBox Grid.Column="1" Margin="0,0,0,8" Text="{Binding name, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                <TextBlock Grid.Row="1" Margin="0,0,12,8" VerticalAlignment="Center" Text="OSC address" />
+                                                <TextBox Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" Text="{Binding address, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                <TextBlock Grid.Row="2" Margin="0,0,12,0" VerticalAlignment="Center" Text="Hotkey" />
+                                                <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">
+                                                    <Button Padding="12,6" PreviewKeyDown="toggleHotkey_PreviewKeyDown" GotKeyboardFocus="hotkeyControl_GotKeyboardFocus" LostKeyboardFocus="hotkeyControl_LostKeyboardFocus" Content="{Binding hotkeyText}" />
+                                                    <Button Margin="8,0,0,0" Padding="10,6" Click="buttonClearToggleHotkey_Click">Clear</Button>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Expander>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

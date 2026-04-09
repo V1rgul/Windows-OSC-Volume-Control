@@ -25,20 +25,20 @@ Windows tray application that captures configurable global hotkeys and maps them
 
 ## Notes
 
-- Platform: Windows (WinForms + low-level keyboard hook).
+- Platform: Windows (WPF + Fluent theme + low-level keyboard hook).
 - Mixer compatibility: implemented against OSC and tested on Behringer X32; other OSC mixers may work if value semantics match.
 - OSC library: `src/SharpOSC` vendor code is based on [ValdemarOrn/SharpOSC](https://github.com/ValdemarOrn/SharpOSC).
 
 ## Running a Release build
 
-- Install: [.NET 8 Desktop Runtime (Windows)](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Install: [.NET 10 Desktop Runtime (Windows)](https://dotnet.microsoft.com/download/dotnet/10.0)
 - Choose installer architecture matching the target OS (`x64`, `x86`, or `Arm64`).
 - No additional VC++ redistributable is required by this project.
 
 ## Building
 
 - This project is built with **Visual Studio** (open `Windows-OSC-Volume-Control.slnx`, then build `Debug` or `Release`).
-- The **.NET 8 SDK** is required : [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- The **.NET 10 SDK** is required: [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 
 ## Testing
 

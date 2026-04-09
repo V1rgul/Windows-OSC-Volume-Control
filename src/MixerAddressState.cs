@@ -63,8 +63,9 @@ abstract class MixerAddressState {
 			return true;
 		}
 
-		public bool tryApplyPending(uint timeoutMs, out float newVal) {
+		public bool tryApplyPending(uint timeoutMs, out float newVal, out bool requestedIncrease) {
 			newVal = 0f;
+			requestedIncrease = true;
 			if (!hasPending)
 				return false;
 			if (isPendingExpired(timeoutMs)) {
@@ -75,6 +76,7 @@ abstract class MixerAddressState {
 				return false;
 
 			float current = cachedValue.Value;
+			requestedIncrease = accumulatedDelta > 0f;
 			newVal = clampAndRound(current + accumulatedDelta, min, max);
 			updateCache(newVal);
 			clearPending();

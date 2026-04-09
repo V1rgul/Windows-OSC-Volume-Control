@@ -1,0 +1,133 @@
+<Window
+    x:Class="WindowsOscVolumeControl.OSDController"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="OSD"
+    Width="420"
+    Height="78"
+    AllowsTransparency="True"
+    Background="Transparent"
+    ShowInTaskbar="False"
+    ShowActivated="False"
+    Topmost="True"
+    WindowStyle="None"
+    WindowStartupLocation="Manual"
+    ResizeMode="NoResize">
+    <Border
+        x:Name="RootBorder"
+        Background="#D9000000"
+        BorderBrush="#26000000"
+        BorderThickness="1"
+        CornerRadius="14"
+        Padding="18">
+        <DockPanel LastChildFill="False">
+            <StackPanel
+                x:Name="RightContent"
+                DockPanel.Dock="Right"
+                Orientation="Horizontal"
+                VerticalAlignment="Center">
+                <TextBlock
+                    x:Name="ValueTextBlock"
+                    MinWidth="52"
+                    FontSize="15"
+                    FontWeight="SemiBold"
+                    Foreground="White"
+                    TextAlignment="Right"
+                    Text="0.00" />
+                <Grid
+                    x:Name="ToggleIconContainer"
+                    Width="18"
+                    Height="18"
+                    Margin="8,0,0,0"
+                    Visibility="Collapsed">
+                    <Ellipse
+                        x:Name="ToggleEllipse"
+                        StrokeThickness="2" />
+                    <Line
+                        x:Name="ToggleSlash"
+                        X1="4"
+                        Y1="14"
+                        X2="14"
+                        Y2="4"
+                        StrokeThickness="2"
+                        StrokeStartLineCap="Round"
+                        StrokeEndLineCap="Round"
+                        Visibility="Collapsed" />
+                </Grid>
+            </StackPanel>
+
+            <Grid
+                x:Name="MiddleContent"
+                DockPanel.Dock="Right"
+                Margin="0,0,6,0">
+                <Border
+                    x:Name="BarTrack"
+                    Height="20"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Background="#33FFFFFF"
+                    CornerRadius="10">
+                    <Grid ClipToBounds="True">
+                        <Border
+                            x:Name="BarFill"
+                            Height="20"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Background="#7AD77A"
+                            CornerRadius="10,0,0,10"
+                            Width="0" />
+                        <Grid
+                            x:Name="FlashMarker"
+                            Width="12"
+                            Height="12"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed"
+                            Panel.ZIndex="2">
+                            <Grid.RenderTransform>
+                                <TranslateTransform x:Name="FlashTransform" />
+                            </Grid.RenderTransform>
+                            <Border
+                                x:Name="FlashMarkerHorizontal"
+                                Width="12"
+                                Height="3"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Background="Black"
+                                CornerRadius="1.5" />
+                            <Border
+                                x:Name="FlashMarkerVertical"
+                                Width="3"
+                                Height="10"
+                                Margin="0,1,0,0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Background="Black"
+                                CornerRadius="1.5"
+                                Visibility="Collapsed" />
+                        </Grid>
+                    </Grid>
+                </Border>
+                <TextBlock
+                    x:Name="StatusTextBlock"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontSize="16"
+                    FontWeight="SemiBold"
+                    Foreground="White"
+                    Text="Pending"
+                    Visibility="Collapsed" />
+            </Grid>
+
+            <TextBlock
+                x:Name="LabelTextBlock"
+                Margin="0,0,12,0"
+                VerticalAlignment="Center"
+                FontSize="15"
+                FontWeight="SemiBold"
+                Foreground="White"
+                TextTrimming="CharacterEllipsis"
+                Visibility="Collapsed" />
+        </DockPanel>
+    </Border>
+</Window>

@@ -268,8 +268,7 @@ public sealed class MixerController {
 		if (!fader.hasPending)
 			return;
 
-		float previous = fader.getCachedValueTyped();
-		if (!fader.tryApplyPending(_config.timeoutMs, out float newVal)) {
+		if (!fader.tryApplyPending(_config.timeoutMs, out float newVal, out bool requestedIncrease)) {
 			errors.setError(new Error.MixerController.Network(), true);
 			emitFailure(address);
 			return;
@@ -281,7 +280,7 @@ public sealed class MixerController {
 			new Event.FaderChanged {
 				address = address,
 				newLevel = newVal,
-				volumeIncreased = newVal >= previous,
+				volumeIncreased = requestedIncrease,
 			});
 	}
 

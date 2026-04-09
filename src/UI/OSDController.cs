@@ -1,30 +1,43 @@
-using System;
-using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
-using WindowsOscVolumeControl;
+using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
+using Brush = System.Windows.Media.Brush;
+using Brushes = System.Windows.Media.Brushes;
+using Color = System.Windows.Media.Color;
+using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 
-public class OSDController : Form
-{
-	const int OSD_FADE_MS = 200;
-	const int OSD_FLASH_MS = 100;
-	const double NORMAL_OPACITY = 0.85;
+namespace WindowsOscVolumeControl;
+
+public partial class OSDController : Window {
+	enum LayoutMode {
+		NONE,
+		BAR,
+		ERROR_STATUS,
+		TOGGLE_STATUS,
+	}
+
+	readonly record struct LayoutKey(LayoutMode mode, string labelText);
+	readonly record struct PendingLevelUpdate(string rowLabel, float min, float max, float value, bool volumeIncreased, float step);
 
 	const int WS_EX_TOOLWINDOW = 0x00000080;
 	const int WS_EX_NOACTIVATE = 0x08000000;
 	const uint SWP_NOACTIVATE = 0x0010;
 	const uint SWP_SHOWWINDOW = 0x0040;
 	static readonly IntPtr HWND_TOPMOST = new(-1);
+	static readonly Brush ACTIVE_BRUSH = new SolidColorBrush(Color.FromRgb(122, 215, 122));
+	static readonly Brush ERROR_BRUSH = new SolidColorBrush(Color.FromRgb(180, 180, 180));
+	static readonly Brush OFF_BRUSH = new SolidColorBrush(Color.FromRgb(222, 87, 87));
+	static readonly Brush TRACK_BRUSH = new SolidColorBrush(Color.FromArgb(80, 255, 255, 255));
 
-	/// <summary>OSD size and dwell time; persisted via <see cref="WindowsOscVolumeControl.ConfigStore"/>.</summary>
 	public sealed class Config {
 		public const int MIN_HEIGHT_PX = 48;
 		public const int MAX_HEIGHT_PX = 600;
 		public const uint MIN_DISPLAY_DURATION_MS = 200;
 		public const uint MAX_DISPLAY_DURATION_MS = 60_000;
 
-		/// <summary>Total OSD client height in pixels (reference layout uses 78).</summary>
 		public int HeightPx { get; set; } = 78;
-
 		public uint DisplayDurationMs { get; set; } = 1000;
 
 		public Config() { }
@@ -35,534 +48,449 @@ public class OSDController : Form
 			DisplayDurationMs = other.DisplayDurationMs;
 		}
 
-		public static Config Clamped(Config? c) {
-			c ??= new Config();
-			int h = Math.Clamp(c.HeightPx, MIN_HEIGHT_PX, MAX_HEIGHT_PX);
-			uint d = c.DisplayDurationMs;
-			if (d < MIN_DISPLAY_DURATION_MS) d = MIN_DISPLAY_DURATION_MS;
-			if (d > MAX_DISPLAY_DURATION_MS) d = MAX_DISPLAY_DURATION_MS;
-			return new Config { HeightPx = h, DisplayDurationMs = d };
-		}
-	}
-
-	/// <summary>Reference total client height (24 + 30 + 24).</summary>
-	const int REF_CLIENT_HEIGHT_PX = 78;
-	const int REF_FRAME_MARGIN = 24;
-	const int REF_BAR_HEIGHT = 30;
-	const int REF_GAP_HORIZONTAL = 12;
-	const int REF_TOGGLE_SYMBOL_DIAM = 24;
-	const int REF_BASE_CLIENT_WIDTH = 420;
-	const float REF_VALUE_FONT_PT = 12f;
-	const float REF_FLASH_FONT_PT = 20f;
-	const int REF_FLASH_GAP_PX = 4;
-
-	readonly struct OsdLayoutMetrics
-	{
-		public int FrameMargin { get; init; }
-		public int BarHeight { get; init; }
-		public int GapHorizontal { get; init; }
-		public int ToggleSymbolDiam { get; init; }
-		public int BaseClientWidth { get; init; }
-		public float ValueFontEmSize { get; init; }
-		public float FlashFontEmSize { get; init; }
-		public int FlashGapPx { get; init; }
-		public float ToggleEllipsePenWidth { get; init; }
-		public int NameColumnMinWidth { get; init; }
-		public int NameColumnExtraPad { get; init; }
-		public int MinBarWidth { get; init; }
-
-		public int ClientHeightPx => FrameMargin + BarHeight + FrameMargin;
-
-		public static OsdLayoutMetrics FromHeightPx(int heightPx)
-		{
-			double scale = heightPx / (double)REF_CLIENT_HEIGHT_PX;
-			int margin = Math.Max(4, (int)Math.Round(REF_FRAME_MARGIN * scale));
-			int bar = heightPx - 2 * margin;
-			if (bar < 1) {
-				margin = Math.Max(0, (heightPx - 1) / 2);
-				bar = heightPx - 2 * margin;
-				bar = Math.Max(1, bar);
-			}
-			int gap = Math.Max(4, (int)Math.Round(REF_GAP_HORIZONTAL * scale));
-			int toggle = Math.Max(8, (int)Math.Round(REF_TOGGLE_SYMBOL_DIAM * scale));
-			int baseW = Math.Max(200, (int)Math.Round(REF_BASE_CLIENT_WIDTH * scale));
-			float valuePt = Math.Max(6f, (float)(REF_VALUE_FONT_PT * scale));
-			float flashPt = Math.Max(8f, (float)(REF_FLASH_FONT_PT * scale));
-			int flashGap = Math.Max(1, (int)Math.Round(REF_FLASH_GAP_PX * scale));
-			float penW = Math.Max(1f, (float)(2.0 * scale));
-			int nameMin = Math.Max(8, (int)Math.Round(40 * scale));
-			int namePad = Math.Max(2, (int)Math.Round(8 * scale));
-			int minBar = Math.Max(40, (int)Math.Round(80 * scale));
-			return new OsdLayoutMetrics {
-				FrameMargin = margin,
-				BarHeight = bar,
-				GapHorizontal = gap,
-				ToggleSymbolDiam = toggle,
-				BaseClientWidth = baseW,
-				ValueFontEmSize = valuePt,
-				FlashFontEmSize = flashPt,
-				FlashGapPx = flashGap,
-				ToggleEllipsePenWidth = penW,
-				NameColumnMinWidth = nameMin,
-				NameColumnExtraPad = namePad,
-				MinBarWidth = minBar,
+		public static Config Clamped(Config? cfg) {
+			cfg ??= new Config();
+			uint duration = Math.Clamp(cfg.DisplayDurationMs, MIN_DISPLAY_DURATION_MS, MAX_DISPLAY_DURATION_MS);
+			int height = Math.Clamp(cfg.HeightPx, MIN_HEIGHT_PX, MAX_HEIGHT_PX);
+			return new Config {
+				HeightPx = height,
+				DisplayDurationMs = duration,
 			};
 		}
 	}
 
-	sealed class CachedLayout : IDisposable
-	{
-		public Font ValueFont { get; }
-		public Font FlashFont { get; }
-		public int NameColumnWidth { get; }
-		public int BarLeft { get; }
-		public int BarWidth { get; }
-		public int ComputedClientWidth { get; }
-		public SizeF PlusFlashSize { get; }
-		public SizeF MinusFlashSize { get; }
-
-		public CachedLayout(Graphics g, OsdLayoutMetrics m, string rowLabelForMeasure, int osdValueFractionalDigits, bool toggleCompact)
-		{
-			ValueFont = new Font("Segoe UI", m.ValueFontEmSize, FontStyle.Bold);
-			FlashFont = new Font("Segoe UI", m.FlashFontEmSize, FontStyle.Bold);
-			string label = string.IsNullOrWhiteSpace(rowLabelForMeasure) ? "" : rowLabelForMeasure.Trim();
-			int nameW = 0;
-			if (label.Length > 0) {
-				const int MAX_CHARS = 48;
-				if (label.Length > MAX_CHARS)
-					label = label[..MAX_CHARS] + "…";
-				nameW = (int)Math.Ceiling(g.MeasureString(label, ValueFont).Width);
-				if (!toggleCompact) {
-					nameW += m.NameColumnExtraPad;
-					nameW = Math.Max(nameW, m.NameColumnMinWidth);
-				}
-			}
-			NameColumnWidth = nameW;
-			if (toggleCompact) {
-				BarLeft = m.FrameMargin + NameColumnWidth;
-				BarWidth = 0;
-				ComputedClientWidth = m.FrameMargin + NameColumnWidth + m.GapHorizontal + m.ToggleSymbolDiam + m.FrameMargin;
-			} else {
-				osdValueFractionalDigits = Math.Clamp(osdValueFractionalDigits, 0, Math.Max(0, FaderFloatUtil.BindingFractionalDigits));
-				string valueMeasure = FaderFloatUtil.OsdMeasureSample(osdValueFractionalDigits);
-				int reserve = (int)Math.Ceiling(g.MeasureString(valueMeasure, ValueFont).Width);
-				int nameGap = NameColumnWidth > 0 ? m.GapHorizontal : 0;
-				int barLeft = m.FrameMargin + NameColumnWidth + nameGap;
-				BarLeft = barLeft;
-				int barPreferred = m.BaseClientWidth - m.FrameMargin - m.FrameMargin - m.GapHorizontal - reserve;
-				if (barPreferred < m.MinBarWidth)
-					barPreferred = m.MinBarWidth;
-				BarWidth = barPreferred;
-				ComputedClientWidth = barLeft + BarWidth + m.GapHorizontal + reserve + m.FrameMargin;
-			}
-			PlusFlashSize = g.MeasureString("+", FlashFont);
-			MinusFlashSize = g.MeasureString("−", FlashFont);
-		}
-
-		public void Dispose()
-		{
-			ValueFont.Dispose();
-			FlashFont.Dispose();
-		}
-	}
-
-	enum FlashSign
-	{
-		NONE,
-		PLUS,
-		MINUS,
-	}
-
-	enum OsdView
-	{
-		LEVEL,
-		PENDING,
-		ERROR,
-		TOGGLE_STATUS,
-	}
-
-	System.Windows.Forms.Timer _autoHideTimer;
-	System.Windows.Forms.Timer _fadeTimer;
-	System.Windows.Forms.Timer _flashTimer;
-	long _fadeStartTick;
-	float _levelRaw;
-	float _levelMin;
-	float _levelMax;
+	readonly DispatcherTimer _autoHideTimer;
+	readonly DispatcherTimer _flashTimer;
+	Config _config;
+	double _minimumWidth;
+	double _targetWidth;
+	double _targetHeight;
+	double _trackWidth;
+	double _statusWidth;
+	double _valueWidth;
 	int _levelFracDigits = 2;
-	OsdView _view = OsdView.LEVEL;
-	FlashSign _flashSign;
-	string _rowLabel = "";
-	string _statusText = "";
-	bool _statusOn;
+	float _cachedFaderStep = float.NaN;
+	int _cachedFaderStepDigits = 2;
+	LayoutKey _layoutKey = new(LayoutMode.NONE, "");
+	bool _layoutMeasureDirty = true;
+	bool _windowPlacementDirty = true;
+	PendingLevelUpdate? _pendingLevelUpdate;
+	bool _levelUpdateQueued;
 
-	OsdLayoutMetrics _metrics;
-	int _displayIntervalMs;
-
-	CachedLayout? _cache;
-
-	protected override bool ShowWithoutActivation => true;
-
-	protected override CreateParams CreateParams
-	{
-		get
-		{
-			var cp = base.CreateParams;
-			cp.ExStyle |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
-			return cp;
-		}
-	}
-
-	public OSDController(Config osdConfig)
-	{
-		ArgumentNullException.ThrowIfNull(osdConfig);
-		Config d = Config.Clamped(osdConfig);
-		_metrics = OsdLayoutMetrics.FromHeightPx(d.HeightPx);
-		_displayIntervalMs = (int)Math.Min(d.DisplayDurationMs, int.MaxValue);
-
-		FormBorderStyle = FormBorderStyle.None;
-		StartPosition = FormStartPosition.Manual;
-		TopMost = true;
-		ShowInTaskbar = false;
-		ClientSize = new Size(_metrics.BaseClientWidth, _metrics.ClientHeightPx);
-		BackColor = Color.Black;
-		Opacity = NORMAL_OPACITY;
-		DoubleBuffered = true;
-
-		RepositionTrailingEdge();
-
-		_fadeTimer = new System.Windows.Forms.Timer();
-		_fadeTimer.Tick += (s, e) =>
-		{
-			double progress = (Environment.TickCount64 - _fadeStartTick) / (double)OSD_FADE_MS;
-			if (progress >= 1.0) {
-				_fadeTimer.Stop();
-				Hide();
-				Opacity = NORMAL_OPACITY;
-			} else {
-				Opacity = NORMAL_OPACITY * (1.0 - progress);
-			}
+	public OSDController(Config osdConfig) {
+		InitializeComponent();
+		_config = Config.Clamped(osdConfig);
+		Opacity = 0.88;
+		SizeToContent = SizeToContent.Manual;
+		_autoHideTimer = new DispatcherTimer();
+		_autoHideTimer.Tick += (_, _) => beginFade();
+		_flashTimer = new DispatcherTimer {
+			Interval = TimeSpan.FromMilliseconds(1000),
 		};
-
-		_flashTimer = new System.Windows.Forms.Timer();
-		_flashTimer.Interval = OSD_FLASH_MS;
-		_flashTimer.Tick += (s, e) =>
-		{
-			_flashSign = FlashSign.NONE;
+		_flashTimer.Tick += (_, _) => {
 			_flashTimer.Stop();
-			Invalidate();
+			FlashMarker.Visibility = Visibility.Collapsed;
 		};
 
-		_autoHideTimer = new System.Windows.Forms.Timer();
-		_autoHideTimer.Interval = _displayIntervalMs;
-		_autoHideTimer.Tick += (s, e) =>
-		{
-			_autoHideTimer.Stop();
-			_fadeStartTick = Environment.TickCount64;
-			_fadeTimer.Interval = Math.Max(1, 1000 / GetScreenRefreshRate());
-			_fadeTimer.Start();
-		};
+		ACTIVE_BRUSH.Freeze();
+		ERROR_BRUSH.Freeze();
+		OFF_BRUSH.Freeze();
+		TRACK_BRUSH.Freeze();
+		BarTrack.Background = TRACK_BRUSH;
+		applySizing();
 	}
 
-	/// <summary>Updates layout metrics, client size, auto-hide interval, and reposition. Safe before handle creation.</summary>
-	public void ApplyConfig(Config? cfg)
-	{
-		Config c = Config.Clamped(cfg);
-		_metrics = OsdLayoutMetrics.FromHeightPx(c.HeightPx);
-		_displayIntervalMs = (int)Math.Min(c.DisplayDurationMs, int.MaxValue);
-		_autoHideTimer.Interval = Math.Max(1, _displayIntervalMs);
-		if (IsHandleCreated) {
-			RebuildLayoutCache();
-			Invalidate();
+	protected override void OnSourceInitialized(EventArgs e) {
+		base.OnSourceInitialized(e);
+		IntPtr hwnd = new WindowInteropHelper(this).Handle;
+		int style = GetWindowLong(hwnd, GWL_EXSTYLE);
+		SetWindowLong(hwnd, GWL_EXSTYLE, style | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
+	}
+
+	public void ApplyConfig(Config? cfg) {
+		_config = Config.Clamped(cfg);
+		_pendingLevelUpdate = null;
+		applySizing();
+	}
+
+	void applySizing() {
+		double scale = _config.HeightPx / 78.0;
+		double horizontalPadding = Math.Max(12, 18 * scale);
+		double screenInset = Math.Max(4, 8 * scale);
+		double borderWidth = RootBorder.BorderThickness.Left + RootBorder.BorderThickness.Right;
+		_targetHeight = _config.HeightPx;
+		_trackWidth = Math.Max(120, 194 * scale);
+		_statusWidth = Math.Max(44, 56 * scale);
+		_valueWidth = Math.Max(48, 56 * scale);
+		_minimumWidth = Math.Ceiling(borderWidth + (2 * horizontalPadding) + _trackWidth + 10 + _valueWidth);
+		_targetWidth = _minimumWidth;
+		double maxWindowWidth = Math.Max(_minimumWidth, SystemParameters.WorkArea.Width - (2 * screenInset));
+		double labelMaxWidth = Math.Max(80, maxWindowWidth - borderWidth - (2 * horizontalPadding) - _trackWidth - 10 - _valueWidth - 12);
+		MinHeight = _targetHeight;
+		MaxHeight = _targetHeight;
+		MinWidth = _minimumWidth;
+		MaxWidth = maxWindowWidth;
+		Height = _targetHeight;
+		Width = _targetWidth;
+		RootBorder.CornerRadius = new CornerRadius(Math.Max(12, 14 * scale));
+		RootBorder.Padding = new Thickness(horizontalPadding);
+		LabelTextBlock.FontSize = Math.Max(12, 15 * scale);
+		LabelTextBlock.MaxWidth = labelMaxWidth;
+		StatusTextBlock.FontSize = Math.Max(13, 16 * scale);
+		ValueTextBlock.FontSize = Math.Max(12, 15 * scale);
+		ValueTextBlock.MinWidth = _valueWidth;
+		ValueTextBlock.MaxWidth = _valueWidth;
+		double flashMarkerSize = Math.Max(10, 12 * scale);
+		double flashMarkerThickness = Math.Max(2, 3 * scale);
+		FlashMarker.Width = flashMarkerSize;
+		FlashMarker.Height = flashMarkerSize;
+		FlashMarkerHorizontal.Width = flashMarkerSize;
+		FlashMarkerHorizontal.Height = flashMarkerThickness;
+		FlashMarkerHorizontal.CornerRadius = new CornerRadius(flashMarkerThickness / 2.0);
+		FlashMarkerVertical.Width = flashMarkerThickness;
+		FlashMarkerVertical.Height = flashMarkerSize;
+		FlashMarkerVertical.CornerRadius = new CornerRadius(flashMarkerThickness / 2.0);
+		double barHeight = Math.Max(16, 20 * scale);
+		MiddleContent.MinWidth = _trackWidth;
+		MiddleContent.MaxWidth = _trackWidth;
+		MiddleContent.Width = _trackWidth;
+		BarTrack.Height = barHeight;
+		BarTrack.MinWidth = _trackWidth;
+		BarTrack.MaxWidth = _trackWidth;
+		BarTrack.Width = _trackWidth;
+		BarFill.Height = barHeight;
+		StatusTextBlock.MaxWidth = _trackWidth;
+		double toggleIconSize = Math.Max(14, 18 * scale);
+		ToggleIconContainer.Width = toggleIconSize;
+		ToggleIconContainer.Height = toggleIconSize;
+		ToggleSlash.X1 = toggleIconSize * 0.22;
+		ToggleSlash.Y1 = toggleIconSize * 0.78;
+		ToggleSlash.X2 = toggleIconSize * 0.78;
+		ToggleSlash.Y2 = toggleIconSize * 0.22;
+		ToggleSlash.StrokeThickness = Math.Max(2, toggleIconSize * 0.11);
+		_layoutMeasureDirty = true;
+		_windowPlacementDirty = true;
+		reposition();
+	}
+
+	void beginFade() {
+		_autoHideTimer.Stop();
+		var animation = new DoubleAnimation(Opacity, 0, TimeSpan.FromMilliseconds(220)) {
+			FillBehavior = FillBehavior.Stop,
+		};
+		animation.Completed += (_, _) => {
+			Opacity = 0.88;
+			Hide();
+		};
+		BeginAnimation(OpacityProperty, animation);
+	}
+
+	void showNoActivate(bool layoutChanged) {
+		BeginAnimation(OpacityProperty, null);
+		bool wasVisible = IsVisible;
+		bool needsPlacement = !wasVisible || layoutChanged || _layoutMeasureDirty || _windowPlacementDirty;
+		IntPtr hwnd = IntPtr.Zero;
+		if (needsPlacement) {
+			hwnd = new WindowInteropHelper(this).EnsureHandle();
+			if (layoutChanged || _layoutMeasureDirty) {
+				double currentMinimumWidth = getCurrentMinimumWidth();
+				MinWidth = currentMinimumWidth;
+				double desiredWidth = measureWindowWidth();
+				_targetWidth = desiredWidth;
+				Width = desiredWidth;
+				_layoutMeasureDirty = false;
+			} else {
+				Width = _targetWidth;
+			}
+			Height = _targetHeight;
 		}
+		if (!wasVisible) {
+			Opacity = 0;
+			Show();
+		}
+		if (needsPlacement) {
+			placeWindow(hwnd, _targetWidth);
+			_windowPlacementDirty = false;
+		}
+		_targetWidth = Math.Clamp(_targetWidth, MinWidth, MaxWidth);
+		Width = _targetWidth;
+		Height = _targetHeight;
+		Opacity = 0.88;
+		resetAutoHideTimer();
 	}
 
-	protected override void OnHandleCreated(EventArgs e)
-	{
-		base.OnHandleCreated(e);
-		RebuildLayoutCache();
-	}
-
-	protected override void OnDpiChanged(DpiChangedEventArgs e)
-	{
-		base.OnDpiChanged(e);
-		RebuildLayoutCache();
-		Invalidate();
-	}
-
-	protected override void OnFormClosed(FormClosedEventArgs e)
-	{
+	void resetAutoHideTimer() {
 		_autoHideTimer.Stop();
-		_fadeTimer.Stop();
-		_flashTimer.Stop();
-		_autoHideTimer.Dispose();
-		_fadeTimer.Dispose();
-		_flashTimer.Dispose();
-		_cache?.Dispose();
-		_cache = null;
-		base.OnFormClosed(e);
-	}
-
-	string LayoutMeasureLabel() => _view switch {
-		OsdView.TOGGLE_STATUS => _statusText,
-		OsdView.LEVEL or OsdView.PENDING => _rowLabel,
-		_ => "",
-	};
-
-	int LayoutValueFractionalDigits() => _view switch {
-		OsdView.LEVEL => _levelFracDigits,
-		OsdView.PENDING => _levelFracDigits,
-		_ => Math.Max(0, FaderFloatUtil.BindingFractionalDigits),
-	};
-
-	void RepositionTrailingEdge()
-	{
-		var workingArea = Screen.PrimaryScreen?.WorkingArea ?? Screen.FromPoint(Cursor.Position).WorkingArea;
-		int m = _metrics.FrameMargin;
-		int x = workingArea.Width - Width - m;
-		int y = workingArea.Height - Height - m;
-		Location = new Point(x, y);
-	}
-
-	void RebuildLayoutCache()
-	{
-		_cache?.Dispose();
-		using var g = CreateGraphics();
-		_cache = new CachedLayout(g, _metrics, LayoutMeasureLabel(), LayoutValueFractionalDigits(), _view == OsdView.TOGGLE_STATUS);
-		int h = _metrics.ClientHeightPx;
-		if (ClientSize.Width != _cache.ComputedClientWidth || ClientSize.Height != h)
-			ClientSize = new Size(_cache.ComputedClientWidth, h);
-		RepositionTrailingEdge();
-	}
-
-	void ShowNoActivate()
-	{
-		_autoHideTimer.Stop();
-		_fadeTimer.Stop();
-		Opacity = NORMAL_OPACITY;
-		_ = Handle;
-		RebuildLayoutCache();
-		SetWindowPos(Handle, HWND_TOPMOST, Left, Top, Width, Height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+		_autoHideTimer.Interval = TimeSpan.FromMilliseconds(_config.DisplayDurationMs);
 		_autoHideTimer.Start();
+	}
+
+	void cancelPendingLevelUpdate() => _pendingLevelUpdate = null;
+
+	void queueLevelUpdate(PendingLevelUpdate update) {
+		_pendingLevelUpdate = update;
+		if (_levelUpdateQueued)
+			return;
+		_levelUpdateQueued = true;
+		_ = Dispatcher.BeginInvoke(flushPendingLevelUpdate, DispatcherPriority.Background);
+	}
+
+	void flushPendingLevelUpdate() {
+		PendingLevelUpdate? pending = _pendingLevelUpdate;
+		_pendingLevelUpdate = null;
+		_levelUpdateQueued = false;
+		if (pending == null)
+			return;
+		showLevelNow(pending.Value.rowLabel, pending.Value.min, pending.Value.max, pending.Value.value, pending.Value.volumeIncreased, pending.Value.step);
+	}
+
+	void placeWindow(IntPtr hwnd, double width) {
+		var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+		double insetDip = Math.Max(4, _targetHeight * 0.08);
+		int widthPx = (int)Math.Round(width * dpi.DpiScaleX);
+		int heightPx = (int)Math.Round(_targetHeight * dpi.DpiScaleY);
+		int insetXPx = (int)Math.Round(insetDip * dpi.DpiScaleX);
+		int insetYPx = (int)Math.Round(insetDip * dpi.DpiScaleY);
+		RECT workArea = getMonitorWorkArea(hwnd);
+		int xPx = workArea.right - widthPx - insetXPx;
+		int yPx = workArea.bottom - heightPx - insetYPx;
+		Left = xPx / dpi.DpiScaleX;
+		Top = yPx / dpi.DpiScaleY;
+		SetWindowPos(hwnd, HWND_TOPMOST, xPx, yPx, widthPx, heightPx, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+	}
+
+	double measureWindowWidth() {
+		RootBorder.Measure(new System.Windows.Size(double.PositiveInfinity, _targetHeight));
+		double currentMinimumWidth = getCurrentMinimumWidth();
+		return Math.Clamp(Math.Ceiling(RootBorder.DesiredSize.Width), currentMinimumWidth, MaxWidth);
+	}
+
+	bool updateLayoutKey(LayoutMode mode, string rowLabel) {
+		string label = normalizeLabel(rowLabel);
+		var next = new LayoutKey(mode, label);
+		if (next == _layoutKey)
+			return false;
+		_layoutKey = next;
+		_layoutMeasureDirty = true;
+		_windowPlacementDirty = true;
+		return true;
+	}
+
+	double getCurrentMinimumWidth() => BarTrack.Visibility == Visibility.Visible
+		? _minimumWidth
+		: Math.Ceiling(RootBorder.BorderThickness.Left + RootBorder.BorderThickness.Right + RootBorder.Padding.Left + RootBorder.Padding.Right + 24);
+
+	void reposition() => reposition(_targetWidth);
+
+	void reposition(double width) {
+		Rect workArea = SystemParameters.WorkArea;
+		double inset = Math.Max(4, _targetHeight * 0.08);
+		Left = workArea.Right - width - inset;
+		Top = workArea.Bottom - _targetHeight - inset;
+	}
+
+	void hideExtraVisuals() {
+		LabelTextBlock.Visibility = Visibility.Collapsed;
+		StatusTextBlock.Visibility = Visibility.Collapsed;
+		FlashMarker.Visibility = Visibility.Collapsed;
+		FlashMarkerVertical.Visibility = Visibility.Collapsed;
+		FlashTransform.X = 0;
+		FlashTransform.Y = 0;
+		ToggleIconContainer.Visibility = Visibility.Collapsed;
+		ToggleSlash.Visibility = Visibility.Collapsed;
+		ValueTextBlock.Visibility = Visibility.Visible;
+		BarTrack.Visibility = Visibility.Visible;
+		configureMiddleContentForBar();
+	}
+
+	void configureMiddleContentForBar() {
+		MiddleContent.MinWidth = _trackWidth;
+		MiddleContent.MaxWidth = _trackWidth;
+		MiddleContent.Width = _trackWidth;
+	}
+
+	void configureMiddleContentForStatus() {
+		MiddleContent.MinWidth = _statusWidth;
+		MiddleContent.MaxWidth = _statusWidth;
+		MiddleContent.Width = _statusWidth;
+	}
+
+	static string normalizeLabel(string rowLabel) => string.IsNullOrWhiteSpace(rowLabel)
+		? ""
+		: rowLabel.Trim();
+
+	void applyLabel(string rowLabel) {
+		string label = normalizeLabel(rowLabel);
+		if (label.Length == 0) {
+			LabelTextBlock.Text = "";
+			LabelTextBlock.Visibility = Visibility.Collapsed;
+			return;
+		}
+		LabelTextBlock.Text = label;
+		LabelTextBlock.Visibility = Visibility.Visible;
+	}
+
+	int getOsdFractionalDigits(float step) {
+		if (!float.IsFinite(step) || step <= 0f)
+			return Math.Max(0, _cachedFaderStepDigits);
+		if (!float.IsFinite(_cachedFaderStep) || Math.Abs(_cachedFaderStep - step) > 1e-6f) {
+			_cachedFaderStep = step;
+			_cachedFaderStepDigits = FaderFloatUtil.GetOsdFractionalDigitsFromStep(step);
+		}
+		return _cachedFaderStepDigits;
 	}
 
 	public void ShowPending() => ShowPending("", float.NaN);
 
 	public void ShowPending(string rowLabel) => ShowPending(rowLabel, float.NaN);
 
-	/// <param name="faderStepForLayout">If finite and &gt; 0, value column width matches this step’s OSD decimals (fader pending).</param>
-	public void ShowPending(string rowLabel, float faderStepForLayout)
-	{
-		if (float.IsFinite(faderStepForLayout) && faderStepForLayout > 0f)
-			_levelFracDigits = FaderFloatUtil.GetOsdFractionalDigitsFromStep(faderStepForLayout);
-		_flashTimer.Stop();
-		_flashSign = FlashSign.NONE;
-		_rowLabel = rowLabel ?? "";
-		_view = OsdView.PENDING;
-		Invalidate();
-		ShowNoActivate();
+	public void ShowPending(string rowLabel, float faderStepForLayout) {
+		cancelPendingLevelUpdate();
+		_levelFracDigits = getOsdFractionalDigits(faderStepForLayout);
+		bool layoutChanged = updateLayoutKey(LayoutMode.BAR, rowLabel);
+		hideExtraVisuals();
+		applyLabel(rowLabel);
+		BarFill.Width = 0;
+		BarFill.Background = TRACK_BRUSH;
+		BarFill.CornerRadius = new CornerRadius(BarTrack.Height / 2.0, 0, 0, BarTrack.Height / 2.0);
+		ValueTextBlock.Text = "Pending";
+		showNoActivate(layoutChanged);
 	}
 
-	public void ShowError()
-	{
-		_flashTimer.Stop();
-		_flashSign = FlashSign.NONE;
-		_view = OsdView.ERROR;
-		Invalidate();
-		ShowNoActivate();
+	public void ShowError() {
+		cancelPendingLevelUpdate();
+		bool layoutChanged = updateLayoutKey(LayoutMode.ERROR_STATUS, "");
+		hideExtraVisuals();
+		configureMiddleContentForStatus();
+		LabelTextBlock.Visibility = Visibility.Collapsed;
+		LabelTextBlock.Text = "";
+		BarTrack.Visibility = Visibility.Collapsed;
+		StatusTextBlock.Visibility = Visibility.Visible;
+		StatusTextBlock.Text = "Error";
+		StatusTextBlock.Foreground = ERROR_BRUSH;
+		ValueTextBlock.Visibility = Visibility.Collapsed;
+		showNoActivate(layoutChanged);
 	}
 
-	/// <param name="volumeIncreased">If true, a brief + appears right of the fill; if false, a brief − appears left of the fill.</param>
-	/// <param name="step">Binding step (after rounding); drives value/% decimal places on the OSD.</param>
-	public void ShowLevel(string rowLabel, float min, float max, float value, bool volumeIncreased, float step)
-	{
-		_rowLabel = rowLabel ?? "";
-		_levelMin = min;
-		_levelMax = max;
-		_levelRaw = value;
-		_levelFracDigits = FaderFloatUtil.GetOsdFractionalDigitsFromStep(step);
-		_view = OsdView.LEVEL;
-		_flashSign = volumeIncreased ? FlashSign.PLUS : FlashSign.MINUS;
+	public void ShowLevel(string rowLabel, float min, float max, float value, bool volumeIncreased, float step) {
+		queueLevelUpdate(new PendingLevelUpdate(rowLabel, min, max, value, volumeIncreased, step));
+	}
+
+	void showLevelNow(string rowLabel, float min, float max, float value, bool volumeIncreased, float step) {
+		_levelFracDigits = getOsdFractionalDigits(step);
+		bool layoutChanged = updateLayoutKey(LayoutMode.BAR, rowLabel);
+		hideExtraVisuals();
+		applyLabel(rowLabel);
+		BarFill.Background = ACTIVE_BRUSH;
+		double normalized = normalized01(value, min, max);
+		updateBarFill(normalized);
+		ValueTextBlock.Text = FaderFloatUtil.FormatOsdLevelValue(value, _levelFracDigits);
+		FlashMarkerVertical.Visibility = volumeIncreased ? Visibility.Visible : Visibility.Collapsed;
+		positionFlash(volumeIncreased);
+		FlashMarker.Visibility = Visibility.Visible;
 		_flashTimer.Stop();
 		_flashTimer.Start();
-		Invalidate();
-		ShowNoActivate();
+		showNoActivate(layoutChanged);
 	}
 
-	/// <summary>Shows on/off state for an OSC toggle; <paramref name="displayName"/> is normally <see cref="BindingAbstract.displayName"/> from the caller so this layer stays free of binding types.</summary>
-	/// <param name="displayName">Row label (same rules as <see cref="BindingAbstract.displayName"/>).</param>
-	/// <param name="enabled">Whether the toggle is on.</param>
-	public void ShowToggle(string displayName, bool enabled)
-	{
-		_flashTimer.Stop();
-		_flashSign = FlashSign.NONE;
-		_statusText = displayName;
-		_statusOn = enabled;
-		_view = OsdView.TOGGLE_STATUS;
-		Invalidate();
-		ShowNoActivate();
-	}
-
-	static float Normalized01(float value, float min, float max)
-	{
-		if (max - min < 1e-9f)
-			return 0.5f;
-		float t = (value - min) / (max - min);
-		return Math.Clamp(t, 0f, 1f);
-	}
-
-	protected override void OnPaint(PaintEventArgs e)
-	{
-		var g = e.Graphics;
-		var c = _cache;
-		if (c == null)
-			return;
-
-		int fm = _metrics.FrameMargin;
-		int bh = _metrics.BarHeight;
-		int gap = _metrics.FlashGapPx;
-
-		if (_view == OsdView.ERROR) {
-			DrawStatusCentered(g, ClientSize, c.ValueFont, "ERROR", Brushes.Gray);
-			return;
-		}
-
-		if (_view == OsdView.TOGGLE_STATUS) {
-			DrawToggleStatus(g, c);
-			return;
-		}
-
-		int barW = c.BarWidth;
-		int barLeft = c.BarLeft;
-
-		if (c.NameColumnWidth > 0 && !string.IsNullOrWhiteSpace(_rowLabel)) {
-			using var nameSf = new StringFormat { LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
-			var nameRect = new RectangleF(fm, fm, c.NameColumnWidth, bh);
-			nameSf.Alignment = StringAlignment.Near;
-			g.DrawString(_rowLabel.Trim(), c.ValueFont, Brushes.White, nameRect, nameSf);
-		}
-
-		if (_view == OsdView.PENDING) {
-			g.FillRectangle(Brushes.Gray, barLeft, fm, barW, bh);
-			DrawValueInColumn(g, c.ValueFont, "—", barLeft, barW);
-			return;
-		}
-
-		float norm = Normalized01(_levelRaw, _levelMin, _levelMax);
-		g.FillRectangle(Brushes.Gray, barLeft, fm, barW, bh);
-		float fillW = barW * norm;
-		g.FillRectangle(Brushes.LimeGreen, barLeft, fm, fillW, bh);
-
-		string valueText = FaderFloatUtil.FormatOsdLevelValue(_levelRaw, _levelFracDigits);
-		DrawValueInColumn(g, c.ValueFont, valueText, barLeft, barW);
-
-		if (_flashSign != FlashSign.NONE) {
-			float endX = barLeft + fillW;
-			int centerY = fm + bh / 2;
-			if (_flashSign == FlashSign.PLUS) {
-				float x = endX + gap;
-				float y = centerY - c.PlusFlashSize.Height / 2f;
-				g.DrawString("+", c.FlashFont, Brushes.Black, x, y);
-			} else {
-				float x = endX - gap - c.MinusFlashSize.Width;
-				float y = centerY - c.MinusFlashSize.Height / 2f;
-				g.DrawString("−", c.FlashFont, Brushes.Black, x, y);
-			}
-		}
-	}
-
-	void DrawToggleStatus(Graphics g, CachedLayout c)
-	{
-		int fm = _metrics.FrameMargin;
-		int bh = _metrics.BarHeight;
-		int gapH = _metrics.GapHorizontal;
-		int diam = _metrics.ToggleSymbolDiam;
-		float penW = _metrics.ToggleEllipsePenWidth;
-
-		int nameCol = c.NameColumnWidth;
-		if (nameCol > 0) {
-			using var nameSf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
-			var nameRect = new RectangleF(fm, fm, nameCol, bh);
-			g.DrawString(_statusText, c.ValueFont, _statusOn ? Brushes.LimeGreen : Brushes.Red, nameRect, nameSf);
+	public void ShowToggle(string displayName, bool enabled) {
+		cancelPendingLevelUpdate();
+		bool layoutChanged = updateLayoutKey(LayoutMode.TOGGLE_STATUS, displayName);
+		hideExtraVisuals();
+		configureMiddleContentForStatus();
+		applyLabel(string.IsNullOrWhiteSpace(displayName) ? "Toggle" : displayName);
+		BarTrack.Visibility = Visibility.Collapsed;
+		ValueTextBlock.Visibility = Visibility.Collapsed;
+		StatusTextBlock.Visibility = Visibility.Visible;
+		StatusTextBlock.Text = enabled ? "ON" : "OFF";
+		StatusTextBlock.Foreground = enabled ? ACTIVE_BRUSH : OFF_BRUSH;
+		ToggleIconContainer.Visibility = Visibility.Visible;
+		if (enabled) {
+			ToggleEllipse.Fill = ACTIVE_BRUSH;
+			ToggleEllipse.Stroke = ACTIVE_BRUSH;
+			ToggleSlash.Visibility = Visibility.Collapsed;
 		} else {
-			float textW = Math.Max(1f, c.BarLeft - fm - gapH);
-			var textRect = new RectangleF(fm, fm, textW, bh);
-			using var textSf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
-			g.DrawString(_statusText, c.ValueFont, _statusOn ? Brushes.LimeGreen : Brushes.Red, textRect, textSf);
+			ToggleEllipse.Fill = Brushes.Transparent;
+			ToggleEllipse.Stroke = OFF_BRUSH;
+			ToggleSlash.Stroke = OFF_BRUSH;
+			ToggleSlash.Visibility = Visibility.Visible;
 		}
-
-		int symLeft = ClientSize.Width - fm - diam;
-		int symTop = fm + (bh - diam) / 2;
-		var symBounds = new Rectangle(symLeft, symTop, diam, diam);
-
-		var prevSmooth = g.SmoothingMode;
-		g.SmoothingMode = SmoothingMode.AntiAlias;
-		try {
-			if (_statusOn) {
-				g.FillEllipse(Brushes.LimeGreen, symBounds);
-			} else {
-				using var redPen = new Pen(Color.Red, penW);
-				var strokeRect = Rectangle.Inflate(symBounds, -1, -1);
-				g.DrawEllipse(redPen, strokeRect);
-				float inset = diam * 0.22f;
-				g.DrawLine(
-					redPen,
-					symLeft + inset,
-					symTop + diam - inset,
-					symLeft + diam - inset,
-					symTop + inset);
-			}
-		} finally {
-			g.SmoothingMode = prevSmooth;
-		}
+		showNoActivate(layoutChanged);
 	}
 
-	static void DrawStatusCentered(Graphics g, Size clientSize, Font font, string text, Brush brush)
-	{
-		var rect = new RectangleF(0, 0, clientSize.Width, clientSize.Height);
-		using var sf = new StringFormat {
-			Alignment = StringAlignment.Center,
-			LineAlignment = StringAlignment.Center,
+	void updateBarFill(double normalized) {
+		BarTrack.Width = _trackWidth;
+		double fillWidth = Math.Max(0, _trackWidth * Math.Clamp(normalized, 0.0, 1.0));
+		BarFill.Width = fillWidth;
+		double radius = BarTrack.Height / 2.0;
+		BarFill.CornerRadius = fillWidth >= _trackWidth - 1
+			? new CornerRadius(radius)
+			: new CornerRadius(radius, 0, 0, radius);
+	}
+
+	void positionFlash(bool volumeIncreased) {
+		double fillEndX = BarFill.Width;
+		double outsideGap = Math.Max(4, BarTrack.Height * 0.18);
+		double markerWidth = FlashMarker.Width;
+		double insideGap = Math.Max(6, markerWidth * 0.35);
+		double verticalOffset = 0;
+		double x = volumeIncreased
+			? Math.Min(Math.Max(0, fillEndX + outsideGap), Math.Max(0, _trackWidth - markerWidth))
+			: Math.Min(Math.Max(0, fillEndX - markerWidth - insideGap), Math.Max(0, _trackWidth - markerWidth));
+		FlashTransform.X = x;
+		FlashTransform.Y = verticalOffset;
+	}
+
+	static double normalized01(float value, float min, float max) {
+		if (max - min < 1e-9f)
+			return 0.5;
+		double t = (value - min) / (max - min);
+		return Math.Clamp(t, 0.0, 1.0);
+	}
+
+	const int GWL_EXSTYLE = -20;
+	const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+
+	[StructLayout(LayoutKind.Sequential)]
+	struct RECT {
+		public int left;
+		public int top;
+		public int right;
+		public int bottom;
+	}
+
+	[StructLayout(LayoutKind.Sequential)]
+	struct MONITORINFO {
+		public int cbSize;
+		public RECT rcMonitor;
+		public RECT rcWork;
+		public uint dwFlags;
+	}
+
+	static RECT getMonitorWorkArea(IntPtr hwnd) {
+		IntPtr monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+		var monitorInfo = new MONITORINFO {
+			cbSize = Marshal.SizeOf<MONITORINFO>(),
 		};
-		g.DrawString(text, font, brush, rect, sf);
+		if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref monitorInfo))
+			return new RECT { left = 0, top = 0, right = 0, bottom = 0 };
+		return monitorInfo.rcWork;
 	}
 
-	void DrawValueInColumn(Graphics g, Font font, string text, int barLeft, int barW)
-	{
-		int fm = _metrics.FrameMargin;
-		int bh = _metrics.BarHeight;
-		int gh = _metrics.GapHorizontal;
-		float left = barLeft + barW + gh;
-		float w = ClientSize.Width - fm - left;
-		if (w < 1f)
-			return;
-		var rect = new RectangleF(left, fm, w, bh);
-		using var sf = new StringFormat();
-		sf.Alignment = StringAlignment.Far;
-		sf.LineAlignment = StringAlignment.Center;
-		g.DrawString(text, font, Brushes.White, rect, sf);
-	}
+	[LibraryImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)]
+	private static partial int GetWindowLong(IntPtr hWnd, int nIndex);
 
-	static int GetScreenRefreshRate()
-	{
-		var dm = new DEVMODE();
-		dm.dmSize = (short)Marshal.SizeOf<DEVMODE>();
-		if (EnumDisplaySettings(null, -1, ref dm) && dm.dmDisplayFrequency > 0)
-			return dm.dmDisplayFrequency;
-		return 60;
-	}
+	[LibraryImport("user32.dll", EntryPoint = "SetWindowLongW", SetLastError = true)]
+	private static partial int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
-	[StructLayout(LayoutKind.Explicit, CharSet = CharSet.Auto, Size = 220)]
-	struct DEVMODE
-	{
-		[FieldOffset(68)]
-		public short dmSize;
-		[FieldOffset(184)]
-		public int dmDisplayFrequency;
-	}
+	[LibraryImport("user32.dll")]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	private static partial bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
-	[DllImport("user32.dll", CharSet = CharSet.Auto)]
-	static extern bool EnumDisplaySettings(string? deviceName, int modeNum, ref DEVMODE devMode);
+	[LibraryImport("user32.dll")]
+	private static partial IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
-	[DllImport("user32.dll")]
-	static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+	[LibraryImport("user32.dll", EntryPoint = "GetMonitorInfoW", SetLastError = true)]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	private static partial bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 }
