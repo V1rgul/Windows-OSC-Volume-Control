@@ -83,6 +83,22 @@ public partial class ConfigWindow : Window {
 		return true;
 	}
 
+	/// <summary>Fluent expander body uses <c>ExpanderContentBackground</c>; remap to <c>ExpanderHeaderBackground</c> for binding cards only.</summary>
+	static void applyBindingCardExpanderContentFill(Expander exp) {
+		if (exp.TryFindResource("ExpanderHeaderBackground") is Brush headerBg)
+			exp.Resources["ExpanderContentBackground"] = headerBg;
+		exp.ApplyTemplate();
+		if (exp.Template?.FindName("ToggleButtonBorder", exp) is Border headerChrome) {
+			headerChrome.BorderThickness = new Thickness(0);
+			headerChrome.BorderBrush = Brushes.Transparent;
+		}
+		if (exp.Template?.FindName("ContentPresenterBorder", exp) is Border contentChrome) {
+			contentChrome.SetResourceReference(Border.BackgroundProperty, "ExpanderHeaderBackground");
+			contentChrome.BorderThickness = new Thickness(0);
+			contentChrome.BorderBrush = Brushes.Transparent;
+		}
+	}
+
 	void applyBindingCardChevronDim(Expander exp) {
 		if (!tryFindFluentExpanderChevronGrid(exp, out UIElement? grid))
 			return;
@@ -113,6 +129,7 @@ public partial class ConfigWindow : Window {
 	void bindingCard_Expander_Loaded(object sender, RoutedEventArgs e) {
 		if (sender is not Expander exp)
 			return;
+		applyBindingCardExpanderContentFill(exp);
 		exp.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => hookBindingCardChevronDim(exp)));
 	}
 
@@ -126,7 +143,8 @@ public partial class ConfigWindow : Window {
 		if (sender is not Expander exp)
 			return;
 		unhookBindingCardChevronDim(exp);
-		hookBindingCardChevronDim(exp);
+		applyBindingCardExpanderContentFill(exp);
+		exp.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => hookBindingCardChevronDim(exp)));
 	}
 
 	void loadFromConfigStore() {
@@ -264,9 +282,9 @@ public partial class ConfigWindow : Window {
 	void bindingCard_Expander_Expanded(object sender, RoutedEventArgs e) {
 		if (sender is not Expander exp)
 			return;
-		if (exp.DataContext is not BindingEditor bed || !bed.isDeleted)
-			return;
-		exp.IsExpanded = false;
+		if (exp.DataContext is BindingEditor bed && bed.isDeleted)
+			exp.IsExpanded = false;
+		applyBindingCardExpanderContentFill(exp);
 	}
 
 	void bindingCard_Expander_PreviewMouseDown(object sender, MouseButtonEventArgs e) {
