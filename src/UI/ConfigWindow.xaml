@@ -236,7 +236,7 @@
                                     <DataTemplate DataType="{x:Type local:BindingEditor}">
                                         <Border x:Name="BindingOscCardBorder" Margin="0,0,0,8" Padding="0" BorderThickness="1" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" CornerRadius="10" Background="{DynamicResource ExpanderHeaderBackground}">
                                                 <Expander
-                                                    Padding="8"
+                                                    Padding="8,4,8,8"
                                                     Background="{DynamicResource ExpanderHeaderBackground}"
                                                     BorderBrush="Transparent"
                                                     BorderThickness="0"
@@ -346,7 +346,7 @@
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </Grid.Style>
-                                                        <StackPanel Margin="0,8,0,0" TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                                        <StackPanel TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="180" />
@@ -358,14 +358,14 @@
                                                                 <RowDefinition Height="Auto" />
                                                                 <RowDefinition Height="Auto" />
                                                             </Grid.RowDefinitions>
-                                                            <TextBlock Margin="0,0,8,8" VerticalAlignment="Center" Text="OSC address" />
-                                                            <TextBox Grid.Column="1" Grid.ColumnSpan="3" Margin="0,0,0,8" Text="{Binding address, UpdateSourceTrigger=PropertyChanged}" />
-                                                            <TextBlock Grid.Row="1" Margin="0,0,8,8" VerticalAlignment="Center" Text="Minimum" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
-                                                            <TextBox Grid.Row="1" Grid.Column="1" Margin="0,0,8,8" Text="{Binding minimum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
-                                                            <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,0,8,8" VerticalAlignment="Center" Text="Maximum" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
-                                                            <TextBox Grid.Row="1" Grid.Column="3" Margin="0,0,0,8" Text="{Binding maximum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
+                                                            <TextBlock Margin="0,0,8,4" VerticalAlignment="Center" Text="OSC address" />
+                                                            <TextBox Grid.Column="1" Grid.ColumnSpan="3" Margin="0,0,0,4" Text="{Binding address, UpdateSourceTrigger=PropertyChanged}" />
+                                                            <TextBlock Grid.Row="1" Margin="0,8,8,4" VerticalAlignment="Center" Text="Minimum" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
+                                                            <TextBox Grid.Row="1" Grid.Column="1" Margin="0,8,8,4" Text="{Binding minimum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
+                                                            <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,8,8,4" VerticalAlignment="Center" Text="Maximum" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
+                                                            <TextBox Grid.Row="1" Grid.Column="3" Margin="0,8,0,4" Text="{Binding maximum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
                                                         </Grid>
-                                                        <TextBlock Margin="0,8,0,8" FontWeight="SemiBold" Text="Hotkeys" />
+                                                        <TextBlock Margin="0,4,0,8" FontWeight="SemiBold" Text="Hotkeys" />
                                                         <ItemsControl ItemsSource="{Binding hotkeys}">
                                                             <ItemsControl.ItemTemplate>
                                                                 <DataTemplate DataType="{x:Type local:HotkeyActionEditor}">
@@ -393,7 +393,6 @@
                                                                                         <ColumnDefinition Width="Auto" />
                                                                                         <ColumnDefinition Width="Auto" />
                                                                                         <ColumnDefinition Width="*" MinWidth="160" />
-                                                                                        <ColumnDefinition Width="*" MinWidth="120" />
                                                                                         <ColumnDefinition Width="Auto" />
                                                                                     </Grid.ColumnDefinitions>
                                                                             <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Text="Hotkey" />
