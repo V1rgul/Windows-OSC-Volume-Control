@@ -1,17 +1,30 @@
 using System.Collections.Frozen;
-using System.Diagnostics;
 
 namespace WindowsOscVolumeControl;
+
+/// <summary>Short- vs long-press slot lists for one <see cref="HotkeyGesture"/>.</summary>
+public readonly struct HotkeyDispatchTargets {
+	public IReadOnlyList<BindingManager.Slot> shortPressSlots { get; init; }
+	public IReadOnlyList<BindingManager.Slot> longPressSlots { get; init; }
+
+	public bool hasAny => shortPressSlots.Count > 0 || longPressSlots.Count > 0;
+}
 
 /// <summary>Runtime OSC fader/toggle rows and hotkey → slot map built from tray configuration.</summary>
 public sealed class BindingManager {
 	/// <summary>OSC fader and toggle bindings; persisted via <see cref="ConfigStore"/>.</summary>
 	public sealed class Config {
+		public const uint DEFAULT_LONG_PRESS_MS = 450;
+		public const uint MIN_LONG_PRESS_MS = 50;
+		public const uint MAX_LONG_PRESS_MS = 5000;
+
 		public Config() { }
 
 		public Config(Config from) {
 			ArgumentNullException.ThrowIfNull(from);
 			bindings = from.bindings.Select(cloneBinding).ToList();
+			longPressDurationMs = from.longPressDurationMs;
+			optimizeNonLongPressKeyDown = from.optimizeNonLongPressKeyDown;
 		}
 
 		static BindingAbstract cloneBinding(BindingAbstract b) => b switch {
@@ -48,6 +61,14 @@ public sealed class BindingManager {
 		};
 
 		public List<BindingAbstract> bindings { get; set; } = [createDefaultFaderBinding(), createDefaultToggleBinding()];
+
+		public uint longPressDurationMs { get; set; } = DEFAULT_LONG_PRESS_MS;
+
+		/// <summary>When true, short-press rows fire on keydown (unless long-press rows exist for the same gesture).</summary>
+		public bool optimizeNonLongPressKeyDown { get; set; } = true;
+
+		public static uint clampLongPressDurationMs(uint ms) =>
+			Math.Clamp(ms, MIN_LONG_PRESS_MS, MAX_LONG_PRESS_MS);
 	}
 
 	/// <summary>One hotkey’s target binding and action.</summary>
@@ -61,11 +82,16 @@ public sealed class BindingManager {
 		}
 	}
 
-	volatile FrozenDictionary<HotkeyGesture, Slot> _byHotkey = FrozenDictionary<HotkeyGesture, Slot>.Empty;
+	sealed class GestureBuckets {
+		public readonly List<Slot> shortPress = [];
+		public readonly List<Slot> longPress = [];
+	}
 
-	/// <summary>Rebuilds the snapshot from config. Duplicate keys: last write wins.</summary>
+	volatile FrozenDictionary<HotkeyGesture, HotkeyDispatchTargets> _byGesture = FrozenDictionary<HotkeyGesture, HotkeyDispatchTargets>.Empty;
+
+	/// <summary>Rebuilds the snapshot from config. Same gesture may appear in multiple rows and in both short and long buckets.</summary>
 	internal void rebuildFromConfig(IEnumerable<BindingAbstract> bindings) {
-		var map = new Dictionary<HotkeyGesture, Slot>();
+		var merge = new Dictionary<HotkeyGesture, GestureBuckets>();
 		foreach (BindingAbstract b in bindings) {
 			BindingAbstract row = b switch {
 				BindingFader f => new BindingFader(f),
@@ -75,18 +101,36 @@ public sealed class BindingManager {
 			foreach (HotkeyAction ha in row.hotkeys) {
 				if (ha.hotkey.isNone)
 					continue;
-				HotkeyGesture k = ha.hotkey;
-				if (map.ContainsKey(k))
-					AppTrace.BindingManager.TraceEvent(TraceEventType.Warning, 0, $"Duplicate hotkey {HotkeyUtil.format(k)}, overwriting");
-				map[k] = new Slot(row, ha.clone());
+				HotkeyGesture k = HotkeyUtil.normalize(ha.hotkey);
+				if (k.isNone)
+					continue;
+				if (!merge.TryGetValue(k, out GestureBuckets? buckets)) {
+					buckets = new GestureBuckets();
+					merge[k] = buckets;
+				}
+				var slot = new Slot(row, ha.clone());
+				if (ha.longPress)
+					buckets.longPress.Add(slot);
+				else
+					buckets.shortPress.Add(slot);
 			}
 		}
-		_byHotkey = map.ToFrozenDictionary();
+
+		var frozenMap = new Dictionary<HotkeyGesture, HotkeyDispatchTargets>();
+		foreach ((HotkeyGesture g, GestureBuckets b) in merge) {
+			HotkeyDispatchTargets t = new() {
+				shortPressSlots = b.shortPress.Count > 0 ? b.shortPress.ToArray() : Array.Empty<Slot>(),
+				longPressSlots = b.longPress.Count > 0 ? b.longPress.ToArray() : Array.Empty<Slot>(),
+			};
+			if (t.hasAny)
+				frozenMap[g] = t;
+		}
+
+		_byGesture = frozenMap.ToFrozenDictionary();
 	}
 
-	internal bool hasSlotForHotkey(HotkeyGesture hotkey) =>
-		_byHotkey.ContainsKey(hotkey);
-
-	internal bool tryGetSlot(HotkeyGesture hotkey, out Slot slot) =>
-		_byHotkey.TryGetValue(hotkey, out slot);
+	internal bool tryGetDispatchTargets(HotkeyGesture hotkey, out HotkeyDispatchTargets targets) {
+		hotkey = HotkeyUtil.normalize(hotkey);
+		return _byGesture.TryGetValue(hotkey, out targets);
+	}
 }

@@ -9,7 +9,8 @@
     MinWidth="860"
     MinHeight="700"
     ThemeMode="System"
-    PreviewKeyDown="configWindow_PreviewKeyDown">
+    PreviewKeyDown="configWindow_PreviewKeyDown"
+    PreviewKeyUp="configWindow_PreviewKeyUp">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <!-- Inline Style without BasedOn drops Fluent chrome (sharp Aero look). -->
@@ -198,6 +199,28 @@
                                 <TextBox x:Name="OsdDurationTextBox" Grid.Row="1" Grid.Column="1" />
                             </Grid>
                         </GroupBox>
+
+                        <GroupBox Header="Hotkeys" Margin="0,0,0,8" Padding="0">
+                            <Grid Margin="8,4,8,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Margin="0,0,8,4" VerticalAlignment="Center" TextWrapping="Wrap" Text="Long-press duration (ms)" />
+                                <TextBox x:Name="HotkeyLongPressMsTextBox" Grid.Column="1" Margin="0,0,0,4" />
+                                <CheckBox
+                                    x:Name="HotkeyOptimizeNonLongPressCheckBox"
+                                    Grid.Row="1"
+                                    Grid.ColumnSpan="2"
+                                    Margin="0,4,0,0">
+                                    <TextBlock TextWrapping="Wrap" Text="Optimize non–long-press hotkeys (fire on key down instead of waiting for key up or duration)" />
+                                </CheckBox>
+                            </Grid>
+                        </GroupBox>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
@@ -368,19 +391,22 @@
                                                                                         <ColumnDefinition Width="Auto" />
                                                                                         <ColumnDefinition Width="*" MinWidth="120" />
                                                                                         <ColumnDefinition Width="Auto" />
+                                                                                        <ColumnDefinition Width="Auto" />
+                                                                                        <ColumnDefinition Width="*" MinWidth="160" />
                                                                                         <ColumnDefinition Width="*" MinWidth="120" />
                                                                                         <ColumnDefinition Width="Auto" />
                                                                                     </Grid.ColumnDefinitions>
                                                                             <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Text="Hotkey" />
                                                                             <Button
                                                                                 Grid.Column="1"
-                                                                                Margin="0,0,16,0"
+                                                                                Margin="0,0,4,0"
                                                                                 Padding="12,6"
                                                                                 HorizontalAlignment="Stretch"
                                                                                 HorizontalContentAlignment="Center"
                                                                                 Tag="{x:Static local:ConfigWindow.HotkeyAssignmentCaptureTag}"
                                                                                 Style="{StaticResource OscHotkeyAssignmentButtonStyle}"
                                                                                 PreviewKeyDown="hotkeyRow_PreviewKeyDown"
+                                                                                PreviewKeyUp="hotkeyRow_PreviewKeyUp"
                                                                                 GotKeyboardFocus="hotkeyControl_GotKeyboardFocus"
                                                                                 LostKeyboardFocus="hotkeyControl_LostKeyboardFocus">
                                                                                 <TextBlock Text="{Binding hotkeyText}" TextAlignment="Center">
@@ -395,16 +421,22 @@
                                                                                     </TextBlock.Style>
                                                                                 </TextBlock>
                                                                             </Button>
-                                                                            <TextBlock Grid.Column="2" Margin="24,0,24,0" VerticalAlignment="Center" Text="Action" />
+                                                                            <CheckBox
+                                                                                Grid.Column="2"
+                                                                                Margin="0,0,12,0"
+                                                                                VerticalAlignment="Center"
+                                                                                Content="Long press"
+                                                                                IsChecked="{Binding longPress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                            <TextBlock Grid.Column="3" Margin="0,0,8,0" VerticalAlignment="Center" Text="Action" />
                                                                             <ComboBox
-                                                                                Grid.Column="3"
+                                                                                Grid.Column="4"
                                                                                 Margin="0,0,8,0"
                                                                                 MinWidth="160"
                                                                                 HorizontalAlignment="Stretch"
                                                                                 DisplayMemberPath="displayName"
                                                                                 ItemsSource="{Binding choiceList}"
                                                                                 SelectedItem="{Binding selectedChoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                                                    <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                                                                                    <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
                                                                                         <TextBox MinWidth="100" Margin="0,0,8,0" Text="{Binding floatValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
                                                                                         <CheckBox VerticalAlignment="Center" Content="On" IsChecked="{Binding boolValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsBoolInput, Converter={StaticResource BoolToVisibility}}" />
                                                                                     </StackPanel>

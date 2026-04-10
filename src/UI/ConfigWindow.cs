@@ -26,6 +26,11 @@ public partial class ConfigWindow : Window {
 	public const string HotkeyAssignmentCaptureTag = "HotkeyAssignmentCapture";
 	public const string BindingCardRestoreTag = "BindingCardRestore";
 
+	HotkeyActionEditor? _hotkeyCaptureItem;
+	DateTime? _hotkeyCaptureDownUtc;
+	HotkeyGesture _hotkeyCaptureGesture;
+	bool _hotkeyCaptureAwaitingRelease;
+
 	readonly MixerController _mixer;
 	readonly TrayController _trayController;
 	readonly AppCoordinator _appCoordinator;
@@ -155,6 +160,9 @@ public partial class ConfigWindow : Window {
 		CacheTtlTextBox.Text = cfg.mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture);
 		OsdHeightTextBox.Text = cfg.osd.HeightPx.ToString(CultureInfo.InvariantCulture);
 		OsdDurationTextBox.Text = cfg.osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture);
+		BindingManager.Config tray = cfg.trayApp ?? new BindingManager.Config();
+		HotkeyLongPressMsTextBox.Text = tray.longPressDurationMs.ToString(CultureInfo.InvariantCulture);
+		HotkeyOptimizeNonLongPressCheckBox.IsChecked = tray.optimizeNonLongPressKeyDown;
 		ConfigPathTextBox.Text = _configStore.configPath;
 		ConfigFeedbackTextBlock.Text = _configStore.lastDiskFeedback;
 		DiskFeedbackTextBlock.Text = _configStore.lastDiskFeedback;
@@ -332,13 +340,54 @@ public partial class ConfigWindow : Window {
 			item.isHotkeyCaptureActive = true;
 			item.hotkey = HotkeyGesture.None;
 			StatusTextBlock.Text = "";
+			clearHotkeyCaptureTracking();
+			_hotkeyCaptureItem = item;
 		}
 	}
 
 	void hotkeyControl_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) {
-		if (sender is FrameworkElement { DataContext: HotkeyActionEditor item })
+		if (sender is FrameworkElement { DataContext: HotkeyActionEditor item }) {
 			item.isHotkeyCaptureActive = false;
+			if (ReferenceEquals(_hotkeyCaptureItem, item))
+				clearHotkeyCaptureTracking();
+		}
 		_appCoordinator.setConfiguredHotkeysEnabled(true);
+	}
+
+	void clearHotkeyCaptureTracking() {
+		_hotkeyCaptureItem = null;
+		_hotkeyCaptureDownUtc = null;
+		_hotkeyCaptureGesture = HotkeyGesture.None;
+		_hotkeyCaptureAwaitingRelease = false;
+	}
+
+	bool tryParseHotkeyLongPressMsForCapture(out uint ms) {
+		ms = BindingManager.Config.DEFAULT_LONG_PRESS_MS;
+		if (!uint.TryParse(HotkeyLongPressMsTextBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsed))
+			return false;
+		ms = BindingManager.Config.clampLongPressDurationMs(parsed);
+		return true;
+	}
+
+	void finalizeHotkeyCapture(HotkeyActionEditor item, FrameworkElement focusMoveAnchor) {
+		if (!_hotkeyCaptureDownUtc.HasValue)
+			return;
+		HotkeyGesture g = HotkeyUtil.normalize(_hotkeyCaptureGesture);
+		if (g.isNone)
+			return;
+		if (!HotkeyUtil.tryValidate(g, out string err)) {
+			StatusTextBlock.Foreground = Brushes.IndianRed;
+			StatusTextBlock.Text = err;
+			clearHotkeyCaptureTracking();
+			return;
+		}
+		item.hotkey = g;
+		uint thresholdMs = tryParseHotkeyLongPressMsForCapture(out uint lp) ? lp : BindingManager.Config.DEFAULT_LONG_PRESS_MS;
+		double heldMs = (DateTime.UtcNow - _hotkeyCaptureDownUtc.Value).TotalMilliseconds;
+		item.longPress = heldMs >= thresholdMs;
+		StatusTextBlock.Text = "";
+		clearHotkeyCaptureTracking();
+		focusMoveAnchor.Dispatcher.BeginInvoke(DispatcherPriority.Background, moveFocusAwayAfterAssign, focusMoveAnchor);
 	}
 
 	void configWindow_PreviewKeyDown(object sender, KeyEventArgs e) {
@@ -350,15 +399,47 @@ public partial class ConfigWindow : Window {
 			return;
 		if (focusedBtn.DataContext is not HotkeyActionEditor item)
 			return;
-		applyHotkey(e, focusedBtn, hotkey => item.hotkey = hotkey);
+		if (!item.isHotkeyCaptureActive)
+			return;
+		beginHotkeyCaptureKeyDown(e, item);
+	}
+
+	void configWindow_PreviewKeyUp(object sender, KeyEventArgs e) {
+		if (e.Key is not Key.Tab)
+			return;
+		if (Keyboard.FocusedElement is not System.Windows.Controls.Button focusedBtn)
+			return;
+		if (focusedBtn.Tag is not string tag || tag != HotkeyAssignmentCaptureTag)
+			return;
+		if (focusedBtn.DataContext is not HotkeyActionEditor item)
+			return;
+		if (!item.isHotkeyCaptureActive || !_hotkeyCaptureAwaitingRelease || !ReferenceEquals(_hotkeyCaptureItem, item))
+			return;
+		HotkeyGesture up = HotkeyUtil.fromKeyEventArgs(e);
+		if (HotkeyUtil.normalize(up).keyCode != HotkeyUtil.normalize(_hotkeyCaptureGesture).keyCode)
+			return;
+		e.Handled = true;
+		finalizeHotkeyCapture(item, focusedBtn);
 	}
 
 	void hotkeyRow_PreviewKeyDown(object sender, KeyEventArgs e) {
-		if (sender is FrameworkElement fe && fe.DataContext is HotkeyActionEditor item)
-			applyHotkey(e, fe, hotkey => item.hotkey = hotkey);
+		if (sender is FrameworkElement fe && fe.DataContext is HotkeyActionEditor item && item.isHotkeyCaptureActive)
+			beginHotkeyCaptureKeyDown(e, item);
 	}
 
-	void applyHotkey(KeyEventArgs e, FrameworkElement hotkeyCaptureElement, Action<HotkeyGesture> setter) {
+	void hotkeyRow_PreviewKeyUp(object sender, KeyEventArgs e) {
+		if (sender is not FrameworkElement fe || fe.DataContext is not HotkeyActionEditor item)
+			return;
+		if (!item.isHotkeyCaptureActive || !_hotkeyCaptureAwaitingRelease || !ReferenceEquals(_hotkeyCaptureItem, item))
+			return;
+		HotkeyGesture up = HotkeyUtil.fromKeyEventArgs(e);
+		if (HotkeyUtil.normalize(up).keyCode != HotkeyUtil.normalize(_hotkeyCaptureGesture).keyCode)
+			return;
+		e.Handled = true;
+		finalizeHotkeyCapture(item, fe);
+	}
+
+	void beginHotkeyCaptureKeyDown(KeyEventArgs e, HotkeyActionEditor item) {
 		HotkeyGesture hotkey = HotkeyUtil.fromKeyEventArgs(e);
 		if (hotkey.isNone) {
 			e.Handled = true;
@@ -372,10 +453,12 @@ public partial class ConfigWindow : Window {
 			return;
 		}
 
-		setter(hotkey);
+		_hotkeyCaptureGesture = HotkeyUtil.normalize(hotkey);
+		_hotkeyCaptureDownUtc = DateTime.UtcNow;
+		_hotkeyCaptureAwaitingRelease = true;
+		_hotkeyCaptureItem = item;
 		StatusTextBlock.Text = "";
 		e.Handled = true;
-		hotkeyCaptureElement.Dispatcher.BeginInvoke(DispatcherPriority.Background, moveFocusAwayAfterAssign, hotkeyCaptureElement);
 	}
 
 	static void moveFocusAwayAfterAssign(object? captureElement) {
@@ -407,6 +490,8 @@ public partial class ConfigWindow : Window {
 		if (!tryParseInt(OsdHeightTextBox.Text, OSDController.Config.MIN_HEIGHT_PX, OSDController.Config.MAX_HEIGHT_PX, "OSD height", out int osdHeight, out error))
 			return false;
 		if (!tryParseUInt(OsdDurationTextBox.Text, OSDController.Config.MIN_DISPLAY_DURATION_MS, OSDController.Config.MAX_DISPLAY_DURATION_MS, "OSD display duration", out uint osdDuration, out error))
+			return false;
+		if (!tryParseUInt(HotkeyLongPressMsTextBox.Text, BindingManager.Config.MIN_LONG_PRESS_MS, BindingManager.Config.MAX_LONG_PRESS_MS, "Long-press duration", out uint hotkeyLongPressMs, out error))
 			return false;
 
 		var built = new List<BindingAbstract>();
@@ -471,9 +556,6 @@ public partial class ConfigWindow : Window {
 			return false;
 		}
 
-		if (!tryValidateHotkeysGlobally(built, out error))
-			return false;
-
 		config = new AppConfig {
 			oscTransport = new OscTransport.Config {
 				endPoint = new IPEndPoint(ip, port),
@@ -486,7 +568,11 @@ public partial class ConfigWindow : Window {
 				HeightPx = osdHeight,
 				DisplayDurationMs = osdDuration,
 			},
-			trayApp = new BindingManager.Config { bindings = built },
+			trayApp = new BindingManager.Config {
+				bindings = built,
+				longPressDurationMs = BindingManager.Config.clampLongPressDurationMs(hotkeyLongPressMs),
+				optimizeNonLongPressKeyDown = HotkeyOptimizeNonLongPressCheckBox.IsChecked == true,
+			},
 		};
 		return true;
 	}
@@ -541,23 +627,4 @@ public partial class ConfigWindow : Window {
 
 	static bool isHotkeyRowBlank(HotkeyActionEditor hk) => hk.hotkey.isNone;
 
-	static bool tryValidateHotkeysGlobally(IReadOnlyList<BindingAbstract> bindings, out string? error) {
-		error = null;
-		var claimed = new Dictionary<HotkeyGesture, string>();
-		for (int bi = 0; bi < bindings.Count; bi++) {
-			BindingAbstract b = bindings[bi];
-			for (int hi = 0; hi < b.hotkeys.Count; hi++) {
-				HotkeyAction ha = b.hotkeys[hi];
-				if (ha.hotkey.isNone)
-					continue;
-				HotkeyGesture key = HotkeyUtil.normalize(ha.hotkey);
-				if (claimed.TryGetValue(key, out string? previous)) {
-					error = $"Hotkey {HotkeyUtil.format(key)} is used more than once (conflicts with {previous}).";
-					return false;
-				}
-				claimed[key] = $"binding {bi + 1}, hotkey {hi + 1}";
-			}
-		}
-		return true;
-	}
 }

@@ -193,6 +193,7 @@ public sealed class HotkeyActionEditor : ObservableObject {
 	string _floatValue = "0";
 	bool _boolValue;
 	bool _isDeleted;
+	bool _longPress;
 	HotkeyActionChoice? _selectedChoice;
 	BindingEditor? _owner;
 
@@ -271,13 +272,18 @@ public sealed class HotkeyActionEditor : ObservableObject {
 		}
 	}
 
+	public bool longPress {
+		get => _longPress;
+		set => setProperty(ref _longPress, value);
+	}
+
 	public bool isNotDeleted => !_isDeleted;
 
 	public string hotkeyText {
 		get {
 			if (!hotkey.isNone)
 				return HotkeyUtil.format(hotkey);
-			return _isHotkeyCaptureActive ? "Press any key…" : "Set hotkey";
+			return _isHotkeyCaptureActive ? "Press key, then release…" : "Set hotkey";
 		}
 	}
 
@@ -332,6 +338,7 @@ public sealed class HotkeyActionEditor : ObservableObject {
 		var ed = new HotkeyActionEditor {
 			selectedActionType = a.GetType(),
 			hotkey = a.hotkey,
+			longPress = a.longPress,
 		};
 		switch (a) {
 			case HotkeyActionFaderSet fs:
@@ -371,6 +378,7 @@ public sealed class HotkeyActionEditor : ObservableObject {
 				}
 				fs.value = FaderFloatUtil.RoundToBindingDecimals(v);
 				fs.hotkey = HotkeyUtil.normalize(hotkey);
+				fs.longPress = longPress;
 				action = fs;
 				return true;
 			case HotkeyActionFaderDelta fd:
@@ -380,15 +388,18 @@ public sealed class HotkeyActionEditor : ObservableObject {
 				}
 				fd.delta = FaderFloatUtil.RoundToBindingDecimals(d);
 				fd.hotkey = HotkeyUtil.normalize(hotkey);
+				fd.longPress = longPress;
 				action = fd;
 				return true;
 			case HotkeyActionToggleSet ts:
 				ts.on = boolValue;
 				ts.hotkey = HotkeyUtil.normalize(hotkey);
+				ts.longPress = longPress;
 				action = ts;
 				return true;
 			case HotkeyActionToggleFlip tf:
 				tf.hotkey = HotkeyUtil.normalize(hotkey);
+				tf.longPress = longPress;
 				action = tf;
 				return true;
 			default:

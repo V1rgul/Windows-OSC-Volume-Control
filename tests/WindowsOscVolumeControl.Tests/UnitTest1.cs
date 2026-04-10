@@ -62,4 +62,70 @@ public class UnitTest1 {
 		var flip = Assert.IsType<HotkeyActionToggleFlip>(toggle.hotkeys[0]);
 		Assert.Equal(HotkeyGesture.VK_VOLUME_MUTE, flip.hotkey.keyCode);
 	}
+
+	[Fact]
+	public void BindingManager_MultipleRowsSameGesture_CollectsAllShortSlots() {
+		Assert.True(HotkeyUtil.tryParse("Ctrl+A", out HotkeyGesture hk));
+		var f1 = new BindingFader {
+			name = "F1",
+			address = "/1",
+			minimum = 0f,
+			maximum = 1f,
+			hotkeys = [new HotkeyActionFaderDelta { hotkey = hk, delta = -0.01f }],
+		};
+		var f2 = new BindingFader {
+			name = "F2",
+			address = "/2",
+			minimum = 0f,
+			maximum = 1f,
+			hotkeys = [new HotkeyActionFaderDelta { hotkey = hk, delta = 0.01f }],
+		};
+		var bm = new BindingManager();
+		bm.rebuildFromConfig(new BindingAbstract[] { f1, f2 });
+		Assert.True(bm.tryGetDispatchTargets(hk, out HotkeyDispatchTargets t));
+		Assert.Equal(2, t.shortPressSlots.Count);
+		Assert.Empty(t.longPressSlots);
+	}
+
+	[Fact]
+	public void BindingManager_ShortAndLongSameGesture_SplitBuckets() {
+		Assert.True(HotkeyUtil.tryParse("Ctrl+B", out HotkeyGesture hk));
+		var f = new BindingFader {
+			name = "F",
+			address = "/x",
+			minimum = 0f,
+			maximum = 1f,
+			hotkeys = [
+				new HotkeyActionFaderDelta { hotkey = hk, delta = -0.01f, longPress = false },
+				new HotkeyActionFaderDelta { hotkey = hk, delta = 0.05f, longPress = true },
+			],
+		};
+		var bm = new BindingManager();
+		bm.rebuildFromConfig(new BindingAbstract[] { f });
+		Assert.True(bm.tryGetDispatchTargets(hk, out HotkeyDispatchTargets t));
+		Assert.Single(t.shortPressSlots);
+		Assert.Single(t.longPressSlots);
+	}
+
+	[Fact]
+	public void LoadTrayConfig_ParsesHotkeyGlobalsAndLongPress() {
+		const string text = """
+			ip=127.0.0.1
+			port=10023
+			hotkeyLongPressMs=600
+			hotkeyOptimizeNonLongPressKeyDown=false
+			osc.0.name=T
+			osc.0.address=/t
+			osc.0.type=toggle
+			osc.0.hotkey.0.key=VolumeMute
+			osc.0.hotkey.0.action=toggle
+			osc.0.hotkey.0.longPress=true
+			""";
+		BindingManager.Config tray = ConfigStore.loadTrayConfigFromKeyValueTextForTests(text, out _);
+		Assert.Equal(600u, tray.longPressDurationMs);
+		Assert.False(tray.optimizeNonLongPressKeyDown);
+		var toggle = Assert.IsType<BindingToggle>(Assert.Single(tray.bindings));
+		var flip = Assert.IsType<HotkeyActionToggleFlip>(Assert.Single(toggle.hotkeys));
+		Assert.True(flip.longPress);
+	}
 }

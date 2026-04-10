@@ -79,7 +79,9 @@ public sealed class ConfigStore {
 		var osc = cfg.oscTransport;
 		var mixer = cfg.mixer;
 		OSDController.Config osd = OSDController.Config.Clamped(cfg.osd);
-		List<BindingAbstract> bindings = cfg.trayApp?.bindings ?? [];
+		BindingManager.Config tray = cfg.trayApp ?? new BindingManager.Config();
+		List<BindingAbstract> bindings = tray.bindings;
+		uint lpMs = BindingManager.Config.clampLongPressDurationMs(tray.longPressDurationMs);
 		var lines = new List<string> {
 			"ip=" + osc.endPoint.Address.ToString(),
 			"port=" + osc.endPoint.Port.ToString(CultureInfo.InvariantCulture),
@@ -87,6 +89,8 @@ public sealed class ConfigStore {
 			"valueCacheTtlMs=" + mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture),
 			"osdHeightPx=" + osd.HeightPx.ToString(CultureInfo.InvariantCulture),
 			"osdDisplayDurationMs=" + osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture),
+			"hotkeyLongPressMs=" + lpMs.ToString(CultureInfo.InvariantCulture),
+			"hotkeyOptimizeNonLongPressKeyDown=" + (tray.optimizeNonLongPressKeyDown ? "true" : "false"),
 		};
 		for (int i = 0; i < bindings.Count; i++) {
 			BindingAbstract b = bindings[i];
@@ -105,6 +109,8 @@ public sealed class ConfigStore {
 				HotkeyAction ha = b.hotkeys[h];
 				string hp = h.ToString(CultureInfo.InvariantCulture);
 				lines.Add("osc." + p + ".hotkey." + hp + ".key=" + HotkeyUtil.format(ha.hotkey));
+				if (ha.longPress)
+					lines.Add("osc." + p + ".hotkey." + hp + ".longPress=true");
 				switch (ha) {
 					case HotkeyActionFaderSet fs:
 						lines.Add("osc." + p + ".hotkey." + hp + ".action=set");
@@ -161,7 +167,20 @@ public sealed class ConfigStore {
 			list = cloneDefaultBindings();
 			repairNotes.Add("No valid OSC bindings in file; using defaults.");
 		}
-		return new BindingManager.Config { bindings = list };
+		var tray = new BindingManager.Config { bindings = list };
+		if (map.TryGetValue("hotkeyLongPressMs", out string? lpStr)) {
+			if (uint.TryParse(lpStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint lp))
+				tray.longPressDurationMs = BindingManager.Config.clampLongPressDurationMs(lp);
+			else
+				repairNotes.Add("hotkeyLongPressMs invalid; using default.");
+		}
+		if (map.TryGetValue("hotkeyOptimizeNonLongPressKeyDown", out string? optStr)) {
+			if (bool.TryParse(optStr.Trim(), out bool opt))
+				tray.optimizeNonLongPressKeyDown = opt;
+			else
+				repairNotes.Add("hotkeyOptimizeNonLongPressKeyDown invalid; using default.");
+		}
+		return tray;
 	}
 
 	static OscTransport.Config buildOscConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
@@ -250,6 +269,7 @@ public sealed class ConfigStore {
 		public string keyText = "";
 		public string action = "";
 		public string valueText = "";
+		public bool longPress;
 	}
 
 	static bool tryParseOscBindingKey(string key, out int bindingIndex, out string remainder) {
@@ -297,6 +317,10 @@ public sealed class ConfigStore {
 					case "value":
 						hk.valueText = value.Trim();
 						break;
+					case "longpress":
+						if (tryParseBoolLoose(value, out bool lp))
+							hk.longPress = lp;
+						break;
 				}
 			} else {
 				switch (rem.ToLowerInvariant()) {
@@ -342,6 +366,7 @@ public sealed class ConfigStore {
 				if (action == null)
 					continue;
 				action.hotkey = gesture;
+				action.longPress = hk.longPress;
 				hotkeys.Add(action);
 			}
 
@@ -384,6 +409,11 @@ public sealed class ConfigStore {
 				return new HotkeyActionToggleSet { on = on };
 		}
 		return null;
+	}
+
+	internal static BindingManager.Config loadTrayConfigFromKeyValueTextForTests(string raw, out List<string> repairNotes) {
+		repairNotes = new List<string>();
+		return buildBindingManagerConfigFromMap(parseKeyValueLines(raw), repairNotes);
 	}
 
 	static bool tryParseBoolLoose(string text, out bool on) {
