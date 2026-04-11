@@ -101,6 +101,12 @@ public partial class ConfigWindow : Window {
 			contentChrome.BorderThickness = new Thickness(0);
 			contentChrome.BorderBrush = Brushes.Transparent;
 		}
+		// Fluent template sets ContentPresenter.Margin = Padding on all sides; our body already ends with spacing
+		// (e.g. last hotkey row Margin bottom), so that stacks with the template and reads as double bottom inset when expanded.
+		if (exp.Template?.FindName("ContentPresenter", exp) is ContentPresenter contentPresenter) {
+			Thickness p = exp.Padding;
+			contentPresenter.Margin = new Thickness(p.Left, p.Top, p.Right, 0d);
+		}
 	}
 
 	void applyBindingCardChevronDim(Expander exp) {
