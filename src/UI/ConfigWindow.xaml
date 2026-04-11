@@ -145,7 +145,7 @@
 			</DockPanel>
 		</Border>
 
-		<Grid Margin="8">
+		<Grid Margin="8,0,8,0">
 			<Grid.ColumnDefinitions>
 				<ColumnDefinition Width="280" />
 				<!-- Bindings column: hotkey row needs ~800+ dip after 280 dip settings + delete strip + card padding. -->
@@ -580,7 +580,16 @@
 																Text="{Binding maximum, UpdateSourceTrigger=PropertyChanged}"
 																Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
 														</Grid>
-														<TextBlock Margin="0,4,0,8" FontWeight="SemiBold" Text="Hotkeys" />
+														<DockPanel Margin="0,4,0,8" LastChildFill="True">
+															<Button
+																DockPanel.Dock="Right"
+																Margin="8,0,0,0"
+																Padding="12,6"
+																VerticalAlignment="Center"
+																Click="buttonAddHotkeyToBinding_Click"
+																Content="Add hotkey" />
+															<TextBlock FontWeight="SemiBold" VerticalAlignment="Center" Text="Hotkeys" />
+														</DockPanel>
 														<ItemsControl ItemsSource="{Binding hotkeys}">
 															<ItemsControl.ItemTemplate>
 																<DataTemplate DataType="{x:Type local:HotkeyActionEditor}">
@@ -707,7 +716,6 @@
 																</DataTemplate>
 															</ItemsControl.ItemTemplate>
 														</ItemsControl>
-														<Button HorizontalAlignment="Center" Margin="0,4,0,0" Padding="12,6" Click="buttonAddHotkeyToBinding_Click">Add hotkey</Button>
 													</StackPanel>
 														<Border Background="#66000000" Visibility="{Binding isDeleted, Converter={StaticResource BoolToVisibility}}" IsHitTestVisible="False" />
 													</Grid>

@@ -63,6 +63,8 @@ public class SmoothScrollViewer : ScrollViewer {
 	public SmoothScrollViewer() {
 		// Default true uses logical scroll units (coarse with StackPanel); fractional lerp then no-ops → no visible easing.
 		SetCurrentValue(CanContentScrollProperty, false);
+		// Fluent theme can add non-zero ScrollViewer padding; keep content flush to the viewport edges.
+		SetCurrentValue(PaddingProperty, new Thickness(0));
 		Loaded += onLoaded;
 		Unloaded += onUnloaded;
 		ScrollChanged += onScrollChanged;
