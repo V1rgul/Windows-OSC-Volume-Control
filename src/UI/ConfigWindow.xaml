@@ -4,9 +4,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:WindowsOscVolumeControl"
     Title="Windows OSC Volume Control - Settings"
-    Width="980"
+    Width="1180"
     Height="820"
-    MinWidth="860"
+    MinWidth="1180"
     MinHeight="700"
     ThemeMode="System"
     PreviewKeyDown="configWindow_PreviewKeyDown"
@@ -148,7 +148,8 @@
         <Grid Margin="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="280" />
-                <ColumnDefinition Width="*" />
+                <!-- Bindings column: hotkey row needs ~800+ dip after 280 dip settings + delete strip + card padding. -->
+                <ColumnDefinition Width="*" MinWidth="820" />
             </Grid.ColumnDefinitions>
             <Border Grid.Column="0" Padding="0">
                 <local:SmoothScrollViewer VerticalScrollBarVisibility="Auto">
@@ -603,11 +604,11 @@
                                                                                 <Grid VerticalAlignment="Center">
                                                                                     <Grid.ColumnDefinitions>
                                                                                         <ColumnDefinition Width="Auto" />
-                                                                                        <ColumnDefinition Width="*" MinWidth="120" />
+                                                                                        <!-- Equal * share with action column; keep col min modest so action combo gets room. -->
+                                                                                        <ColumnDefinition Width="*" MinWidth="80" />
                                                                                         <ColumnDefinition Width="Auto" />
                                                                                         <ColumnDefinition Width="Auto" />
-                                                                                        <ColumnDefinition Width="*" MinWidth="160" />
-                                                                                        <ColumnDefinition Width="Auto" />
+                                                                                        <ColumnDefinition Width="*" MinWidth="200" />
                                                                                     </Grid.ColumnDefinitions>
                                                                             <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Text="Hotkey" />
                                                                             <Button
@@ -636,33 +637,56 @@
                                                                             </Button>
                                                                             <CheckBox
                                                                                 Grid.Column="2"
-                                                                                Margin="0,0,12,0"
+                                                                                MinWidth="0"
+                                                                                HorizontalAlignment="Left"
+                                                                                HorizontalContentAlignment="Left"
                                                                                 VerticalAlignment="Center"
-                                                                                Content="Long press"
-                                                                                IsChecked="{Binding longPress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                                            <TextBlock Grid.Column="3" Margin="0,0,8,0" VerticalAlignment="Center" Text="Action" />
-                                                                            <ComboBox
-                                                                                Grid.Column="4"
-                                                                                Margin="0,0,8,0"
-                                                                                MinWidth="160"
-                                                                                HorizontalAlignment="Stretch"
-                                                                                DisplayMemberPath="displayName"
-                                                                                ItemsSource="{Binding choiceList}"
-                                                                                SelectedItem="{Binding selectedChoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                                                    <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
+                                                                                VerticalContentAlignment="Center"
+                                                                                IsChecked="{Binding longPress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                                                <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="Long press" />
+                                                                            </CheckBox>
+                                                                            <TextBlock Grid.Column="3" Margin="32,0,8,0" VerticalAlignment="Center" Text="Action" />
+                                                                            <Grid Grid.Column="4" MinWidth="200">
+                                                                                <!-- Extras dock Right so the combo receives remaining width (Fluent *|Auto measured oddly). -->
+                                                                                <DockPanel VerticalAlignment="Center" LastChildFill="True">
+                                                                                    <StackPanel
+                                                                                        DockPanel.Dock="Right"
+                                                                                        Margin="4,0,0,0"
+                                                                                        HorizontalAlignment="Left"
+                                                                                        VerticalAlignment="Center"
+                                                                                        Orientation="Horizontal">
                                                                                         <TextBox
                                                                                             MinWidth="100"
                                                                                             Margin="0,0,8,0"
+                                                                                            HorizontalAlignment="Left"
                                                                                             Style="{StaticResource ConfigNumericTextBoxStyle}"
                                                                                             Text="{Binding floatValue, UpdateSourceTrigger=PropertyChanged}"
                                                                                             Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
-                                                                                        <CheckBox VerticalAlignment="Center" Content="On" IsChecked="{Binding boolValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsBoolInput, Converter={StaticResource BoolToVisibility}}" />
+                                                                                        <CheckBox
+                                                                                            MinWidth="0"
+                                                                                            HorizontalAlignment="Left"
+                                                                                            HorizontalContentAlignment="Left"
+                                                                                            VerticalAlignment="Center"
+                                                                                            VerticalContentAlignment="Center"
+                                                                                            IsChecked="{Binding boolValue, UpdateSourceTrigger=PropertyChanged}"
+                                                                                            Visibility="{Binding showsBoolInput, Converter={StaticResource BoolToVisibility}}">
+                                                                                            <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="On" />
+                                                                                        </CheckBox>
                                                                                     </StackPanel>
+                                                                                    <ComboBox
+                                                                                        Margin="0,0,4,0"
+                                                                                        MinWidth="120"
+                                                                                        HorizontalAlignment="Stretch"
+                                                                                        DisplayMemberPath="displayName"
+                                                                                        ItemsSource="{Binding choiceList}"
+                                                                                        SelectedItem="{Binding selectedChoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                                </DockPanel>
+                                                                            </Grid>
                                                                                 </Grid>
                                                                             </Border>
                                                                             <StackPanel
                                                                                 Grid.Column="1"
-                                                                                Margin="12,0,0,0"
+                                                                                Margin="32,0,0,0"
                                                                                 VerticalAlignment="Center"
                                                                                 Orientation="Horizontal">
                                                                                 <Button
@@ -672,6 +696,7 @@
                                                                                     Content="Restore"
                                                                                     Style="{StaticResource OscRestoreButtonStyle}" />
                                                                                 <Button
+                                                                                    Margin="0"
                                                                                     Padding="10,6"
                                                                                     Click="buttonHotkeyDelete_Click"
                                                                                     Content="Delete"
