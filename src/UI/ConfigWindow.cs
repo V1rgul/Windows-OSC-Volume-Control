@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Net;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -242,28 +243,107 @@ public partial class ConfigWindow : Window {
 
 	void buttonRegisterAutostart_Click(object sender, RoutedEventArgs e) {
 		if (WindowsAutostart.TryRegister(out string? error)) {
-			refreshAutostartFeedback("Autostart registered.");
+			refreshAutostartFeedback("Autostart registered.", false);
 			return;
 		}
-		refreshAutostartFeedback(error ?? "Could not register autostart.");
+		refreshAutostartFeedback(error ?? "Could not register autostart.", true);
 	}
 
 	void buttonDeregisterAutostart_Click(object sender, RoutedEventArgs e) {
 		if (WindowsAutostart.TryDeregister(out string? error)) {
-			refreshAutostartFeedback("Autostart removed.");
+			refreshAutostartFeedback("Autostart removed.", false);
 			return;
 		}
-		refreshAutostartFeedback(error ?? "Could not deregister autostart.");
+		refreshAutostartFeedback(error ?? "Could not deregister autostart.", true);
 	}
 
-	void refreshAutostartFeedback(string? overrideText = null) {
-		if (!string.IsNullOrWhiteSpace(overrideText)) {
-			AutostartFeedbackTextBlock.Text = overrideText;
+	void buttonDeregisterAutostartSplitMenu_Click(object sender, RoutedEventArgs e) {
+		if (sender is not System.Windows.Controls.Button b || b.ContextMenu == null)
+			return;
+		b.ContextMenu.PlacementTarget = b;
+		b.ContextMenu.Placement = PlacementMode.Bottom;
+		b.ContextMenu.IsOpen = true;
+		e.Handled = true;
+	}
+
+	void menuItemDeregisterAllAutostart_Click(object sender, RoutedEventArgs e) {
+		if (!WindowsAutostart.tryDeregisterAllCopiesFromRun(out int removedCount, out string? error)) {
+			refreshAutostartFeedback(error ?? "Could not remove autostart entries.", true);
 			return;
 		}
-		AutostartFeedbackTextBlock.Text = WindowsAutostart.IsRegistered()
-			? "Autostart is currently registered."
-			: "Autostart is currently not registered.";
+		refreshAutostartFeedback();
+		if (removedCount == 0) {
+			refreshAutostartFeedback("No matching autostart entries were removed.", false);
+			return;
+		}
+		string tail = AutostartFeedbackTextBlock.Text;
+		AutostartFeedbackTextBlock.Text = "Removed " + removedCount + " autostart entr" + (removedCount == 1 ? "y. " : "ies. ")
+			+ tail;
+		AutostartFeedbackTextBlock.Foreground = Brushes.DarkGreen;
+	}
+
+	static string truncateForAutostartMessage(string text, int maxLen) {
+		if (string.IsNullOrEmpty(text) || text.Length <= maxLen)
+			return text ?? "";
+		int half = (maxLen - 1) / 2;
+		return text.Substring(0, half) + "\u2026" + text.Substring(text.Length - half);
+	}
+
+	void refreshAutostartFeedback(string? overrideText = null, bool? overrideIsError = null) {
+		if (!string.IsNullOrWhiteSpace(overrideText)) {
+			AutostartFeedbackTextBlock.Text = overrideText;
+			if (overrideIsError == true)
+				AutostartFeedbackTextBlock.Foreground = Brushes.IndianRed;
+			else if (overrideIsError == false)
+				AutostartFeedbackTextBlock.Foreground = Brushes.DarkGreen;
+			else
+				AutostartFeedbackTextBlock.ClearValue(TextBlock.ForegroundProperty);
+			return;
+		}
+
+		List<(string valueName, string? parsedExePath, string rawCommand)> entries = WindowsAutostart.listRunEntriesForThisAppExe();
+		string? current = Environment.ProcessPath;
+
+		if (entries.Count > 1) {
+			var sb = new StringBuilder();
+			sb.Append("Multiple autostart entries (");
+			sb.Append(entries.Count);
+			sb.Append(") point to this application. Use Deregister All to remove them.");
+			int n = Math.Min(3, entries.Count);
+			for (int i = 0; i < n; i++) {
+				(string valueName, string? parsedExePath, string rawCommand) = entries[i];
+				string path = parsedExePath ?? truncateForAutostartMessage(rawCommand, 80);
+				sb.AppendLine();
+				sb.Append("\u2022 ");
+				sb.Append(valueName);
+				sb.Append(": ");
+				sb.Append(truncateForAutostartMessage(path, 100));
+			}
+			if (entries.Count > n) {
+				sb.AppendLine();
+				sb.Append("\u2026");
+			}
+			AutostartFeedbackTextBlock.Text = sb.ToString();
+			AutostartFeedbackTextBlock.Foreground = Brushes.IndianRed;
+			return;
+		}
+
+		if (entries.Count == 1) {
+			(_, string? parsedExePath, string rawCommand) = entries[0];
+			if (WindowsAutostart.pathsEqualForAutostart(parsedExePath, current)) {
+				AutostartFeedbackTextBlock.Text = "Autostart is registered for this executable.";
+				AutostartFeedbackTextBlock.ClearValue(TextBlock.ForegroundProperty);
+				return;
+			}
+			string showPath = parsedExePath ?? truncateForAutostartMessage(rawCommand, 200);
+			AutostartFeedbackTextBlock.Text = "Autostart is registered but points to a different location:" + Environment.NewLine
+				+ truncateForAutostartMessage(showPath, 200);
+			AutostartFeedbackTextBlock.Foreground = Brushes.DarkOrange;
+			return;
+		}
+
+		AutostartFeedbackTextBlock.ClearValue(TextBlock.ForegroundProperty);
+		AutostartFeedbackTextBlock.Text = "Autostart is currently not registered.";
 	}
 
 	void buttonAddBinding_Click(object sender, RoutedEventArgs e) {
