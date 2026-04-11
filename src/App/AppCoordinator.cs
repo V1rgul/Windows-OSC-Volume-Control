@@ -194,10 +194,23 @@ public sealed class AppCoordinator : IDisposable {
 			_configWindow.Closed += (_, _) => {
 				setConfiguredHotkeysEnabled(true);
 				_configWindow = null;
+				scheduleGcTrimAfterConfigClosed();
 			};
 			_configWindow.Show();
 			_configWindow.Activate();
 		});
+	}
+
+	void scheduleGcTrimAfterConfigClosed() {
+		if (_disposed)
+			return;
+		_ = _dispatcher.BeginInvoke(() => {
+			if (_disposed)
+				return;
+			GC.Collect(GC.MaxGeneration, GCCollectionMode.Default, blocking: true, compacting: true);
+			GC.WaitForPendingFinalizers();
+			GC.Collect(GC.MaxGeneration, GCCollectionMode.Default, blocking: true, compacting: true);
+		}, DispatcherPriority.ApplicationIdle);
 	}
 
 	void ui(Action action) {
