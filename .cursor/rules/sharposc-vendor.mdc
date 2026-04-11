@@ -1,9 +1,9 @@
 ---
 description: SharpOSC is vendored; avoid edits unless integration requires it
-globs: src/SharpOSC/**/*.cs
+globs: src/Osc/SharpOSC/**/*.cs
 alwaysApply: false
 ---
 
-# SharpOSC (`src/SharpOSC`)
+# SharpOSC (`src/Osc/SharpOSC`)
 
 Third-party OSC library. **Do not** reformat, rename, or restyle for consistency with the rest of the app. Change only when fixing a **verified** interoperability or correctness issue with this app’s OSC usage.

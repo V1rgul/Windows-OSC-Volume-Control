@@ -27,7 +27,7 @@ Windows tray application that captures configurable global hotkeys and maps them
 
 - Platform: Windows (WPF + Fluent theme + low-level keyboard hook).
 - Mixer compatibility: implemented against OSC and tested on Behringer X32; other OSC mixers may work if value semantics match.
-- OSC library: `src/SharpOSC` vendor code is based on [ValdemarOrn/SharpOSC](https://github.com/ValdemarOrn/SharpOSC).
+- OSC library: `src/Osc/SharpOSC` vendor code is based on [ValdemarOrn/SharpOSC](https://github.com/ValdemarOrn/SharpOSC).
 
 ## Running a Release build
 

@@ -21,7 +21,7 @@ Keep required shapes: **`Main`**, **`override`** members matching the base, **`D
 
 ## Vendor code
 
-- **Do not edit** `src/SharpOSC/**` unless required for a concrete integration bug (no style or cleanup passes there).
+- **Do not edit** `src/Osc/SharpOSC/**` unless required for a concrete integration bug (no style or cleanup passes there).
 
 ## Refactors
 

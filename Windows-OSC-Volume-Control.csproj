@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ApplicationDefinition Include="src\App.xaml">
+    <ApplicationDefinition Include="src\App\App.xaml">
       <Generator>MSBuild:Compile</Generator>
     </ApplicationDefinition>
     <Page Include="src\UI\*.xaml">
@@ -43,7 +43,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="src\SharpOSC\Properties\" />
+    <Folder Include="src\Osc\SharpOSC\Properties\" />
   </ItemGroup>
 
   <!-- Release: framework-dependent publish → small zip; target PC needs .NET 10 Desktop runtime. -->
