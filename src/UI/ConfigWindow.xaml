@@ -126,6 +126,10 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <!-- DefaultTextBoxBaseStyle omits Fluent's focus clear (X) button so right-aligned digits do not shift. -->
+        <Style x:Key="ConfigNumericTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource DefaultTextBoxBaseStyle}">
+            <Setter Property="TextAlignment" Value="Right" />
+        </Style>
     </Window.Resources>
     <DockPanel>
         <Border DockPanel.Dock="Bottom" Padding="8" BorderThickness="1,1,0,0" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}">
@@ -315,12 +319,28 @@
                                 <TextBlock Margin="0,0,4,4" VerticalAlignment="Center" Text="OSC IP" />
                                 <TextBox x:Name="IpTextBox" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,4" />
                                 <TextBlock Grid.Row="1" Margin="0,0,4,4" VerticalAlignment="Center" Text="OSC port" />
-                                <TextBox x:Name="PortTextBox" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,4" />
+                                <TextBox
+                                    x:Name="PortTextBox"
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Grid.ColumnSpan="2"
+                                    Margin="0,0,0,4"
+                                    Style="{StaticResource ConfigNumericTextBoxStyle}" />
                                 <TextBlock Grid.Row="2" Margin="0,0,4,4" VerticalAlignment="Center" Text="Query timeout" />
-                                <TextBox x:Name="TimeoutTextBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,4" />
+                                <TextBox
+                                    x:Name="TimeoutTextBox"
+                                    Grid.Row="2"
+                                    Grid.Column="1"
+                                    Margin="0,0,0,4"
+                                    Style="{StaticResource ConfigNumericTextBoxStyle}" />
                                 <TextBlock Grid.Row="2" Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
                                 <TextBlock Grid.Row="3" Margin="0,0,4,4" VerticalAlignment="Center" Text="Value cache TTL" />
-                                <TextBox x:Name="CacheTtlTextBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,4" />
+                                <TextBox
+                                    x:Name="CacheTtlTextBox"
+                                    Grid.Row="3"
+                                    Grid.Column="1"
+                                    Margin="0,0,0,4"
+                                    Style="{StaticResource ConfigNumericTextBoxStyle}" />
                                 <TextBlock Grid.Row="3" Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
                                 <StackPanel Grid.Row="4" Grid.ColumnSpan="3">
                                     <TextBlock x:Name="NetworkFeedbackTextBlock" TextWrapping="Wrap" />
@@ -342,10 +362,19 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <TextBlock Margin="0,0,4,4" VerticalAlignment="Center" Text="Height" />
-                                <TextBox x:Name="OsdHeightTextBox" Grid.Column="1" Margin="0,0,0,4" />
+                                <TextBox
+                                    x:Name="OsdHeightTextBox"
+                                    Grid.Column="1"
+                                    Margin="0,0,0,4"
+                                    Style="{StaticResource ConfigNumericTextBoxStyle}" />
                                 <TextBlock Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="DIP" />
                                 <TextBlock Grid.Row="1" Margin="0,0,4,4" VerticalAlignment="Center" Text="Display duration" />
-                                <TextBox x:Name="OsdDurationTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,4" />
+                                <TextBox
+                                    x:Name="OsdDurationTextBox"
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Margin="0,0,0,4"
+                                    Style="{StaticResource ConfigNumericTextBoxStyle}" />
                                 <TextBlock Grid.Row="1" Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
                                 <TextBlock Grid.Row="2" Margin="0,0,4,0" VerticalAlignment="Center" Text="Position" />
                                 <ComboBox
@@ -372,7 +401,11 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <TextBlock Margin="0,0,4,4" VerticalAlignment="Center" TextWrapping="Wrap" Text="Long-press duration" />
-                                <TextBox x:Name="HotkeyLongPressMsTextBox" Grid.Column="1" Margin="0,0,0,4" />
+                                <TextBox
+                                    x:Name="HotkeyLongPressMsTextBox"
+                                    Grid.Column="1"
+                                    Margin="0,0,0,4"
+                                    Style="{StaticResource ConfigNumericTextBoxStyle}" />
                                 <TextBlock Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
                                 <CheckBox
                                     x:Name="HotkeyOptimizeNonLongPressCheckBox"
@@ -530,9 +563,21 @@
                                                             <TextBlock Margin="0,0,8,4" VerticalAlignment="Center" Text="OSC address" />
                                                             <TextBox Grid.Column="1" Grid.ColumnSpan="3" Margin="0,0,0,4" Text="{Binding address, UpdateSourceTrigger=PropertyChanged}" />
                                                             <TextBlock Grid.Row="1" Margin="0,8,8,4" VerticalAlignment="Center" Text="Minimum" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
-                                                            <TextBox Grid.Row="1" Grid.Column="1" Margin="0,8,8,4" Text="{Binding minimum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
+                                                            <TextBox
+                                                                Grid.Row="1"
+                                                                Grid.Column="1"
+                                                                Margin="0,8,8,4"
+                                                                Style="{StaticResource ConfigNumericTextBoxStyle}"
+                                                                Text="{Binding minimum, UpdateSourceTrigger=PropertyChanged}"
+                                                                Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
                                                             <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,8,8,4" VerticalAlignment="Center" Text="Maximum" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
-                                                            <TextBox Grid.Row="1" Grid.Column="3" Margin="0,8,0,4" Text="{Binding maximum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
+                                                            <TextBox
+                                                                Grid.Row="1"
+                                                                Grid.Column="3"
+                                                                Margin="0,8,0,4"
+                                                                Style="{StaticResource ConfigNumericTextBoxStyle}"
+                                                                Text="{Binding maximum, UpdateSourceTrigger=PropertyChanged}"
+                                                                Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
                                                         </Grid>
                                                         <TextBlock Margin="0,4,0,8" FontWeight="SemiBold" Text="Hotkeys" />
                                                         <ItemsControl ItemsSource="{Binding hotkeys}">
@@ -605,7 +650,12 @@
                                                                                 ItemsSource="{Binding choiceList}"
                                                                                 SelectedItem="{Binding selectedChoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                                                     <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
-                                                                                        <TextBox MinWidth="100" Margin="0,0,8,0" Text="{Binding floatValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
+                                                                                        <TextBox
+                                                                                            MinWidth="100"
+                                                                                            Margin="0,0,8,0"
+                                                                                            Style="{StaticResource ConfigNumericTextBoxStyle}"
+                                                                                            Text="{Binding floatValue, UpdateSourceTrigger=PropertyChanged}"
+                                                                                            Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
                                                                                         <CheckBox VerticalAlignment="Center" Content="On" IsChecked="{Binding boolValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsBoolInput, Converter={StaticResource BoolToVisibility}}" />
                                                                                     </StackPanel>
                                                                                 </Grid>
