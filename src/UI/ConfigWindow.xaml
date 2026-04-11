@@ -110,7 +110,7 @@
             </Grid.ColumnDefinitions>
             <Border Grid.Column="0" Padding="0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,0,0,8">
+                    <StackPanel Margin="0,0,0,8" Grid.IsSharedSizeScope="True">
                         <GroupBox Header="Autostart" Margin="0,0,0,8" Padding="0">
                             <StackPanel Margin="8,4,8,8" Orientation="Vertical">
                                 <Grid>
@@ -160,6 +160,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="160" />
                                     <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="ConfigSettingsUnit" />
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -169,14 +170,16 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <TextBlock Margin="0,0,8,4" VerticalAlignment="Center" Text="OSC IP" />
-                                <TextBox x:Name="IpTextBox" Grid.Column="1" Margin="0,0,0,4" />
+                                <TextBox x:Name="IpTextBox" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,4" />
                                 <TextBlock Grid.Row="1" Margin="0,0,8,4" VerticalAlignment="Center" Text="OSC port" />
-                                <TextBox x:Name="PortTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,4" />
-                                <TextBlock Grid.Row="2" Margin="0,0,8,4" VerticalAlignment="Center" Text="Query timeout (ms)" />
+                                <TextBox x:Name="PortTextBox" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,4" />
+                                <TextBlock Grid.Row="2" Margin="0,0,8,4" VerticalAlignment="Center" Text="Query timeout" />
                                 <TextBox x:Name="TimeoutTextBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,4" />
-                                <TextBlock Grid.Row="3" Margin="0,0,8,4" VerticalAlignment="Center" Text="Value cache TTL (ms)" />
+                                <TextBlock Grid.Row="2" Grid.Column="2" Margin="8,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
+                                <TextBlock Grid.Row="3" Margin="0,0,8,4" VerticalAlignment="Center" Text="Value cache TTL" />
                                 <TextBox x:Name="CacheTtlTextBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,4" />
-                                <StackPanel Grid.Row="4" Grid.ColumnSpan="2">
+                                <TextBlock Grid.Row="3" Grid.Column="2" Margin="8,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
+                                <StackPanel Grid.Row="4" Grid.ColumnSpan="3">
                                     <TextBlock x:Name="NetworkFeedbackTextBlock" TextWrapping="Wrap" />
                                     <TextBox x:Name="InfoResultTextBox" Margin="0,4,0,0" MinHeight="96" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AcceptsReturn="True" />
                                 </StackPanel>
@@ -188,15 +191,18 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="160" />
                                     <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="ConfigSettingsUnit" />
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Margin="0,0,8,4" VerticalAlignment="Center" Text="Height (DIP)" />
+                                <TextBlock Margin="0,0,8,4" VerticalAlignment="Center" Text="Height" />
                                 <TextBox x:Name="OsdHeightTextBox" Grid.Column="1" Margin="0,0,0,4" />
-                                <TextBlock Grid.Row="1" Margin="0,0,8,0" VerticalAlignment="Center" Text="Display duration (ms)" />
+                                <TextBlock Grid.Column="2" Margin="8,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="DIP" />
+                                <TextBlock Grid.Row="1" Margin="0,0,8,0" VerticalAlignment="Center" Text="Display duration" />
                                 <TextBox x:Name="OsdDurationTextBox" Grid.Row="1" Grid.Column="1" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
                             </Grid>
                         </GroupBox>
 
@@ -205,25 +211,27 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="160" />
                                     <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="ConfigSettingsUnit" />
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Margin="0,0,8,4" VerticalAlignment="Center" TextWrapping="Wrap" Text="Long-press duration (ms)" />
+                                <TextBlock Margin="0,0,8,4" VerticalAlignment="Center" TextWrapping="Wrap" Text="Long-press duration" />
                                 <TextBox x:Name="HotkeyLongPressMsTextBox" Grid.Column="1" Margin="0,0,0,4" />
+                                <TextBlock Grid.Column="2" Margin="8,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
                                 <CheckBox
                                     x:Name="HotkeyOptimizeNonLongPressCheckBox"
                                     Grid.Row="1"
-                                    Grid.ColumnSpan="2"
+                                    Grid.ColumnSpan="3"
                                     Margin="0,4,0,0">
                                     <TextBlock TextWrapping="Wrap" Text="Optimize non–long-press hotkeys (fire on key down instead of waiting for key up or duration)" />
                                 </CheckBox>
                                 <CheckBox
                                     x:Name="HotkeySuppressLongPressOnlyCheckBox"
                                     Grid.Row="2"
-                                    Grid.ColumnSpan="2"
+                                    Grid.ColumnSpan="3"
                                     Margin="0,4,0,0">
                                     <TextBlock TextWrapping="Wrap" Text="Swallow short presses also for long-press-only hotkeys" />
                                 </CheckBox>
