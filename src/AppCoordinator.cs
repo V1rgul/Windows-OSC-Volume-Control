@@ -58,8 +58,6 @@ public sealed class AppCoordinator : IDisposable {
 
 	void rebuildHotkeysFromConfig(IEnumerable<BindingAbstract> bindings) {
 		_oscBindings.rebuildFromConfig(bindings);
-		BindingManager.Config tray = _configStore.appConfig.trayApp ?? new BindingManager.Config();
-		uint longPressMs = BindingManager.Config.clampLongPressDurationMs(tray.longPressDurationMs);
 		_hook.setHotkeyDispatch(
 			gesture => {
 				if (!_oscBindings.tryGetDispatchTargets(gesture, out HotkeyDispatchTargets t) || !t.hasAny)
@@ -69,9 +67,8 @@ public sealed class AppCoordinator : IDisposable {
 			slots => {
 				foreach (BindingManager.Slot slot in slots)
 					handleOscHotkey(slot.binding, slot.action);
-			},
-			longPressMs,
-			tray.optimizeNonLongPressKeyDown);
+			});
+		_hook.applyConfig(_configStore.appConfig.keyboardHook);
 	}
 
 	public void setConfiguredHotkeysEnabled(bool enabled) => _hook.SetConfiguredHotkeysEnabled(enabled);

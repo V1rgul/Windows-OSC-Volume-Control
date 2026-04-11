@@ -160,9 +160,10 @@ public partial class ConfigWindow : Window {
 		CacheTtlTextBox.Text = cfg.mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture);
 		OsdHeightTextBox.Text = cfg.osd.heightDip.ToString(CultureInfo.InvariantCulture);
 		OsdDurationTextBox.Text = cfg.osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture);
-		BindingManager.Config tray = cfg.trayApp ?? new BindingManager.Config();
-		HotkeyLongPressMsTextBox.Text = tray.longPressDurationMs.ToString(CultureInfo.InvariantCulture);
-		HotkeyOptimizeNonLongPressCheckBox.IsChecked = tray.optimizeNonLongPressKeyDown;
+		KeyboardHook.Config hk = cfg.keyboardHook;
+		HotkeyLongPressMsTextBox.Text = hk.longPressDurationMs.ToString(CultureInfo.InvariantCulture);
+		HotkeyOptimizeNonLongPressCheckBox.IsChecked = hk.optimizeNonLongPressKeyDown;
+		HotkeySuppressLongPressOnlyCheckBox.IsChecked = hk.suppressKeyForLongPressOnlyGestures;
 		ConfigPathTextBox.Text = _configStore.configPath;
 		ConfigFeedbackTextBlock.Text = _configStore.lastDiskFeedback;
 		DiskFeedbackTextBlock.Text = _configStore.lastDiskFeedback;
@@ -362,10 +363,10 @@ public partial class ConfigWindow : Window {
 	}
 
 	bool tryParseHotkeyLongPressMsForCapture(out uint ms) {
-		ms = BindingManager.Config.DEFAULT_LONG_PRESS_MS;
+		ms = KeyboardHook.Config.DEFAULT_LONG_PRESS_MS;
 		if (!uint.TryParse(HotkeyLongPressMsTextBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsed))
 			return false;
-		ms = BindingManager.Config.clampLongPressDurationMs(parsed);
+		ms = KeyboardHook.Config.Clamped(new KeyboardHook.Config { longPressDurationMs = parsed }).longPressDurationMs;
 		return true;
 	}
 
@@ -382,7 +383,7 @@ public partial class ConfigWindow : Window {
 			return;
 		}
 		item.hotkey = g;
-		uint thresholdMs = tryParseHotkeyLongPressMsForCapture(out uint lp) ? lp : BindingManager.Config.DEFAULT_LONG_PRESS_MS;
+		uint thresholdMs = tryParseHotkeyLongPressMsForCapture(out uint lp) ? lp : KeyboardHook.Config.DEFAULT_LONG_PRESS_MS;
 		double heldMs = (DateTime.UtcNow - _hotkeyCaptureDownUtc.Value).TotalMilliseconds;
 		item.longPress = heldMs >= thresholdMs;
 		StatusTextBlock.Text = "";
@@ -491,7 +492,7 @@ public partial class ConfigWindow : Window {
 			return false;
 		if (!tryParseUInt(OsdDurationTextBox.Text, OSDController.Config.MIN_DISPLAY_DURATION_MS, OSDController.Config.MAX_DISPLAY_DURATION_MS, "OSD display duration", out uint osdDuration, out error))
 			return false;
-		if (!tryParseUInt(HotkeyLongPressMsTextBox.Text, BindingManager.Config.MIN_LONG_PRESS_MS, BindingManager.Config.MAX_LONG_PRESS_MS, "Long-press duration", out uint hotkeyLongPressMs, out error))
+		if (!tryParseUInt(HotkeyLongPressMsTextBox.Text, KeyboardHook.Config.MIN_LONG_PRESS_MS, KeyboardHook.Config.MAX_LONG_PRESS_MS, "Long-press duration", out uint hotkeyLongPressMs, out error))
 			return false;
 
 		var built = new List<BindingAbstract>();
@@ -570,9 +571,12 @@ public partial class ConfigWindow : Window {
 			},
 			trayApp = new BindingManager.Config {
 				bindings = built,
-				longPressDurationMs = BindingManager.Config.clampLongPressDurationMs(hotkeyLongPressMs),
-				optimizeNonLongPressKeyDown = HotkeyOptimizeNonLongPressCheckBox.IsChecked == true,
 			},
+			keyboardHook = KeyboardHook.Config.Clamped(new KeyboardHook.Config {
+				longPressDurationMs = hotkeyLongPressMs,
+				optimizeNonLongPressKeyDown = HotkeyOptimizeNonLongPressCheckBox.IsChecked == true,
+				suppressKeyForLongPressOnlyGestures = HotkeySuppressLongPressOnlyCheckBox.IsChecked == true,
+			}),
 		};
 		return true;
 	}

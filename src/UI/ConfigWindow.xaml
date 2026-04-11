@@ -209,6 +209,7 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <TextBlock Margin="0,0,8,4" VerticalAlignment="Center" TextWrapping="Wrap" Text="Long-press duration (ms)" />
                                 <TextBox x:Name="HotkeyLongPressMsTextBox" Grid.Column="1" Margin="0,0,0,4" />
@@ -218,6 +219,13 @@
                                     Grid.ColumnSpan="2"
                                     Margin="0,4,0,0">
                                     <TextBlock TextWrapping="Wrap" Text="Optimize non–long-press hotkeys (fire on key down instead of waiting for key up or duration)" />
+                                </CheckBox>
+                                <CheckBox
+                                    x:Name="HotkeySuppressLongPressOnlyCheckBox"
+                                    Grid.Row="2"
+                                    Grid.ColumnSpan="2"
+                                    Margin="0,4,0,0">
+                                    <TextBlock TextWrapping="Wrap" Text="Swallow short presses also for long-press-only hotkeys" />
                                 </CheckBox>
                             </Grid>
                         </GroupBox>

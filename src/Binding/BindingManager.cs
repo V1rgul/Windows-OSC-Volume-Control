@@ -14,17 +14,11 @@ public readonly struct HotkeyDispatchTargets {
 public sealed class BindingManager {
 	/// <summary>OSC fader and toggle bindings; persisted via <see cref="ConfigStore"/>.</summary>
 	public sealed class Config {
-		public const uint DEFAULT_LONG_PRESS_MS = 450;
-		public const uint MIN_LONG_PRESS_MS = 50;
-		public const uint MAX_LONG_PRESS_MS = 5000;
-
 		public Config() { }
 
 		public Config(Config from) {
 			ArgumentNullException.ThrowIfNull(from);
 			bindings = from.bindings.Select(cloneBinding).ToList();
-			longPressDurationMs = from.longPressDurationMs;
-			optimizeNonLongPressKeyDown = from.optimizeNonLongPressKeyDown;
 		}
 
 		static BindingAbstract cloneBinding(BindingAbstract b) => b switch {
@@ -61,14 +55,6 @@ public sealed class BindingManager {
 		};
 
 		public List<BindingAbstract> bindings { get; set; } = [createDefaultFaderBinding(), createDefaultToggleBinding()];
-
-		public uint longPressDurationMs { get; set; } = DEFAULT_LONG_PRESS_MS;
-
-		/// <summary>When true, short-press rows fire on keydown (unless long-press rows exist for the same gesture).</summary>
-		public bool optimizeNonLongPressKeyDown { get; set; } = true;
-
-		public static uint clampLongPressDurationMs(uint ms) =>
-			Math.Clamp(ms, MIN_LONG_PRESS_MS, MAX_LONG_PRESS_MS);
 	}
 
 	/// <summary>One hotkey’s target binding and action.</summary>

@@ -114,6 +114,7 @@ public class UnitTest1 {
 			port=10023
 			hotkeyLongPressMs=600
 			hotkeyOptimizeNonLongPressKeyDown=false
+			hotkeySuppressKeyForLongPressOnly=true
 			osc.0.name=T
 			osc.0.address=/t
 			osc.0.type=toggle
@@ -121,9 +122,11 @@ public class UnitTest1 {
 			osc.0.hotkey.0.action=toggle
 			osc.0.hotkey.0.longPress=true
 			""";
-		BindingManager.Config tray = ConfigStore.loadTrayConfigFromKeyValueTextForTests(text, out _);
-		Assert.Equal(600u, tray.longPressDurationMs);
-		Assert.False(tray.optimizeNonLongPressKeyDown);
+		AppConfig cfg = ConfigStore.loadAppConfigFromKeyValueTextForTests(text, out _);
+		Assert.Equal(600u, cfg.keyboardHook.longPressDurationMs);
+		Assert.False(cfg.keyboardHook.optimizeNonLongPressKeyDown);
+		Assert.True(cfg.keyboardHook.suppressKeyForLongPressOnlyGestures);
+		BindingManager.Config tray = cfg.trayApp;
 		var toggle = Assert.IsType<BindingToggle>(Assert.Single(tray.bindings));
 		var flip = Assert.IsType<HotkeyActionToggleFlip>(Assert.Single(toggle.hotkeys));
 		Assert.True(flip.longPress);

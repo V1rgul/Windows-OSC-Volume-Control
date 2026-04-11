@@ -55,10 +55,12 @@ public sealed class ConfigStore {
 			OscTransport.Config osc = buildOscConfigFromMap(map, repairNotes);
 			MixerController.Config mixer = buildMixerConfigFromMap(map, repairNotes);
 			BindingManager.Config bindingConfig = buildBindingManagerConfigFromMap(map, repairNotes);
+			KeyboardHook.Config keyboardHook = buildKeyboardHookConfigFromMap(map, repairNotes);
 			appConfig = new AppConfig {
 				oscTransport = osc,
 				mixer = mixer,
 				trayApp = bindingConfig,
+				keyboardHook = keyboardHook,
 				osd = buildOsdConfigFromMap(map, repairNotes),
 			};
 			lastDiskOutcome = repairNotes.Count > 0
@@ -81,7 +83,7 @@ public sealed class ConfigStore {
 		OSDController.Config osd = OSDController.Config.Clamped(cfg.osd);
 		BindingManager.Config tray = cfg.trayApp ?? new BindingManager.Config();
 		List<BindingAbstract> bindings = tray.bindings;
-		uint lpMs = BindingManager.Config.clampLongPressDurationMs(tray.longPressDurationMs);
+		KeyboardHook.Config hk = KeyboardHook.Config.Clamped(cfg.keyboardHook);
 		var lines = new List<string> {
 			"ip=" + osc.endPoint.Address.ToString(),
 			"port=" + osc.endPoint.Port.ToString(CultureInfo.InvariantCulture),
@@ -89,8 +91,9 @@ public sealed class ConfigStore {
 			"valueCacheTtlMs=" + mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture),
 			"osdHeightDip=" + osd.heightDip.ToString(CultureInfo.InvariantCulture),
 			"osdDisplayDurationMs=" + osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture),
-			"hotkeyLongPressMs=" + lpMs.ToString(CultureInfo.InvariantCulture),
-			"hotkeyOptimizeNonLongPressKeyDown=" + (tray.optimizeNonLongPressKeyDown ? "true" : "false"),
+			"hotkeyLongPressMs=" + hk.longPressDurationMs.ToString(CultureInfo.InvariantCulture),
+			"hotkeyOptimizeNonLongPressKeyDown=" + (hk.optimizeNonLongPressKeyDown ? "true" : "false"),
+			"hotkeySuppressKeyForLongPressOnly=" + (hk.suppressKeyForLongPressOnlyGestures ? "true" : "false"),
 		};
 		for (int i = 0; i < bindings.Count; i++) {
 			BindingAbstract b = bindings[i];
@@ -167,20 +170,30 @@ public sealed class ConfigStore {
 			list = cloneDefaultBindings();
 			repairNotes.Add("No valid OSC bindings in file; using defaults.");
 		}
-		var tray = new BindingManager.Config { bindings = list };
+		return new BindingManager.Config { bindings = list };
+	}
+
+	static KeyboardHook.Config buildKeyboardHookConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
+		var provisional = new KeyboardHook.Config();
 		if (map.TryGetValue("hotkeyLongPressMs", out string? lpStr)) {
 			if (uint.TryParse(lpStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint lp))
-				tray.longPressDurationMs = BindingManager.Config.clampLongPressDurationMs(lp);
+				provisional.longPressDurationMs = lp;
 			else
 				repairNotes.Add("hotkeyLongPressMs invalid; using default.");
 		}
 		if (map.TryGetValue("hotkeyOptimizeNonLongPressKeyDown", out string? optStr)) {
 			if (bool.TryParse(optStr.Trim(), out bool opt))
-				tray.optimizeNonLongPressKeyDown = opt;
+				provisional.optimizeNonLongPressKeyDown = opt;
 			else
 				repairNotes.Add("hotkeyOptimizeNonLongPressKeyDown invalid; using default.");
 		}
-		return tray;
+		if (map.TryGetValue("hotkeySuppressKeyForLongPressOnly", out string? supStr)) {
+			if (bool.TryParse(supStr.Trim(), out bool sup))
+				provisional.suppressKeyForLongPressOnlyGestures = sup;
+			else
+				repairNotes.Add("hotkeySuppressKeyForLongPressOnly invalid; using default.");
+		}
+		return KeyboardHook.Config.Clamped(provisional);
 	}
 
 	static OscTransport.Config buildOscConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
@@ -411,9 +424,16 @@ public sealed class ConfigStore {
 		return null;
 	}
 
-	internal static BindingManager.Config loadTrayConfigFromKeyValueTextForTests(string raw, out List<string> repairNotes) {
+	internal static AppConfig loadAppConfigFromKeyValueTextForTests(string raw, out List<string> repairNotes) {
 		repairNotes = new List<string>();
-		return buildBindingManagerConfigFromMap(parseKeyValueLines(raw), repairNotes);
+		IReadOnlyDictionary<string, string> map = parseKeyValueLines(raw);
+		return new AppConfig {
+			oscTransport = buildOscConfigFromMap(map, repairNotes),
+			mixer = buildMixerConfigFromMap(map, repairNotes),
+			trayApp = buildBindingManagerConfigFromMap(map, repairNotes),
+			keyboardHook = buildKeyboardHookConfigFromMap(map, repairNotes),
+			osd = buildOsdConfigFromMap(map, repairNotes),
+		};
 	}
 
 	static bool tryParseBoolLoose(string text, out bool on) {

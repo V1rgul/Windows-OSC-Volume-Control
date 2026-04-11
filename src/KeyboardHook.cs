@@ -12,6 +12,40 @@ public abstract partial record Error {
 }
 
 public partial class KeyboardHook : IDisposable {
+	/// <summary>Low-level hotkey timing and key-delivery policy; persisted on <see cref="AppConfig.keyboardHook"/>.</summary>
+	public sealed class Config {
+		public const uint DEFAULT_LONG_PRESS_MS = 450;
+		public const uint MIN_LONG_PRESS_MS = 50;
+		public const uint MAX_LONG_PRESS_MS = 5000;
+
+		public uint longPressDurationMs { get; set; } = DEFAULT_LONG_PRESS_MS;
+
+		/// <summary>When true, short-press rows fire on keydown (unless long-press rows exist for the same gesture).</summary>
+		public bool optimizeNonLongPressKeyDown { get; set; } = true;
+
+		/// <summary>When true, key down/up for gestures with only long-press actions are not delivered to other applications.</summary>
+		public bool suppressKeyForLongPressOnlyGestures { get; set; }
+
+		public Config() { }
+
+		public Config(Config other) {
+			ArgumentNullException.ThrowIfNull(other);
+			Config c = Clamped(other);
+			longPressDurationMs = c.longPressDurationMs;
+			optimizeNonLongPressKeyDown = c.optimizeNonLongPressKeyDown;
+			suppressKeyForLongPressOnlyGestures = c.suppressKeyForLongPressOnlyGestures;
+		}
+
+		public static Config Clamped(Config? raw) {
+			raw ??= new Config();
+			return new Config {
+				longPressDurationMs = Math.Clamp(raw.longPressDurationMs, MIN_LONG_PRESS_MS, MAX_LONG_PRESS_MS),
+				optimizeNonLongPressKeyDown = raw.optimizeNonLongPressKeyDown,
+				suppressKeyForLongPressOnlyGestures = raw.suppressKeyForLongPressOnlyGestures,
+			};
+		}
+	}
+
 	const int WM_KEYDOWN = 0x0100;
 	const int WM_SYSKEYDOWN = 0x0104;
 	const int WM_KEYUP = 0x0101;
@@ -28,6 +62,7 @@ public partial class KeyboardHook : IDisposable {
 	sealed class ActiveHotkeyPress {
 		public required HotkeyGesture gesture;
 		public required HotkeyDispatchTargets targets;
+		public required bool swallowKeyEvents;
 		public DateTime keyDownUtc;
 		public System.Threading.Timer? longTimer;
 		public System.Threading.Timer? shortDeadlineTimer;
@@ -47,8 +82,9 @@ public partial class KeyboardHook : IDisposable {
 	readonly object _configuredHotkeysSync = new();
 	volatile Func<HotkeyGesture, HotkeyDispatchTargets?> _getTargets = static _ => null;
 	Action<IReadOnlyList<BindingManager.Slot>> _dispatchSlots = static _ => { };
-	int _longPressDurationMs = (int)BindingManager.Config.DEFAULT_LONG_PRESS_MS;
+	int _longPressDurationMs = (int)Config.DEFAULT_LONG_PRESS_MS;
 	bool _optimizeNonLongPressKeyDown = true;
+	bool _suppressKeyForLongPressOnlyGestures;
 	readonly Dictionary<HotkeyGesture, ActiveHotkeyPress> _activePresses = [];
 	bool _configuredHotkeysEnabled = true;
 	bool _disposed;
@@ -78,20 +114,27 @@ public partial class KeyboardHook : IDisposable {
 	static bool IsKeyDown(IntPtr wParam) => wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN;
 	static bool IsKeyUp(IntPtr wParam) => wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP;
 
-	/// <summary>Replaces hotkey resolution and timing. Invoked from the hook thread.</summary>
+	/// <summary>Replaces hotkey resolution delegates. Invoked from the hook thread.</summary>
 	public void setHotkeyDispatch(
 		Func<HotkeyGesture, HotkeyDispatchTargets?> getTargets,
-		Action<IReadOnlyList<BindingManager.Slot>> dispatchSlots,
-		uint longPressDurationMs,
-		bool optimizeNonLongPressKeyDown) {
+		Action<IReadOnlyList<BindingManager.Slot>> dispatchSlots) {
 		ArgumentNullException.ThrowIfNull(getTargets);
 		ArgumentNullException.ThrowIfNull(dispatchSlots);
 		lock (_configuredHotkeysSync) {
 			cancelAllActivePressesLocked();
 			_getTargets = getTargets;
 			_dispatchSlots = dispatchSlots;
-			_longPressDurationMs = (int)Math.Clamp(longPressDurationMs, 1u, int.MaxValue);
-			_optimizeNonLongPressKeyDown = optimizeNonLongPressKeyDown;
+		}
+	}
+
+	public void applyConfig(Config config) {
+		ArgumentNullException.ThrowIfNull(config);
+		lock (_configuredHotkeysSync) {
+			cancelAllActivePressesLocked();
+			Config c = Config.Clamped(config);
+			_longPressDurationMs = (int)Math.Clamp(c.longPressDurationMs, 1u, int.MaxValue);
+			_optimizeNonLongPressKeyDown = c.optimizeNonLongPressKeyDown;
+			_suppressKeyForLongPressOnlyGestures = c.suppressKeyForLongPressOnlyGestures;
 		}
 	}
 
@@ -186,8 +229,8 @@ public partial class KeyboardHook : IDisposable {
 		if (candidate.isNone)
 			return false;
 
-		if (_activePresses.ContainsKey(candidate))
-			return true;
+		if (_activePresses.TryGetValue(candidate, out ActiveHotkeyPress? existingPress))
+			return existingPress.swallowKeyEvents;
 
 		HotkeyDispatchTargets? targetsNullable = _getTargets(candidate);
 		if (targetsNullable is not { } targets || !targets.hasAny)
@@ -196,10 +239,13 @@ public partial class KeyboardHook : IDisposable {
 		bool hasLong = targets.longPressSlots.Count > 0;
 		bool hasShort = targets.shortPressSlots.Count > 0;
 		bool effectiveOptimize = _optimizeNonLongPressKeyDown && !hasLong;
+		bool longOnly = hasLong && !hasShort;
+		bool swallowKeyEvents = !longOnly || _suppressKeyForLongPressOnlyGestures;
 
 		var press = new ActiveHotkeyPress {
 			gesture = candidate,
 			targets = targets,
+			swallowKeyEvents = swallowKeyEvents,
 			keyDownUtc = DateTime.UtcNow,
 		};
 		_activePresses[candidate] = press;
@@ -222,7 +268,7 @@ public partial class KeyboardHook : IDisposable {
 			}
 		}
 
-		return true;
+		return press.swallowKeyEvents;
 	}
 
 	void onLongTimerFired(ActiveHotkeyPress expected) {
@@ -290,7 +336,7 @@ public partial class KeyboardHook : IDisposable {
 		else if (shortList != null && shortList.Count > 0)
 			queueDispatch(() => _dispatchSlots(shortList));
 
-		return true;
+		return press.swallowKeyEvents;
 	}
 
 	IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam) {
