@@ -339,13 +339,23 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <TextBlock Margin="0,0,4,4" VerticalAlignment="Center" Text="Height" />
                                 <TextBox x:Name="OsdHeightTextBox" Grid.Column="1" Margin="0,0,0,4" />
                                 <TextBlock Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="DIP" />
-                                <TextBlock Grid.Row="1" Margin="0,0,4,0" VerticalAlignment="Center" Text="Display duration" />
-                                <TextBox x:Name="OsdDurationTextBox" Grid.Row="1" Grid.Column="1" />
-                                <TextBlock Grid.Row="1" Grid.Column="2" Margin="4,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
+                                <TextBlock Grid.Row="1" Margin="0,0,4,4" VerticalAlignment="Center" Text="Display duration" />
+                                <TextBox x:Name="OsdDurationTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,4" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
+                                <TextBlock Grid.Row="2" Margin="0,0,4,0" VerticalAlignment="Center" Text="Position" />
+                                <ComboBox
+                                    x:Name="OsdPositionComboBox"
+                                    Grid.Row="2"
+                                    Grid.Column="1"
+                                    Grid.ColumnSpan="2"
+                                    DisplayMemberPath="label"
+                                    ItemsSource="{x:Static local:OsdAnchorUiChoices.All}"
+                                    SelectedValuePath="value" />
                             </Grid>
                         </GroupBox>
 

@@ -159,6 +159,9 @@ public partial class ConfigWindow : Window {
 		CacheTtlTextBox.Text = cfg.mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture);
 		OsdHeightTextBox.Text = cfg.osd.heightDip.ToString(CultureInfo.InvariantCulture);
 		OsdDurationTextBox.Text = cfg.osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture);
+		OsdPositionComboBox.SelectedValue = cfg.osd.screenAnchor;
+		if (OsdPositionComboBox.SelectedValue == null)
+			OsdPositionComboBox.SelectedValue = OSDController.Config.OsdScreenAnchor.BOTTOM_RIGHT;
 		KeyboardHook.Config hk = cfg.keyboardHook;
 		HotkeyLongPressMsTextBox.Text = hk.longPressDurationMs.ToString(CultureInfo.InvariantCulture);
 		HotkeyOptimizeNonLongPressCheckBox.IsChecked = hk.optimizeNonLongPressKeyDown;
@@ -175,11 +178,15 @@ public partial class ConfigWindow : Window {
 
 	async void buttonApplySaveAndTest_Click(object sender, RoutedEventArgs e) {
 		UiTextFeedbackPresenter.apply(StatusTextBlock, new UiTextFeedback("", UiTextFeedbackKind.WARNING));
+		OSDController.Config.OsdScreenAnchor osdAnchor = OsdPositionComboBox.SelectedValue is OSDController.Config.OsdScreenAnchor a
+			? a
+			: OSDController.Config.OsdScreenAnchor.BOTTOM_RIGHT;
 		(bool okBuild, AppConfig? newConfig, UiTextFeedback? buildErr) = SettingsFormDraft.tryBuild(
 			IpTextBox.Text,
 			PortTextBox.Text,
 			TimeoutTextBox.Text,
 			CacheTtlTextBox.Text,
+			osdAnchor,
 			OsdHeightTextBox.Text,
 			OsdDurationTextBox.Text,
 			HotkeyLongPressMsTextBox.Text,

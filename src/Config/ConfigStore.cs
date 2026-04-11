@@ -106,6 +106,7 @@ public sealed class ConfigStore {
 			"valueCacheTtlMs=" + mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture),
 			"osdHeightDip=" + osd.heightDip.ToString(CultureInfo.InvariantCulture),
 			"osdDisplayDurationMs=" + osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture),
+			"osdScreenAnchor=" + osd.screenAnchor.ToString(),
 			"hotkeyLongPressMs=" + hk.longPressDurationMs.ToString(CultureInfo.InvariantCulture),
 			"hotkeyOptimizeNonLongPressKeyDown=" + (hk.optimizeNonLongPressKeyDown ? "true" : "false"),
 			"hotkeySuppressKeyForLongPressOnly=" + (hk.suppressKeyForLongPressOnlyGestures ? "true" : "false"),
@@ -260,6 +261,12 @@ public sealed class ConfigStore {
 				repairNotes.Add("osdDisplayDurationMs invalid; ignored.");
 			else
 				o.DisplayDurationMs = d;
+		}
+		if (map.TryGetValue("osdScreenAnchor", out string? anchorStr)) {
+			if (!Enum.TryParse(anchorStr.Trim(), ignoreCase: true, out OSDController.Config.OsdScreenAnchor parsed) || !Enum.IsDefined(parsed))
+				repairNotes.Add("osdScreenAnchor invalid; ignored.");
+			else
+				o.screenAnchor = parsed;
 		}
 		OSDController.Config clamped = OSDController.Config.Clamped(o);
 		if (clamped.heightDip != o.heightDip || clamped.DisplayDurationMs != o.DisplayDurationMs)

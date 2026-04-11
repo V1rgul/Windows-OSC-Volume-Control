@@ -11,6 +11,7 @@ static class SettingsFormDraft {
 		string portText,
 		string timeoutText,
 		string cacheTtlText,
+		OSDController.Config.OsdScreenAnchor osdScreenAnchor,
 		string osdHeightText,
 		string osdDurationText,
 		string hotkeyLongPressMsText,
@@ -95,6 +96,7 @@ static class SettingsFormDraft {
 			osd = new OSDController.Config {
 				heightDip = osdHeight,
 				DisplayDurationMs = osdDuration,
+				screenAnchor = OSDController.Config.clampScreenAnchor(osdScreenAnchor),
 			},
 			trayApp = new BindingManager.Config {
 				bindings = built,

@@ -16,6 +16,24 @@ public sealed class BindingTypeUiChoice(BindingEditorType value, string label) {
 	public string label { get; } = label;
 }
 
+public sealed class OsdAnchorUiChoice(OSDController.Config.OsdScreenAnchor value, string label) {
+	public OSDController.Config.OsdScreenAnchor value { get; } = value;
+	public string label { get; } = label;
+}
+
+public static class OsdAnchorUiChoices {
+	public static IReadOnlyList<OsdAnchorUiChoice> All { get; } = [
+		new(OSDController.Config.OsdScreenAnchor.TOP_LEFT, "Top left"),
+		new(OSDController.Config.OsdScreenAnchor.TOP_CENTER, "Top center"),
+		new(OSDController.Config.OsdScreenAnchor.TOP_RIGHT, "Top right"),
+		new(OSDController.Config.OsdScreenAnchor.MIDDLE_LEFT, "Middle left"),
+		new(OSDController.Config.OsdScreenAnchor.MIDDLE_RIGHT, "Middle right"),
+		new(OSDController.Config.OsdScreenAnchor.BOTTOM_LEFT, "Bottom left"),
+		new(OSDController.Config.OsdScreenAnchor.BOTTOM_CENTER, "Bottom center"),
+		new(OSDController.Config.OsdScreenAnchor.BOTTOM_RIGHT, "Bottom right"),
+	];
+}
+
 public sealed class HotkeyActionChoice(Type actionType, string displayName) {
 	public Type actionType { get; } = actionType;
 	public string displayName { get; } = displayName;

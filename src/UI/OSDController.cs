@@ -61,6 +61,17 @@ public partial class OSDController : Window {
 	const double RATIO_FONT_SIZE_FINE_TUNING_STEP = 0.15;
 
 	public sealed class Config {
+		public enum OsdScreenAnchor {
+			TOP_LEFT,
+			TOP_CENTER,
+			TOP_RIGHT,
+			MIDDLE_LEFT,
+			MIDDLE_RIGHT,
+			BOTTOM_LEFT,
+			BOTTOM_CENTER,
+			BOTTOM_RIGHT,
+		}
+
 		public const int MIN_HEIGHT_DIP = 48;
 		public const int MAX_HEIGHT_DIP = 600;
 		public const uint MIN_DISPLAY_DURATION_MS = 200;
@@ -68,6 +79,7 @@ public partial class OSDController : Window {
 
 		public int heightDip { get; set; } = 78;
 		public uint DisplayDurationMs { get; set; } = 1000;
+		public OsdScreenAnchor screenAnchor { get; set; } = OsdScreenAnchor.BOTTOM_RIGHT;
 
 		public Config() { }
 
@@ -75,7 +87,11 @@ public partial class OSDController : Window {
 			ArgumentNullException.ThrowIfNull(other);
 			heightDip = other.heightDip;
 			DisplayDurationMs = other.DisplayDurationMs;
+			screenAnchor = other.screenAnchor;
 		}
+
+		public static OsdScreenAnchor clampScreenAnchor(OsdScreenAnchor anchor) =>
+			Enum.IsDefined(anchor) ? anchor : OsdScreenAnchor.BOTTOM_RIGHT;
 
 		public static Config Clamped(Config? cfg) {
 			cfg ??= new Config();
@@ -84,6 +100,7 @@ public partial class OSDController : Window {
 			return new Config {
 				heightDip = height,
 				DisplayDurationMs = duration,
+				screenAnchor = clampScreenAnchor(cfg.screenAnchor),
 			};
 		}
 	}
@@ -315,19 +332,25 @@ public partial class OSDController : Window {
 		showLevelNow(pending.Value.rowLabel, pending.Value.min, pending.Value.max, pending.Value.value, pending.Value.volumeIncreased, pending.Value.step);
 	}
 
-	void placeWindow(IntPtr hwnd, double width) {
-		var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+	void placeWindow(IntPtr hwnd, double width) =>
+		applyOverlayPlacement(width, hwnd, callSetWindowPos: true);
+
+	/// <summary>Pixel work-area placement, then <see cref="Left"/>/<see cref="Top"/> from those pixels; optionally calls Win32 <c>SetWindowPos</c>.</summary>
+	void applyOverlayPlacement(double widthDip, IntPtr hwnd, bool callSetWindowPos) {
+		DpiScale dpi = VisualTreeHelper.GetDpi(this);
 		double insetDip = _targetHeight * RATIO_EDGE_MARGIN;
-		int widthPx = (int)Math.Round(width * dpi.DpiScaleX);
+		int widthPx = (int)Math.Round(widthDip * dpi.DpiScaleX);
 		int heightPx = (int)Math.Round(_targetHeight * dpi.DpiScaleY);
 		int insetXPx = (int)Math.Round(insetDip * dpi.DpiScaleX);
 		int insetYPx = (int)Math.Round(insetDip * dpi.DpiScaleY);
-		RECT workArea = getMonitorWorkArea(hwnd);
-		int xPx = workArea.right - widthPx - insetXPx;
-		int yPx = workArea.bottom - heightPx - insetYPx;
+		RECT workArea = hwnd != IntPtr.Zero
+			? getMonitorWorkArea(hwnd)
+			: dipWorkAreaToPixelRect(SystemParameters.WorkArea, dpi);
+		computePlacementPixels(workArea, widthPx, heightPx, insetXPx, insetYPx, _config.screenAnchor, out int xPx, out int yPx);
 		Left = xPx / dpi.DpiScaleX;
 		Top = yPx / dpi.DpiScaleY;
-		SetWindowPos(hwnd, HWND_TOPMOST, xPx, yPx, widthPx, heightPx, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+		if (callSetWindowPos)
+			SetWindowPos(hwnd, HWND_TOPMOST, xPx, yPx, widthPx, heightPx, SWP_NOACTIVATE | SWP_SHOWWINDOW);
 	}
 
 	double measureWindowWidth() {
@@ -354,10 +377,56 @@ public partial class OSDController : Window {
 	void reposition() => reposition(_targetWidth);
 
 	void reposition(double width) {
-		Rect workArea = SystemParameters.WorkArea;
-		double inset = _targetHeight * RATIO_EDGE_MARGIN;
-		Left = workArea.Right - width - inset;
-		Top = workArea.Bottom - _targetHeight - inset;
+		IntPtr hwnd = new WindowInteropHelper(this).Handle;
+		applyOverlayPlacement(width, hwnd, callSetWindowPos: false);
+	}
+
+	static RECT dipWorkAreaToPixelRect(Rect wa, DpiScale dpi) => new RECT {
+		left = (int)Math.Round(wa.Left * dpi.DpiScaleX),
+		top = (int)Math.Round(wa.Top * dpi.DpiScaleY),
+		right = (int)Math.Round(wa.Right * dpi.DpiScaleX),
+		bottom = (int)Math.Round(wa.Bottom * dpi.DpiScaleY),
+	};
+
+	static void computePlacementPixels(RECT work, int widthPx, int heightPx, int insetXPx, int insetYPx, Config.OsdScreenAnchor anchor, out int xPx, out int yPx) {
+		int wl = work.left;
+		int wt = work.top;
+		int ww = work.right - wl;
+		int wh = work.bottom - wt;
+		switch (anchor) {
+			case Config.OsdScreenAnchor.TOP_LEFT:
+				xPx = wl + insetXPx;
+				yPx = wt + insetYPx;
+				break;
+			case Config.OsdScreenAnchor.TOP_CENTER:
+				xPx = wl + (ww - widthPx) / 2;
+				yPx = wt + insetYPx;
+				break;
+			case Config.OsdScreenAnchor.TOP_RIGHT:
+				xPx = work.right - widthPx - insetXPx;
+				yPx = wt + insetYPx;
+				break;
+			case Config.OsdScreenAnchor.MIDDLE_LEFT:
+				xPx = wl + insetXPx;
+				yPx = wt + (wh - heightPx) / 2;
+				break;
+			case Config.OsdScreenAnchor.MIDDLE_RIGHT:
+				xPx = work.right - widthPx - insetXPx;
+				yPx = wt + (wh - heightPx) / 2;
+				break;
+			case Config.OsdScreenAnchor.BOTTOM_LEFT:
+				xPx = wl + insetXPx;
+				yPx = work.bottom - heightPx - insetYPx;
+				break;
+			case Config.OsdScreenAnchor.BOTTOM_CENTER:
+				xPx = wl + (ww - widthPx) / 2;
+				yPx = work.bottom - heightPx - insetYPx;
+				break;
+			default:
+				xPx = work.right - widthPx - insetXPx;
+				yPx = work.bottom - heightPx - insetYPx;
+				break;
+		}
 	}
 
 	void hideExtraVisuals() {
