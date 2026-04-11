@@ -87,7 +87,7 @@ public sealed class ConfigStore {
 			"port=" + osc.endPoint.Port.ToString(CultureInfo.InvariantCulture),
 			"timeoutMs=" + mixer.timeoutMs.ToString(CultureInfo.InvariantCulture),
 			"valueCacheTtlMs=" + mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture),
-			"osdHeightPx=" + osd.HeightPx.ToString(CultureInfo.InvariantCulture),
+			"osdHeightDip=" + osd.heightDip.ToString(CultureInfo.InvariantCulture),
 			"osdDisplayDurationMs=" + osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture),
 			"hotkeyLongPressMs=" + lpMs.ToString(CultureInfo.InvariantCulture),
 			"hotkeyOptimizeNonLongPressKeyDown=" + (tray.optimizeNonLongPressKeyDown ? "true" : "false"),
@@ -221,11 +221,11 @@ public sealed class ConfigStore {
 
 	static OSDController.Config buildOsdConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
 		var o = new OSDController.Config();
-		if (map.TryGetValue("osdHeightPx", out string? hStr)) {
+		if (map.TryGetValue("osdHeightDip", out string? hStr)) {
 			if (!int.TryParse(hStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int h))
-				repairNotes.Add("osdHeightPx invalid; ignored.");
+				repairNotes.Add("osdHeightDip invalid; ignored.");
 			else
-				o.HeightPx = h;
+				o.heightDip = h;
 		}
 		if (map.TryGetValue("osdDisplayDurationMs", out string? dStr)) {
 			if (!uint.TryParse(dStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint d))
@@ -234,7 +234,7 @@ public sealed class ConfigStore {
 				o.DisplayDurationMs = d;
 		}
 		OSDController.Config clamped = OSDController.Config.Clamped(o);
-		if (clamped.HeightPx != o.HeightPx || clamped.DisplayDurationMs != o.DisplayDurationMs)
+		if (clamped.heightDip != o.heightDip || clamped.DisplayDurationMs != o.DisplayDurationMs)
 			repairNotes.Add("OSD size or duration was out of range; clamped.");
 		return clamped;
 	}

@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Brush = System.Windows.Media.Brush;
@@ -31,29 +33,56 @@ public partial class OSDController : Window {
 	static readonly Brush OFF_BRUSH = new SolidColorBrush(Color.FromRgb(222, 87, 87));
 	static readonly Brush TRACK_BRUSH = new SolidColorBrush(Color.FromArgb(80, 255, 255, 255));
 
+	/// <summary>Bar row stem cap (dip per window height); same as toggle icon diameter for row alignment.</summary>
+	const double RATIO_STEM_HEIGHT = 0.34;
+	/// <summary>Track region width relative to window height.</summary>
+	const double RATIO_TRACK_WIDTH = 3.0;
+	/// <summary>Value column width as a fraction of track width (dimensionless).</summary>
+	const double RATIO_VALUE_COLUMN_WIDTH_PER_TRACK_WIDTH = 0.29;
+	const double RATIO_VALUE_COLUMN_WIDTH = RATIO_TRACK_WIDTH * RATIO_VALUE_COLUMN_WIDTH_PER_TRACK_WIDTH;
+	/// <summary>Gap track→value column and flash vertical leg (scaled with window height).</summary>
+	const double RATIO_CHROME_GAP = RATIO_STEM_HEIGHT * 0.54;
+	const double RATIO_LABEL_RIGHT_MARGIN = RATIO_STEM_HEIGHT * 0.63;
+	/// <summary>Middle column right margin and flash inside gap (scaled with window height).</summary>
+	const double RATIO_MIDDLE_COLUMN_RIGHT_MARGIN = RATIO_STEM_HEIGHT * 0.33;
+	/// <summary>Screen inset from work area and toggle stack left margin (scaled with window height).</summary>
+	const double RATIO_EDGE_MARGIN = RATIO_STEM_HEIGHT * 0.42;
+	const double RATIO_CORNER_RADIUS = RATIO_STEM_HEIGHT * 0.79;
+	const double RATIO_FLASH_MARKER_SIZE = RATIO_STEM_HEIGHT * 0.67;
+	const double RATIO_FLASH_VERTICAL_BAR_THICKNESS = RATIO_STEM_HEIGHT * 0.17;
+	const double RATIO_TOGGLE_ICON_STROKE_WIDTH = RATIO_STEM_HEIGHT * 0.13;
+	/// <summary>Extra minimum width when the progress bar row is hidden (scaled with window height).</summary>
+	const double RATIO_STATUS_ROW_MINIMUM_WIDTH_INCREMENT = RATIO_STEM_HEIGHT * 1.29;
+	const double RATIO_FLASH_VERTICAL_LINE_TOP_MARGIN = RATIO_STEM_HEIGHT * 0.04;
+	const double RATIO_FLASH_MARKER_OUTSIDE_GAP = RATIO_STEM_HEIGHT * 0.21;
+	const double RATIO_FONT_SIZE_SEARCH_LOWER_BOUND = 0.1;
+	const double RATIO_FONT_SIZE_SEARCH_UPPER_BOUND = 0.38;
+	const double RATIO_FONT_SIZE_FINE_TUNING_UPPER_CAP = 0.4;
+	const double RATIO_FONT_SIZE_FINE_TUNING_STEP = 0.15;
+
 	public sealed class Config {
-		public const int MIN_HEIGHT_PX = 48;
-		public const int MAX_HEIGHT_PX = 600;
+		public const int MIN_HEIGHT_DIP = 48;
+		public const int MAX_HEIGHT_DIP = 600;
 		public const uint MIN_DISPLAY_DURATION_MS = 200;
 		public const uint MAX_DISPLAY_DURATION_MS = 60_000;
 
-		public int HeightPx { get; set; } = 78;
+		public int heightDip { get; set; } = 78;
 		public uint DisplayDurationMs { get; set; } = 1000;
 
 		public Config() { }
 
 		public Config(Config other) {
 			ArgumentNullException.ThrowIfNull(other);
-			HeightPx = other.HeightPx;
+			heightDip = other.heightDip;
 			DisplayDurationMs = other.DisplayDurationMs;
 		}
 
 		public static Config Clamped(Config? cfg) {
 			cfg ??= new Config();
 			uint duration = Math.Clamp(cfg.DisplayDurationMs, MIN_DISPLAY_DURATION_MS, MAX_DISPLAY_DURATION_MS);
-			int height = Math.Clamp(cfg.HeightPx, MIN_HEIGHT_PX, MAX_HEIGHT_PX);
+			int height = Math.Clamp(cfg.heightDip, MIN_HEIGHT_DIP, MAX_HEIGHT_DIP);
 			return new Config {
-				HeightPx = height,
+				heightDip = height,
 				DisplayDurationMs = duration,
 			};
 		}
@@ -68,6 +97,7 @@ public partial class OSDController : Window {
 	double _trackWidth;
 	double _statusWidth;
 	double _valueWidth;
+	double _barHeight;
 	int _levelFracDigits = 2;
 	float _cachedFaderStep = float.NaN;
 	int _cachedFaderStepDigits = 2;
@@ -85,7 +115,7 @@ public partial class OSDController : Window {
 		_autoHideTimer = new DispatcherTimer();
 		_autoHideTimer.Tick += (_, _) => beginFade();
 		_flashTimer = new DispatcherTimer {
-			Interval = TimeSpan.FromMilliseconds(1000),
+			Interval = TimeSpan.FromMilliseconds(200),
 		};
 		_flashTimer.Tick += (_, _) => {
 			_flashTimer.Stop();
@@ -114,60 +144,107 @@ public partial class OSDController : Window {
 	}
 
 	void applySizing() {
-		double scale = _config.HeightPx / 78.0;
-		double horizontalPadding = Math.Max(12, 18 * scale);
-		double screenInset = Math.Max(4, 8 * scale);
+		double H = _config.heightDip;
 		double borderWidth = RootBorder.BorderThickness.Left + RootBorder.BorderThickness.Right;
-		_targetHeight = _config.HeightPx;
-		_trackWidth = Math.Max(120, 194 * scale);
-		_statusWidth = Math.Max(44, 56 * scale);
-		_valueWidth = Math.Max(48, 56 * scale);
-		_minimumWidth = Math.Ceiling(borderWidth + (2 * horizontalPadding) + _trackWidth + 10 + _valueWidth);
+		double borderTB = RootBorder.BorderThickness.Top + RootBorder.BorderThickness.Bottom;
+		double screenInset = H * RATIO_EDGE_MARGIN;
+		_targetHeight = H;
+		_trackWidth = H * RATIO_TRACK_WIDTH;
+		_statusWidth = H * RATIO_VALUE_COLUMN_WIDTH;
+		_valueWidth = H * RATIO_VALUE_COLUMN_WIDTH;
+		double gapTrackToValue = H * RATIO_CHROME_GAP;
+		double stemH = H * RATIO_STEM_HEIGHT;
+		var barRowTypeface = new Typeface(LabelTextBlock.FontFamily, LabelTextBlock.FontStyle, LabelTextBlock.FontWeight, LabelTextBlock.FontStretch);
+		double pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+		const string stemProbe = "Wy";
+		FormattedText probeLine(double sz) => new FormattedText(stemProbe, CultureInfo.CurrentCulture, System.Windows.FlowDirection.LeftToRight, barRowTypeface, sz, Brushes.White, pixelsPerDip);
+		double loFont = H * RATIO_FONT_SIZE_SEARCH_LOWER_BOUND;
+		double hiFont = H * RATIO_FONT_SIZE_SEARCH_UPPER_BOUND;
+		if (Math.Ceiling(probeLine(hiFont).Height) <= stemH) {
+			loFont = hiFont;
+		} else {
+			for (int i = 0; i < 26; i++) {
+				double mid = (loFont + hiFont) * 0.5;
+				if (Math.Ceiling(probeLine(mid).Height) <= stemH)
+					loFont = mid;
+				else
+					hiFont = mid;
+			}
+		}
+		double fontSizeDip = loFont;
+		while (fontSizeDip + RATIO_FONT_SIZE_FINE_TUNING_STEP <= H * RATIO_FONT_SIZE_FINE_TUNING_UPPER_CAP && Math.Ceiling(probeLine(fontSizeDip + RATIO_FONT_SIZE_FINE_TUNING_STEP).Height) <= stemH)
+			fontSizeDip += RATIO_FONT_SIZE_FINE_TUNING_STEP;
+		_barHeight = Math.Min(stemH, Math.Ceiling(probeLine(fontSizeDip).Height));
+		double toggleIconSize = H * RATIO_STEM_HEIGHT;
+		double rowHeight = Math.Max(_barHeight, toggleIconSize);
+		double padDip = (H - borderTB - rowHeight) / 2;
+		if (padDip < 0)
+			padDip = 0;
+		_minimumWidth = Math.Ceiling(borderWidth + (2 * padDip) + _trackWidth + gapTrackToValue + _valueWidth);
 		_targetWidth = _minimumWidth;
 		double maxWindowWidth = Math.Max(_minimumWidth, SystemParameters.WorkArea.Width - (2 * screenInset));
-		double labelMaxWidth = Math.Max(80, maxWindowWidth - borderWidth - (2 * horizontalPadding) - _trackWidth - 10 - _valueWidth - 12);
+		double labelChrome = borderWidth + (2 * padDip) + _trackWidth + gapTrackToValue + _valueWidth + H * RATIO_LABEL_RIGHT_MARGIN;
+		double labelMaxWidth = Math.Max(0, maxWindowWidth - labelChrome);
 		MinHeight = _targetHeight;
 		MaxHeight = _targetHeight;
 		MinWidth = _minimumWidth;
 		MaxWidth = maxWindowWidth;
 		Height = _targetHeight;
 		Width = _targetWidth;
-		RootBorder.CornerRadius = new CornerRadius(Math.Max(12, 14 * scale));
-		RootBorder.Padding = new Thickness(horizontalPadding);
-		LabelTextBlock.FontSize = Math.Max(12, 15 * scale);
+		RootBorder.CornerRadius = new CornerRadius(H * RATIO_CORNER_RADIUS);
+		RootBorder.Padding = new Thickness(padDip);
+		LabelTextBlock.FontSize = fontSizeDip;
+		LabelTextBlock.LineHeight = _barHeight;
+		LabelTextBlock.MinHeight = rowHeight;
+		LabelTextBlock.MaxHeight = rowHeight;
+		LabelTextBlock.Margin = new Thickness(0, 0, H * RATIO_LABEL_RIGHT_MARGIN, 0);
 		LabelTextBlock.MaxWidth = labelMaxWidth;
-		StatusTextBlock.FontSize = Math.Max(13, 16 * scale);
-		ValueTextBlock.FontSize = Math.Max(12, 15 * scale);
+		ValueTextBlock.FontSize = fontSizeDip;
+		ValueTextBlock.LineHeight = _barHeight;
+		ValueTextBlock.MinHeight = rowHeight;
+		ValueTextBlock.MaxHeight = rowHeight;
+		StatusTextBlock.FontSize = fontSizeDip;
+		StatusTextBlock.LineHeight = _barHeight;
+		StatusTextBlock.MinHeight = rowHeight;
+		StatusTextBlock.MaxHeight = rowHeight;
+		MiddleContent.Margin = new Thickness(0, 0, H * RATIO_MIDDLE_COLUMN_RIGHT_MARGIN, 0);
 		ValueTextBlock.MinWidth = _valueWidth;
 		ValueTextBlock.MaxWidth = _valueWidth;
-		double flashMarkerSize = Math.Max(10, 12 * scale);
-		double flashMarkerThickness = Math.Max(2, 3 * scale);
+		double flashMarkerSize = H * RATIO_FLASH_MARKER_SIZE;
+		double flashMarkerThickness = H * RATIO_FLASH_VERTICAL_BAR_THICKNESS;
 		FlashMarker.Width = flashMarkerSize;
 		FlashMarker.Height = flashMarkerSize;
 		FlashMarkerHorizontal.Width = flashMarkerSize;
 		FlashMarkerHorizontal.Height = flashMarkerThickness;
 		FlashMarkerHorizontal.CornerRadius = new CornerRadius(flashMarkerThickness / 2.0);
 		FlashMarkerVertical.Width = flashMarkerThickness;
-		FlashMarkerVertical.Height = flashMarkerSize;
+		FlashMarkerVertical.Height = H * RATIO_CHROME_GAP;
+		FlashMarkerVertical.Margin = new Thickness(0, H * RATIO_FLASH_VERTICAL_LINE_TOP_MARGIN, 0, 0);
 		FlashMarkerVertical.CornerRadius = new CornerRadius(flashMarkerThickness / 2.0);
-		double barHeight = Math.Max(16, 20 * scale);
 		MiddleContent.MinWidth = _trackWidth;
 		MiddleContent.MaxWidth = _trackWidth;
 		MiddleContent.Width = _trackWidth;
-		BarTrack.Height = barHeight;
+		MiddleContent.MinHeight = rowHeight;
+		MiddleContent.MaxHeight = rowHeight;
+		RightContent.MinHeight = rowHeight;
+		RightContent.MaxHeight = rowHeight;
+		BarTrack.Height = _barHeight;
+		BarTrack.CornerRadius = new CornerRadius(_barHeight / 2.0);
 		BarTrack.MinWidth = _trackWidth;
 		BarTrack.MaxWidth = _trackWidth;
 		BarTrack.Width = _trackWidth;
-		BarFill.Height = barHeight;
+		BarFill.Height = _barHeight;
 		StatusTextBlock.MaxWidth = _trackWidth;
-		double toggleIconSize = Math.Max(14, 18 * scale);
 		ToggleIconContainer.Width = toggleIconSize;
 		ToggleIconContainer.Height = toggleIconSize;
+		ToggleIconContainer.Margin = new Thickness(H * RATIO_EDGE_MARGIN, 0, 0, 0);
 		ToggleSlash.X1 = toggleIconSize * 0.22;
 		ToggleSlash.Y1 = toggleIconSize * 0.78;
 		ToggleSlash.X2 = toggleIconSize * 0.78;
 		ToggleSlash.Y2 = toggleIconSize * 0.22;
-		ToggleSlash.StrokeThickness = Math.Max(2, toggleIconSize * 0.11);
+		double strokeDip = H * RATIO_TOGGLE_ICON_STROKE_WIDTH;
+		ToggleSlash.StrokeThickness = strokeDip;
+		ToggleEllipse.StrokeThickness = strokeDip;
 		_layoutMeasureDirty = true;
 		_windowPlacementDirty = true;
 		reposition();
@@ -193,16 +270,13 @@ public partial class OSDController : Window {
 		if (needsPlacement) {
 			hwnd = new WindowInteropHelper(this).EnsureHandle();
 			if (layoutChanged || _layoutMeasureDirty) {
-				double currentMinimumWidth = getCurrentMinimumWidth();
-				MinWidth = currentMinimumWidth;
+				MinWidth = getCurrentMinimumWidth();
 				double desiredWidth = measureWindowWidth();
-				_targetWidth = desiredWidth;
-				Width = desiredWidth;
+				_targetWidth = Math.Clamp(desiredWidth, MinWidth, MaxWidth);
 				_layoutMeasureDirty = false;
-			} else {
-				Width = _targetWidth;
 			}
 			Height = _targetHeight;
+			Width = _targetWidth;
 		}
 		if (!wasVisible) {
 			Opacity = 0;
@@ -212,9 +286,6 @@ public partial class OSDController : Window {
 			placeWindow(hwnd, _targetWidth);
 			_windowPlacementDirty = false;
 		}
-		_targetWidth = Math.Clamp(_targetWidth, MinWidth, MaxWidth);
-		Width = _targetWidth;
-		Height = _targetHeight;
 		Opacity = 0.88;
 		resetAutoHideTimer();
 	}
@@ -246,7 +317,7 @@ public partial class OSDController : Window {
 
 	void placeWindow(IntPtr hwnd, double width) {
 		var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
-		double insetDip = Math.Max(4, _targetHeight * 0.08);
+		double insetDip = _targetHeight * RATIO_EDGE_MARGIN;
 		int widthPx = (int)Math.Round(width * dpi.DpiScaleX);
 		int heightPx = (int)Math.Round(_targetHeight * dpi.DpiScaleY);
 		int insetXPx = (int)Math.Round(insetDip * dpi.DpiScaleX);
@@ -278,13 +349,13 @@ public partial class OSDController : Window {
 
 	double getCurrentMinimumWidth() => BarTrack.Visibility == Visibility.Visible
 		? _minimumWidth
-		: Math.Ceiling(RootBorder.BorderThickness.Left + RootBorder.BorderThickness.Right + RootBorder.Padding.Left + RootBorder.Padding.Right + 24);
+		: Math.Ceiling(RootBorder.BorderThickness.Left + RootBorder.BorderThickness.Right + RootBorder.Padding.Left + RootBorder.Padding.Right + _targetHeight * RATIO_STATUS_ROW_MINIMUM_WIDTH_INCREMENT);
 
 	void reposition() => reposition(_targetWidth);
 
 	void reposition(double width) {
 		Rect workArea = SystemParameters.WorkArea;
-		double inset = Math.Max(4, _targetHeight * 0.08);
+		double inset = _targetHeight * RATIO_EDGE_MARGIN;
 		Left = workArea.Right - width - inset;
 		Top = workArea.Bottom - _targetHeight - inset;
 	}
@@ -352,7 +423,7 @@ public partial class OSDController : Window {
 		applyLabel(rowLabel);
 		BarFill.Width = 0;
 		BarFill.Background = TRACK_BRUSH;
-		BarFill.CornerRadius = new CornerRadius(BarTrack.Height / 2.0, 0, 0, BarTrack.Height / 2.0);
+		BarFill.CornerRadius = new CornerRadius(_barHeight / 2.0, 0, 0, _barHeight / 2.0);
 		ValueTextBlock.Text = "Pending";
 		showNoActivate(layoutChanged);
 	}
@@ -422,7 +493,7 @@ public partial class OSDController : Window {
 		BarTrack.Width = _trackWidth;
 		double fillWidth = Math.Max(0, _trackWidth * Math.Clamp(normalized, 0.0, 1.0));
 		BarFill.Width = fillWidth;
-		double radius = BarTrack.Height / 2.0;
+		double radius = _barHeight / 2.0;
 		BarFill.CornerRadius = fillWidth >= _trackWidth - 1
 			? new CornerRadius(radius)
 			: new CornerRadius(radius, 0, 0, radius);
@@ -430,9 +501,9 @@ public partial class OSDController : Window {
 
 	void positionFlash(bool volumeIncreased) {
 		double fillEndX = BarFill.Width;
-		double outsideGap = Math.Max(4, BarTrack.Height * 0.18);
+		double outsideGap = _targetHeight * RATIO_FLASH_MARKER_OUTSIDE_GAP;
 		double markerWidth = FlashMarker.Width;
-		double insideGap = Math.Max(6, markerWidth * 0.35);
+		double insideGap = _targetHeight * RATIO_MIDDLE_COLUMN_RIGHT_MARGIN;
 		double verticalOffset = 0;
 		double x = volumeIncreased
 			? Math.Min(Math.Max(0, fillEndX + outsideGap), Math.Max(0, _trackWidth - markerWidth))

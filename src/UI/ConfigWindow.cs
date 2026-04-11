@@ -158,7 +158,7 @@ public partial class ConfigWindow : Window {
 		PortTextBox.Text = cfg.oscTransport.endPoint.Port.ToString(CultureInfo.InvariantCulture);
 		TimeoutTextBox.Text = cfg.mixer.timeoutMs.ToString(CultureInfo.InvariantCulture);
 		CacheTtlTextBox.Text = cfg.mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture);
-		OsdHeightTextBox.Text = cfg.osd.HeightPx.ToString(CultureInfo.InvariantCulture);
+		OsdHeightTextBox.Text = cfg.osd.heightDip.ToString(CultureInfo.InvariantCulture);
 		OsdDurationTextBox.Text = cfg.osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture);
 		BindingManager.Config tray = cfg.trayApp ?? new BindingManager.Config();
 		HotkeyLongPressMsTextBox.Text = tray.longPressDurationMs.ToString(CultureInfo.InvariantCulture);
@@ -487,7 +487,7 @@ public partial class ConfigWindow : Window {
 			return false;
 		if (!tryParseUInt(CacheTtlTextBox.Text, 0, MixerController.Config.MAX_VALUE_CACHE_TTL_MS, "Value cache TTL", out uint ttl, out error))
 			return false;
-		if (!tryParseInt(OsdHeightTextBox.Text, OSDController.Config.MIN_HEIGHT_PX, OSDController.Config.MAX_HEIGHT_PX, "OSD height", out int osdHeight, out error))
+		if (!tryParseInt(OsdHeightTextBox.Text, OSDController.Config.MIN_HEIGHT_DIP, OSDController.Config.MAX_HEIGHT_DIP, "OSD height", out int osdHeight, out error))
 			return false;
 		if (!tryParseUInt(OsdDurationTextBox.Text, OSDController.Config.MIN_DISPLAY_DURATION_MS, OSDController.Config.MAX_DISPLAY_DURATION_MS, "OSD display duration", out uint osdDuration, out error))
 			return false;
@@ -565,7 +565,7 @@ public partial class ConfigWindow : Window {
 				ValueCacheTtlMs = ttl,
 			},
 			osd = new OSDController.Config {
-				HeightPx = osdHeight,
+				heightDip = osdHeight,
 				DisplayDurationMs = osdDuration,
 			},
 			trayApp = new BindingManager.Config {

@@ -10,7 +10,7 @@ This codebase **intentionally does not follow** usual public-API PascalCase rule
 ## Naming
 
 - **Types** (classes, structs, enums, delegates): **PascalCase** (`ConfigStore`, `AppConfigDiskOutcome`).
-- **Enum members** and **`const`**: **UPPER_SNAKE_CASE** (`NONE`, `MIN_HEIGHT_PX`).
+- **Enum members** and **`const`**: **UPPER_SNAKE_CASE** (`NONE`, `MIN_HEIGHT_DIP`).
 - **Methods** (including `public`): **camelCase** when not forbidden below (`loadFromDisk`, `tryPersistToDisk`).
 - **Properties, locals, parameters**: **camelCase** (`appConfig`, `endPoint`, `name`).
 - **Instance fields** (non-const): **`_camelCase`** with a leading underscore (`_configStore`).

@@ -193,7 +193,7 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Margin="0,0,8,4" VerticalAlignment="Center" Text="Height (px)" />
+                                <TextBlock Margin="0,0,8,4" VerticalAlignment="Center" Text="Height (DIP)" />
                                 <TextBox x:Name="OsdHeightTextBox" Grid.Column="1" Margin="0,0,0,4" />
                                 <TextBlock Grid.Row="1" Margin="0,0,8,0" VerticalAlignment="Center" Text="Display duration (ms)" />
                                 <TextBox x:Name="OsdDurationTextBox" Grid.Row="1" Grid.Column="1" />

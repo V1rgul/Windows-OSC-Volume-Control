@@ -18,27 +18,28 @@
         Background="#D9000000"
         BorderBrush="#26000000"
         BorderThickness="1"
-        CornerRadius="14"
-        Padding="18">
+        CornerRadius="0"
+        Padding="0">
         <DockPanel LastChildFill="False">
             <StackPanel
                 x:Name="RightContent"
                 DockPanel.Dock="Right"
                 Orientation="Horizontal"
-                VerticalAlignment="Center">
+                VerticalAlignment="Top">
                 <TextBlock
                     x:Name="ValueTextBlock"
-                    MinWidth="52"
-                    FontSize="15"
+                    MinWidth="0"
+                    FontSize="12"
                     FontWeight="SemiBold"
                     Foreground="White"
                     TextAlignment="Right"
+                    VerticalAlignment="Top"
                     Text="0.00" />
                 <Grid
                     x:Name="ToggleIconContainer"
-                    Width="18"
-                    Height="18"
-                    Margin="8,0,0,0"
+                    Width="0"
+                    Height="0"
+                    Margin="0"
                     Visibility="Collapsed">
                     <Ellipse
                         x:Name="ToggleEllipse"
@@ -59,18 +60,16 @@
             <Grid
                 x:Name="MiddleContent"
                 DockPanel.Dock="Right"
-                Margin="0,0,6,0">
+                Margin="0"
+                VerticalAlignment="Top">
                 <Border
                     x:Name="BarTrack"
-                    Height="20"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
-                    Background="#33FFFFFF"
-                    CornerRadius="10">
+                    Background="#33FFFFFF">
                     <Grid ClipToBounds="True">
                         <Border
                             x:Name="BarFill"
-                            Height="20"
                             HorizontalAlignment="Left"
                             VerticalAlignment="Center"
                             Background="#7AD77A"
@@ -78,8 +77,8 @@
                             Width="0" />
                         <Grid
                             x:Name="FlashMarker"
-                            Width="12"
-                            Height="12"
+                            Width="0"
+                            Height="0"
                             HorizontalAlignment="Left"
                             VerticalAlignment="Center"
                             Visibility="Collapsed"
@@ -89,17 +88,17 @@
                             </Grid.RenderTransform>
                             <Border
                                 x:Name="FlashMarkerHorizontal"
-                                Width="12"
-                                Height="3"
+                                Width="0"
+                                Height="0"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 Background="Black"
                                 CornerRadius="1.5" />
                             <Border
                                 x:Name="FlashMarkerVertical"
-                                Width="3"
-                                Height="10"
-                                Margin="0,1,0,0"
+                                Width="0"
+                                Height="0"
+                                Margin="0"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 Background="Black"
@@ -112,7 +111,7 @@
                     x:Name="StatusTextBlock"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    FontSize="16"
+                    FontSize="12"
                     FontWeight="SemiBold"
                     Foreground="White"
                     Text="Pending"
@@ -121,9 +120,9 @@
 
             <TextBlock
                 x:Name="LabelTextBlock"
-                Margin="0,0,12,0"
-                VerticalAlignment="Center"
-                FontSize="15"
+                Margin="0"
+                VerticalAlignment="Top"
+                FontSize="12"
                 FontWeight="SemiBold"
                 Foreground="White"
                 TextTrimming="CharacterEllipsis"
