@@ -151,7 +151,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Border Grid.Column="0" Padding="0">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <local:SmoothScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,0,8,8" Grid.IsSharedSizeScope="True">
                         <GroupBox Header="Autostart" Margin="0,0,0,8" Padding="0">
                             <StackPanel Margin="8,4,8,8" Orientation="Vertical">
@@ -424,13 +424,13 @@
                             </Grid>
                         </GroupBox>
                     </StackPanel>
-                </ScrollViewer>
+                </local:SmoothScrollViewer>
             </Border>
             <Grid Grid.Column="1" Margin="8,0,0,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                <local:SmoothScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
                     <GroupBox Header="Bindings" Margin="0,0,8,0" Padding="0">
                         <StackPanel Margin="8,4,8,8">
                             <ItemsControl ItemsSource="{Binding Bindings}">
@@ -694,7 +694,7 @@
                             <Button Margin="0,8,0,0" Padding="14,8" HorizontalAlignment="Center" Click="buttonAddBinding_Click">Add binding</Button>
                         </StackPanel>
                     </GroupBox>
-                </ScrollViewer>
+                </local:SmoothScrollViewer>
             </Grid>
         </Grid>
     </DockPanel>
