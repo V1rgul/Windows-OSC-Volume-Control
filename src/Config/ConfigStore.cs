@@ -32,6 +32,21 @@ public sealed class ConfigStore {
 
 	public AppConfigDiskOutcome lastDiskOutcome { get; private set; } = AppConfigDiskOutcome.NONE;
 
+	public UiTextFeedback lastDiskUiFeedback => new(lastDiskFeedback, diskUiKind(lastDiskOutcome));
+
+	public static UiTextFeedback reloadSettingsSuccessFeedback() =>
+		new("Reloaded settings from disk.", UiTextFeedbackKind.SUCCESS);
+
+	public static UiTextFeedback explorerLaunchFailedFeedback(Exception ex) =>
+		new(ex.Message, UiTextFeedbackKind.ERROR);
+
+	static UiTextFeedbackKind diskUiKind(AppConfigDiskOutcome o) => o switch {
+		AppConfigDiskOutcome.LOAD_IO_ERROR or AppConfigDiskOutcome.SAVE_FAILED => UiTextFeedbackKind.ERROR,
+		AppConfigDiskOutcome.LOADED_PARTIAL => UiTextFeedbackKind.WARNING,
+		AppConfigDiskOutcome.SAVED_OK or AppConfigDiskOutcome.LOADED_OK => UiTextFeedbackKind.SUCCESS,
+		_ => UiTextFeedbackKind.DEFAULT,
+	};
+
 	public ConfigStore() {
 		appConfig = new AppConfig();
 	}

@@ -417,4 +417,17 @@ public sealed class MixerController {
 			_ => arg.ToString() ?? "",
 		};
 	}
+
+	public static UiTextFeedback infoQueryDetailFeedback(bool ok, string detail) =>
+		new(detail, ok ? UiTextFeedbackKind.DEFAULT : UiTextFeedbackKind.ERROR);
+
+	public static UiTextFeedback settingsApplyMixerSummaryFeedback(bool mixerInfoOk) =>
+		new(
+			mixerInfoOk
+				? "Settings applied and mixer responded."
+				: "Settings saved, but the mixer did not respond cleanly.",
+			mixerInfoOk ? UiTextFeedbackKind.SUCCESS : UiTextFeedbackKind.ERROR);
+
+	public static UiTextFeedback exceptionMessageFeedback(Exception ex) =>
+		new(ex.Message, UiTextFeedbackKind.ERROR);
 }

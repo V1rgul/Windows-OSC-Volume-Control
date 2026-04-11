@@ -365,8 +365,8 @@ public sealed class HotkeyActionEditor : ObservableObject {
 			error = "Hotkey is required.";
 			return false;
 		}
-		if (!HotkeyUtil.tryValidate(hotkey, out string hkErr)) {
-			error = hkErr;
+		if (!HotkeyUtil.tryValidate(hotkey, out UiTextFeedback hkFb)) {
+			error = hkFb.text;
 			return false;
 		}
 

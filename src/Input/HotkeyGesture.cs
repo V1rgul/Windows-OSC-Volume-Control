@@ -142,19 +142,25 @@ public static class HotkeyUtil {
 	}
 
 	public static bool tryValidate(HotkeyGesture hotkey, out string error) {
+		bool ok = tryValidate(hotkey, out UiTextFeedback fb);
+		error = ok ? "" : fb.text;
+		return ok;
+	}
+
+	public static bool tryValidate(HotkeyGesture hotkey, out UiTextFeedback feedback) {
 		hotkey = normalize(hotkey);
 		if (hotkey.isNone) {
-			error = "Hotkey is required.";
+			feedback = new UiTextFeedback("Hotkey is required.", UiTextFeedbackKind.ERROR);
 			return false;
 		}
 
 		Key key = KeyInterop.KeyFromVirtualKey(hotkey.keyCode);
 		if (isModifierKey(key)) {
-			error = "Hotkey must include a non-modifier key.";
+			feedback = new UiTextFeedback("Hotkey must include a non-modifier key.", UiTextFeedbackKind.ERROR);
 			return false;
 		}
 
-		error = "";
+		feedback = new UiTextFeedback("", UiTextFeedbackKind.DEFAULT);
 		return true;
 	}
 

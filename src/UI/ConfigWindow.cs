@@ -4,8 +4,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Net;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -51,7 +49,7 @@ public partial class ConfigWindow : Window {
 		_configStore = configStore;
 		loadFromConfigStore();
 		syncTitlebarIconFromTray();
-		refreshAutostartFeedback();
+		UiTextFeedbackPresenter.apply(AutostartFeedbackTextBlock, WindowsAutostart.getCurrentUiFeedback());
 	}
 
 	public void syncTitlebarIconFromTray() => Icon = _trayController.windowIconSourceSnapshot;
@@ -166,51 +164,52 @@ public partial class ConfigWindow : Window {
 		HotkeyOptimizeNonLongPressCheckBox.IsChecked = hk.optimizeNonLongPressKeyDown;
 		HotkeySuppressLongPressOnlyCheckBox.IsChecked = hk.suppressKeyForLongPressOnlyGestures;
 		ConfigPathTextBox.Text = _configStore.configPath;
-		ConfigFeedbackTextBlock.Text = _configStore.lastDiskFeedback;
-		DiskFeedbackTextBlock.Text = _configStore.lastDiskFeedback;
-		InfoResultTextBox.Text = "";
-		NetworkFeedbackTextBlock.Text = "";
-		StatusTextBlock.Text = "";
+		UiTextFeedbackPresenter.apply(ConfigFeedbackTextBlock, _configStore.lastDiskUiFeedback);
+		UiTextFeedbackPresenter.apply(InfoResultTextBox, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
+		UiTextFeedbackPresenter.apply(NetworkFeedbackTextBlock, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
+		UiTextFeedbackPresenter.apply(StatusTextBlock, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
 		Bindings.Clear();
 		foreach (BindingAbstract binding in cfg.trayApp?.bindings ?? [])
 			Bindings.Add(BindingEditor.fromBinding(binding));
 	}
 
 	async void buttonApplySaveAndTest_Click(object sender, RoutedEventArgs e) {
-		StatusTextBlock.Foreground = Brushes.DarkOrange;
-		StatusTextBlock.Text = "";
-		if (!tryBuildConfig(out AppConfig? newConfig, out string? error)) {
-			StatusTextBlock.Foreground = Brushes.IndianRed;
-			StatusTextBlock.Text = error ?? "Invalid configuration.";
+		UiTextFeedbackPresenter.apply(StatusTextBlock, new UiTextFeedback("", UiTextFeedbackKind.WARNING));
+		(bool okBuild, AppConfig? newConfig, UiTextFeedback? buildErr) = SettingsFormDraft.tryBuild(
+			IpTextBox.Text,
+			PortTextBox.Text,
+			TimeoutTextBox.Text,
+			CacheTtlTextBox.Text,
+			OsdHeightTextBox.Text,
+			OsdDurationTextBox.Text,
+			HotkeyLongPressMsTextBox.Text,
+			HotkeyOptimizeNonLongPressCheckBox.IsChecked == true,
+			HotkeySuppressLongPressOnlyCheckBox.IsChecked == true,
+			Bindings);
+		if (!okBuild) {
+			UiTextFeedbackPresenter.apply(StatusTextBlock, buildErr!.Value);
 			return;
 		}
 
 		_appCoordinator.beginConfigValidation();
 		try {
-			_appCoordinator.commitConfigFromSettingsForm(newConfig);
-			ConfigFeedbackTextBlock.Text = _configStore.lastDiskFeedback;
-			DiskFeedbackTextBlock.Text = _configStore.lastDiskFeedback;
+			_appCoordinator.commitConfigFromSettingsForm(newConfig!);
+			UiTextFeedbackPresenter.apply(ConfigFeedbackTextBlock, _configStore.lastDiskUiFeedback);
 
-			var progress = new Progress<(string text, FeedbackTone tone)>(sample => {
-				NetworkFeedbackTextBlock.Text = sample.text;
-				NetworkFeedbackTextBlock.Foreground = brushForTone(sample.tone);
-			});
+			var progress = new Progress<UiTextFeedback>(sample => UiTextFeedbackPresenter.apply(NetworkFeedbackTextBlock, sample));
 
-			int timeoutMs = Math.Max(1, (int)newConfig.mixer.timeoutMs);
-			Task<(string text, FeedbackTone tone)> pingTask = NetworkPingTest.PingFeedbackAsync(newConfig.oscTransport.endPoint.Address, timeoutMs: timeoutMs, probeProgress: progress);
+			int timeoutMs = Math.Max(1, (int)newConfig!.mixer.timeoutMs);
+			Task<UiTextFeedback> pingTask = NetworkPingTest.PingFeedbackAsync(newConfig.oscTransport.endPoint.Address, timeoutMs: timeoutMs, probeProgress: progress);
 			Task<(bool Ok, string Detail)> infoTask = _mixer.QueryInfoAsync();
 			await Task.WhenAll(pingTask, infoTask);
 
-			(string pingText, FeedbackTone pingTone) = pingTask.Result;
-			(bool ok, string detail) = infoTask.Result;
-			NetworkFeedbackTextBlock.Text = pingText;
-			NetworkFeedbackTextBlock.Foreground = brushForTone(pingTone);
-			InfoResultTextBox.Text = detail;
-			StatusTextBlock.Foreground = ok ? Brushes.DarkGreen : Brushes.IndianRed;
-			StatusTextBlock.Text = ok ? "Settings applied and mixer responded." : "Settings saved, but the mixer did not respond cleanly.";
+			UiTextFeedback pingResult = pingTask.Result;
+			(bool infoOk, string detail) = infoTask.Result;
+			UiTextFeedbackPresenter.apply(NetworkFeedbackTextBlock, pingResult);
+			UiTextFeedbackPresenter.apply(InfoResultTextBox, MixerController.infoQueryDetailFeedback(infoOk, detail));
+			UiTextFeedbackPresenter.apply(StatusTextBlock, MixerController.settingsApplyMixerSummaryFeedback(infoOk));
 		} catch (Exception ex) {
-			StatusTextBlock.Foreground = Brushes.IndianRed;
-			StatusTextBlock.Text = ex.Message;
+			UiTextFeedbackPresenter.apply(StatusTextBlock, MixerController.exceptionMessageFeedback(ex));
 		} finally {
 			_appCoordinator.finishConfigValidation();
 		}
@@ -220,9 +219,8 @@ public partial class ConfigWindow : Window {
 		_configStore.loadFromDisk();
 		_appCoordinator.applyConfigFromStore();
 		loadFromConfigStore();
-		refreshAutostartFeedback();
-		StatusTextBlock.Foreground = Brushes.DarkGreen;
-		StatusTextBlock.Text = "Reloaded settings from disk.";
+		UiTextFeedbackPresenter.apply(AutostartFeedbackTextBlock, WindowsAutostart.getCurrentUiFeedback());
+		UiTextFeedbackPresenter.apply(StatusTextBlock, ConfigStore.reloadSettingsSuccessFeedback());
 	}
 
 	void buttonOpenConfigFolder_Click(object sender, RoutedEventArgs e) {
@@ -236,25 +234,16 @@ public partial class ConfigWindow : Window {
 				UseShellExecute = true,
 			});
 		} catch (Exception ex) {
-			StatusTextBlock.Foreground = Brushes.IndianRed;
-			StatusTextBlock.Text = ex.Message;
+			UiTextFeedbackPresenter.apply(StatusTextBlock, ConfigStore.explorerLaunchFailedFeedback(ex));
 		}
 	}
 
 	void buttonRegisterAutostart_Click(object sender, RoutedEventArgs e) {
-		if (WindowsAutostart.TryRegister(out string? error)) {
-			refreshAutostartFeedback("Autostart registered.", false);
-			return;
-		}
-		refreshAutostartFeedback(error ?? "Could not register autostart.", true);
+		UiTextFeedbackPresenter.apply(AutostartFeedbackTextBlock, WindowsAutostart.tryRegister());
 	}
 
 	void buttonDeregisterAutostart_Click(object sender, RoutedEventArgs e) {
-		if (WindowsAutostart.TryDeregister(out string? error)) {
-			refreshAutostartFeedback("Autostart removed.", false);
-			return;
-		}
-		refreshAutostartFeedback(error ?? "Could not deregister autostart.", true);
+		UiTextFeedbackPresenter.apply(AutostartFeedbackTextBlock, WindowsAutostart.tryDeregister());
 	}
 
 	void buttonDeregisterAutostartSplitMenu_Click(object sender, RoutedEventArgs e) {
@@ -267,83 +256,9 @@ public partial class ConfigWindow : Window {
 	}
 
 	void menuItemDeregisterAllAutostart_Click(object sender, RoutedEventArgs e) {
-		if (!WindowsAutostart.tryDeregisterAllCopiesFromRun(out int removedCount, out string? error)) {
-			refreshAutostartFeedback(error ?? "Could not remove autostart entries.", true);
-			return;
-		}
-		refreshAutostartFeedback();
-		if (removedCount == 0) {
-			refreshAutostartFeedback("No matching autostart entries were removed.", false);
-			return;
-		}
-		string tail = AutostartFeedbackTextBlock.Text;
-		AutostartFeedbackTextBlock.Text = "Removed " + removedCount + " autostart entr" + (removedCount == 1 ? "y. " : "ies. ")
-			+ tail;
-		AutostartFeedbackTextBlock.Foreground = Brushes.DarkGreen;
-	}
-
-	static string truncateForAutostartMessage(string text, int maxLen) {
-		if (string.IsNullOrEmpty(text) || text.Length <= maxLen)
-			return text ?? "";
-		int half = (maxLen - 1) / 2;
-		return text.Substring(0, half) + "\u2026" + text.Substring(text.Length - half);
-	}
-
-	void refreshAutostartFeedback(string? overrideText = null, bool? overrideIsError = null) {
-		if (!string.IsNullOrWhiteSpace(overrideText)) {
-			AutostartFeedbackTextBlock.Text = overrideText;
-			if (overrideIsError == true)
-				AutostartFeedbackTextBlock.Foreground = Brushes.IndianRed;
-			else if (overrideIsError == false)
-				AutostartFeedbackTextBlock.Foreground = Brushes.DarkGreen;
-			else
-				AutostartFeedbackTextBlock.ClearValue(TextBlock.ForegroundProperty);
-			return;
-		}
-
-		List<(string valueName, string? parsedExePath, string rawCommand)> entries = WindowsAutostart.listRunEntriesForThisAppExe();
-		string? current = Environment.ProcessPath;
-
-		if (entries.Count > 1) {
-			var sb = new StringBuilder();
-			sb.Append("Multiple autostart entries (");
-			sb.Append(entries.Count);
-			sb.Append(") point to this application. Use Deregister All to remove them.");
-			int n = Math.Min(3, entries.Count);
-			for (int i = 0; i < n; i++) {
-				(string valueName, string? parsedExePath, string rawCommand) = entries[i];
-				string path = parsedExePath ?? truncateForAutostartMessage(rawCommand, 80);
-				sb.AppendLine();
-				sb.Append("\u2022 ");
-				sb.Append(valueName);
-				sb.Append(": ");
-				sb.Append(truncateForAutostartMessage(path, 100));
-			}
-			if (entries.Count > n) {
-				sb.AppendLine();
-				sb.Append("\u2026");
-			}
-			AutostartFeedbackTextBlock.Text = sb.ToString();
-			AutostartFeedbackTextBlock.Foreground = Brushes.IndianRed;
-			return;
-		}
-
-		if (entries.Count == 1) {
-			(_, string? parsedExePath, string rawCommand) = entries[0];
-			if (WindowsAutostart.pathsEqualForAutostart(parsedExePath, current)) {
-				AutostartFeedbackTextBlock.Text = "Autostart is registered for this executable.";
-				AutostartFeedbackTextBlock.ClearValue(TextBlock.ForegroundProperty);
-				return;
-			}
-			string showPath = parsedExePath ?? truncateForAutostartMessage(rawCommand, 200);
-			AutostartFeedbackTextBlock.Text = "Autostart is registered but points to a different location:" + Environment.NewLine
-				+ truncateForAutostartMessage(showPath, 200);
-			AutostartFeedbackTextBlock.Foreground = Brushes.DarkOrange;
-			return;
-		}
-
-		AutostartFeedbackTextBlock.ClearValue(TextBlock.ForegroundProperty);
-		AutostartFeedbackTextBlock.Text = "Autostart is currently not registered.";
+		UiTextFeedbackPresenter.apply(
+			AutostartFeedbackTextBlock,
+			WindowsAutostart.uiFeedbackForDeregisterAll(WindowsAutostart.tryDeregisterAllCopiesFromRun()));
 	}
 
 	void buttonAddBinding_Click(object sender, RoutedEventArgs e) {
@@ -420,7 +335,7 @@ public partial class ConfigWindow : Window {
 		if (sender is FrameworkElement { DataContext: HotkeyActionEditor item }) {
 			item.isHotkeyCaptureActive = true;
 			item.hotkey = HotkeyGesture.None;
-			StatusTextBlock.Text = "";
+			UiTextFeedbackPresenter.apply(StatusTextBlock, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
 			clearHotkeyCaptureTracking();
 			_hotkeyCaptureItem = item;
 		}
@@ -456,9 +371,8 @@ public partial class ConfigWindow : Window {
 		HotkeyGesture g = HotkeyUtil.normalize(_hotkeyCaptureGesture);
 		if (g.isNone)
 			return;
-		if (!HotkeyUtil.tryValidate(g, out string err)) {
-			StatusTextBlock.Foreground = Brushes.IndianRed;
-			StatusTextBlock.Text = err;
+		if (!HotkeyUtil.tryValidate(g, out UiTextFeedback hkFb)) {
+			UiTextFeedbackPresenter.apply(StatusTextBlock, hkFb);
 			clearHotkeyCaptureTracking();
 			return;
 		}
@@ -466,7 +380,7 @@ public partial class ConfigWindow : Window {
 		uint thresholdMs = tryParseHotkeyLongPressMsForCapture(out uint lp) ? lp : KeyboardHook.Config.DEFAULT_LONG_PRESS_MS;
 		double heldMs = (DateTime.UtcNow - _hotkeyCaptureDownUtc.Value).TotalMilliseconds;
 		item.longPress = heldMs >= thresholdMs;
-		StatusTextBlock.Text = "";
+		UiTextFeedbackPresenter.apply(StatusTextBlock, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
 		clearHotkeyCaptureTracking();
 		focusMoveAnchor.Dispatcher.BeginInvoke(DispatcherPriority.Background, moveFocusAwayAfterAssign, focusMoveAnchor);
 	}
@@ -527,9 +441,8 @@ public partial class ConfigWindow : Window {
 			return;
 		}
 
-		if (!HotkeyUtil.tryValidate(hotkey, out string error)) {
-			StatusTextBlock.Foreground = Brushes.IndianRed;
-			StatusTextBlock.Text = error;
+		if (!HotkeyUtil.tryValidate(hotkey, out UiTextFeedback hkFb)) {
+			UiTextFeedbackPresenter.apply(StatusTextBlock, hkFb);
 			e.Handled = true;
 			return;
 		}
@@ -538,7 +451,7 @@ public partial class ConfigWindow : Window {
 		_hotkeyCaptureDownUtc = DateTime.UtcNow;
 		_hotkeyCaptureAwaitingRelease = true;
 		_hotkeyCaptureItem = item;
-		StatusTextBlock.Text = "";
+		UiTextFeedbackPresenter.apply(StatusTextBlock, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
 		e.Handled = true;
 	}
 
@@ -548,167 +461,5 @@ public partial class ConfigWindow : Window {
 		_ = fe.MoveFocus(new TraversalRequest(System.Windows.Input.FocusNavigationDirection.Next));
 	}
 
-	static Brush brushForTone(FeedbackTone tone) => tone switch {
-		FeedbackTone.SUCCESS => Brushes.DarkGreen,
-		FeedbackTone.WARNING => Brushes.DarkOrange,
-		FeedbackTone.ERROR => Brushes.IndianRed,
-		_ => Brushes.Black,
-	};
-
-	bool tryBuildConfig(out AppConfig config, out string? error) {
-		config = new AppConfig();
-		error = null;
-
-		if (!OscConnectionConfigParse.tryParseIpPort(IpTextBox.Text, PortTextBox.Text, out IPAddress ip, out int port, out _, out string? oscError)) {
-			error = oscError ?? "Invalid OSC IP/port.";
-			return false;
-		}
-
-		if (!tryParseUInt(TimeoutTextBox.Text, MixerController.Config.MIN_TIMEOUT_MS, MixerController.Config.MAX_TIMEOUT_MS, "Query timeout", out uint timeout, out error))
-			return false;
-		if (!tryParseUInt(CacheTtlTextBox.Text, 0, MixerController.Config.MAX_VALUE_CACHE_TTL_MS, "Value cache TTL", out uint ttl, out error))
-			return false;
-		if (!tryParseInt(OsdHeightTextBox.Text, OSDController.Config.MIN_HEIGHT_DIP, OSDController.Config.MAX_HEIGHT_DIP, "OSD height", out int osdHeight, out error))
-			return false;
-		if (!tryParseUInt(OsdDurationTextBox.Text, OSDController.Config.MIN_DISPLAY_DURATION_MS, OSDController.Config.MAX_DISPLAY_DURATION_MS, "OSD display duration", out uint osdDuration, out error))
-			return false;
-		if (!tryParseUInt(HotkeyLongPressMsTextBox.Text, KeyboardHook.Config.MIN_LONG_PRESS_MS, KeyboardHook.Config.MAX_LONG_PRESS_MS, "Long-press duration", out uint hotkeyLongPressMs, out error))
-			return false;
-
-		var built = new List<BindingAbstract>();
-		for (int i = 0; i < Bindings.Count; i++) {
-			BindingEditor editor = Bindings[i];
-			if (editor.isDeleted || isBindingBlank(editor))
-				continue;
-
-			if (string.IsNullOrWhiteSpace(editor.name) || string.IsNullOrWhiteSpace(editor.address)) {
-				error = $"Binding {i + 1} requires name and OSC address.";
-				return false;
-			}
-
-			if (editor.type == BindingEditorType.FADER) {
-				if (!tryParseFloat(editor.minimum, "Minimum", out float min, out error)
-				    || !tryParseFloat(editor.maximum, "Maximum", out float max, out error))
-					return false;
-				if (min > max) {
-					error = $"Binding {i + 1}: minimum must be less than or equal to maximum.";
-					return false;
-				}
-				min = FaderFloatUtil.RoundToBindingDecimals(min);
-				max = FaderFloatUtil.RoundToBindingDecimals(max);
-				var fader = new BindingFader {
-					name = editor.name.Trim(),
-					address = editor.address.Trim(),
-					minimum = min,
-					maximum = max,
-				};
-				for (int h = 0; h < editor.hotkeys.Count; h++) {
-					HotkeyActionEditor hk = editor.hotkeys[h];
-					if (hk.isDeleted || isHotkeyRowBlank(hk))
-						continue;
-					if (!hk.tryBuildModel(editor.type, out HotkeyAction? action, out string? hkErr)) {
-						error = $"Binding {i + 1}, hotkey {h + 1}: {hkErr}";
-						return false;
-					}
-					fader.hotkeys.Add(action);
-				}
-				built.Add(fader);
-			} else {
-				var toggle = new BindingToggle {
-					name = editor.name.Trim(),
-					address = editor.address.Trim(),
-				};
-				for (int h = 0; h < editor.hotkeys.Count; h++) {
-					HotkeyActionEditor hk = editor.hotkeys[h];
-					if (hk.isDeleted || isHotkeyRowBlank(hk))
-						continue;
-					if (!hk.tryBuildModel(editor.type, out HotkeyAction? action, out string? hkErr)) {
-						error = $"Binding {i + 1}, hotkey {h + 1}: {hkErr}";
-						return false;
-					}
-					toggle.hotkeys.Add(action);
-				}
-				built.Add(toggle);
-			}
-		}
-
-		if (built.OfType<BindingFader>().FirstOrDefault() == null) {
-			error = "Add at least one non-deleted fader binding with name and address.";
-			return false;
-		}
-
-		config = new AppConfig {
-			oscTransport = new OscTransport.Config {
-				endPoint = new IPEndPoint(ip, port),
-			},
-			mixer = new MixerController.Config {
-				timeoutMs = timeout,
-				ValueCacheTtlMs = ttl,
-			},
-			osd = new OSDController.Config {
-				heightDip = osdHeight,
-				DisplayDurationMs = osdDuration,
-			},
-			trayApp = new BindingManager.Config {
-				bindings = built,
-			},
-			keyboardHook = KeyboardHook.Config.Clamped(new KeyboardHook.Config {
-				longPressDurationMs = hotkeyLongPressMs,
-				optimizeNonLongPressKeyDown = HotkeyOptimizeNonLongPressCheckBox.IsChecked == true,
-				suppressKeyForLongPressOnlyGestures = HotkeySuppressLongPressOnlyCheckBox.IsChecked == true,
-			}),
-		};
-		return true;
-	}
-
-	static bool tryParseUInt(string text, uint min, uint max, string label, out uint value, out string? error) {
-		value = 0;
-		error = null;
-		if (!uint.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsed)) {
-			error = $"{label} must be an integer.";
-			return false;
-		}
-		if (parsed < min || parsed > max) {
-			error = $"{label} must be between {min} and {max}.";
-			return false;
-		}
-		value = parsed;
-		return true;
-	}
-
-	static bool tryParseInt(string text, int min, int max, string label, out int value, out string? error) {
-		value = 0;
-		error = null;
-		if (!int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed)) {
-			error = $"{label} must be an integer.";
-			return false;
-		}
-		if (parsed < min || parsed > max) {
-			error = $"{label} must be between {min} and {max}.";
-			return false;
-		}
-		value = parsed;
-		return true;
-	}
-
-	static bool tryParseFloat(string text, string label, out float value, out string? error) {
-		value = 0;
-		error = null;
-		if (!float.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed) || !float.IsFinite(parsed)) {
-			error = $"{label} must be a finite number.";
-			return false;
-		}
-		value = parsed;
-		return true;
-	}
-
-	static bool isBindingBlank(BindingEditor editor) =>
-		string.IsNullOrWhiteSpace(editor.name)
-		&& string.IsNullOrWhiteSpace(editor.address)
-		&& string.IsNullOrWhiteSpace(editor.minimum)
-		&& string.IsNullOrWhiteSpace(editor.maximum)
-		&& editor.hotkeys.Count == 0;
-
-	static bool isHotkeyRowBlank(HotkeyActionEditor hk) => hk.hotkey.isNone;
-
 }
+
