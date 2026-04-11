@@ -62,7 +62,7 @@ public sealed class BindingEditor : ObservableObject {
 	string _minimum = "0";
 	string _maximum = "1";
 	bool _isDeleted;
-	bool _bindingExpanded = true;
+	bool _bindingExpanded;
 	// Stable list instance: ComboBox matches SelectedItem by reference; rebuilding the list each get left the box blank.
 	IReadOnlyList<HotkeyActionChoice>? _actionChoices;
 
