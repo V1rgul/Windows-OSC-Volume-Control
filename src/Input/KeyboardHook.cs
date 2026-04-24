@@ -50,9 +50,12 @@ public partial class KeyboardHook : IDisposable {
 	const int WM_SYSKEYDOWN = 0x0104;
 	const int WM_KEYUP = 0x0101;
 	const int WM_SYSKEYUP = 0x0105;
-	const int VK_CONTROL = 0x11;
-	const int VK_SHIFT = 0x10;
-	const int VK_MENU = 0x12;
+	const int VK_LSHIFT = 0xA0;
+	const int VK_RSHIFT = 0xA1;
+	const int VK_LCONTROL = 0xA2;
+	const int VK_RCONTROL = 0xA3;
+	const int VK_LMENU = 0xA4;
+	const int VK_RMENU = 0xA5;
 
 	/// <summary>Wall-clock slack so a slightly early <see cref="System.Threading.Timer"/> or hook tick still counts as past the long-press duration.</summary>
 	const int LONG_PRESS_DEADLINE_SLACK_MS = 45;
@@ -155,14 +158,20 @@ public partial class KeyboardHook : IDisposable {
 	static bool IsModifierVirtualKey(int vkCode) =>
 		HotkeyUtil.isModifierKey(KeyInterop.KeyFromVirtualKey(vkCode));
 
-	static HotkeyModifiers GetActiveModifiers() {
+	static HotkeyModifiers GetActiveModifierSides() {
 		HotkeyModifiers modifiers = HotkeyModifiers.NONE;
-		if (IsVirtualKeyDown(VK_CONTROL))
-			modifiers |= HotkeyModifiers.CONTROL;
-		if (IsVirtualKeyDown(VK_SHIFT))
-			modifiers |= HotkeyModifiers.SHIFT;
-		if (IsVirtualKeyDown(VK_MENU))
-			modifiers |= HotkeyModifiers.ALT;
+		if (IsVirtualKeyDown(VK_LCONTROL))
+			modifiers |= HotkeyModifiers.LEFT_CONTROL;
+		if (IsVirtualKeyDown(VK_RCONTROL))
+			modifiers |= HotkeyModifiers.RIGHT_CONTROL;
+		if (IsVirtualKeyDown(VK_LSHIFT))
+			modifiers |= HotkeyModifiers.LEFT_SHIFT;
+		if (IsVirtualKeyDown(VK_RSHIFT))
+			modifiers |= HotkeyModifiers.RIGHT_SHIFT;
+		if (IsVirtualKeyDown(VK_LMENU))
+			modifiers |= HotkeyModifiers.LEFT_ALT;
+		if (IsVirtualKeyDown(VK_RMENU))
+			modifiers |= HotkeyModifiers.RIGHT_ALT;
 		return modifiers;
 	}
 
@@ -171,7 +180,7 @@ public partial class KeyboardHook : IDisposable {
 	static bool gestureMainKeyHeld(HotkeyGesture g) => IsVirtualKeyDown(g.keyCode);
 
 	static bool gestureModifiersMatch(HotkeyGesture g) =>
-		(GetActiveModifiers() & (HotkeyModifiers.CONTROL | HotkeyModifiers.SHIFT | HotkeyModifiers.ALT)) == g.modifiers;
+		HotkeyUtil.activeSidesMatchGesture(g.modifiers, GetActiveModifierSides());
 
 	static bool gestureAppearsHeld(HotkeyGesture g) => gestureMainKeyHeld(g) && gestureModifiersMatch(g);
 
@@ -224,7 +233,7 @@ public partial class KeyboardHook : IDisposable {
 	bool tryHandleKeyDownLocked(int vkCode) {
 		HotkeyGesture candidate = HotkeyUtil.normalize(new HotkeyGesture {
 			keyCode = vkCode,
-			modifiers = GetActiveModifiers(),
+			modifiers = GetActiveModifierSides(),
 		});
 		if (candidate.isNone)
 			return false;
@@ -303,7 +312,7 @@ public partial class KeyboardHook : IDisposable {
 	bool tryHandleKeyUpLocked(int vkCode) {
 		HotkeyGesture candidate = HotkeyUtil.normalize(new HotkeyGesture {
 			keyCode = vkCode,
-			modifiers = GetActiveModifiers(),
+			modifiers = GetActiveModifierSides(),
 		});
 
 		if (!_activePresses.TryGetValue(candidate, out ActiveHotkeyPress? press))

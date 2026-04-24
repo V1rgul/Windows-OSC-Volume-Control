@@ -1,19 +1,20 @@
-using System.ComponentModel;
 using Key = System.Windows.Input.Key;
 using KeyConverter = System.Windows.Input.KeyConverter;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using KeyInterop = System.Windows.Input.KeyInterop;
 using Keyboard = System.Windows.Input.Keyboard;
-using ModifierKeys = System.Windows.Input.ModifierKeys;
 
 namespace WindowsOscVolumeControl;
 
 [Flags]
 public enum HotkeyModifiers {
 	NONE = 0,
-	CONTROL = 1 << 0,
-	SHIFT = 1 << 1,
-	ALT = 1 << 2,
+	LEFT_CONTROL = 1 << 0,
+	RIGHT_CONTROL = 1 << 1,
+	LEFT_SHIFT = 1 << 2,
+	RIGHT_SHIFT = 1 << 3,
+	LEFT_ALT = 1 << 4,
+	RIGHT_ALT = 1 << 5,
 }
 
 public readonly record struct HotkeyGesture {
@@ -30,7 +31,25 @@ public readonly record struct HotkeyGesture {
 }
 
 public static class HotkeyUtil {
+	public const HotkeyModifiers CTRL_FAMILY = HotkeyModifiers.LEFT_CONTROL | HotkeyModifiers.RIGHT_CONTROL;
+	public const HotkeyModifiers SHIFT_FAMILY = HotkeyModifiers.LEFT_SHIFT | HotkeyModifiers.RIGHT_SHIFT;
+	public const HotkeyModifiers ALT_FAMILY = HotkeyModifiers.LEFT_ALT | HotkeyModifiers.RIGHT_ALT;
+	public const HotkeyModifiers ALL_SIDE_MODIFIERS = CTRL_FAMILY | SHIFT_FAMILY | ALT_FAMILY;
+
 	static readonly KeyConverter CONVERTER = new();
+
+	/// <summary>True when <paramref name="activeSides"/> satisfies <paramref name="required"/> (subset for held keys, and no extra keys in families the gesture does not use).</summary>
+	public static bool activeSidesMatchGesture(HotkeyModifiers required, HotkeyModifiers activeSides) {
+		if ((activeSides & required) != required)
+			return false;
+		if ((required & CTRL_FAMILY) == 0 && (activeSides & CTRL_FAMILY) != 0)
+			return false;
+		if ((required & SHIFT_FAMILY) == 0 && (activeSides & SHIFT_FAMILY) != 0)
+			return false;
+		if ((required & ALT_FAMILY) == 0 && (activeSides & ALT_FAMILY) != 0)
+			return false;
+		return true;
+	}
 
 	public static HotkeyGesture normalize(HotkeyGesture hotkey) {
 		if (hotkey.keyCode == 0)
@@ -42,12 +61,44 @@ public static class HotkeyUtil {
 
 		return new HotkeyGesture {
 			keyCode = hotkey.keyCode,
-			modifiers = hotkey.modifiers & (HotkeyModifiers.CONTROL | HotkeyModifiers.SHIFT | HotkeyModifiers.ALT),
+			modifiers = hotkey.modifiers & ALL_SIDE_MODIFIERS,
 		};
 	}
 
 	public static bool isModifierKey(Key key) => key is Key.LeftCtrl or Key.RightCtrl or Key.System
 		or Key.LeftShift or Key.RightShift or Key.LeftAlt or Key.RightAlt;
+
+	static bool tryParseModifierToken(string lowered, out HotkeyModifiers mod) {
+		switch (lowered) {
+			case "leftctrl":
+			case "lctrl":
+				mod = HotkeyModifiers.LEFT_CONTROL;
+				return true;
+			case "rightctrl":
+			case "rctrl":
+				mod = HotkeyModifiers.RIGHT_CONTROL;
+				return true;
+			case "leftshift":
+			case "lshift":
+				mod = HotkeyModifiers.LEFT_SHIFT;
+				return true;
+			case "rightshift":
+			case "rshift":
+				mod = HotkeyModifiers.RIGHT_SHIFT;
+				return true;
+			case "leftalt":
+			case "lalt":
+				mod = HotkeyModifiers.LEFT_ALT;
+				return true;
+			case "rightalt":
+			case "ralt":
+				mod = HotkeyModifiers.RIGHT_ALT;
+				return true;
+			default:
+				mod = HotkeyModifiers.NONE;
+				return false;
+		}
+	}
 
 	public static bool tryParse(string? text, out HotkeyGesture hotkey) {
 		hotkey = HotkeyGesture.None;
@@ -64,18 +115,10 @@ public static class HotkeyUtil {
 		HotkeyModifiers modifiers = HotkeyModifiers.NONE;
 		Key? key = null;
 		foreach (string part in parts) {
-			switch (part.ToLowerInvariant()) {
-				case "ctrl":
-				case "control":
-					modifiers |= HotkeyModifiers.CONTROL;
-					continue;
-				case "shift":
-					modifiers |= HotkeyModifiers.SHIFT;
-					continue;
-				case "alt":
-				case "menu":
-					modifiers |= HotkeyModifiers.ALT;
-					continue;
+			string lowered = part.ToLowerInvariant();
+			if (tryParseModifierToken(lowered, out HotkeyModifiers mod)) {
+				modifiers |= mod;
+				continue;
 			}
 
 			if (key != null)
@@ -127,13 +170,19 @@ public static class HotkeyUtil {
 		if (hotkey.isNone)
 			return "";
 
-		var parts = new List<string>(4);
-		if ((hotkey.modifiers & HotkeyModifiers.CONTROL) != 0)
-			parts.Add("Ctrl");
-		if ((hotkey.modifiers & HotkeyModifiers.SHIFT) != 0)
-			parts.Add("Shift");
-		if ((hotkey.modifiers & HotkeyModifiers.ALT) != 0)
-			parts.Add("Alt");
+		var parts = new List<string>(8);
+		if ((hotkey.modifiers & HotkeyModifiers.LEFT_CONTROL) != 0)
+			parts.Add("LeftCtrl");
+		if ((hotkey.modifiers & HotkeyModifiers.RIGHT_CONTROL) != 0)
+			parts.Add("RightCtrl");
+		if ((hotkey.modifiers & HotkeyModifiers.LEFT_SHIFT) != 0)
+			parts.Add("LeftShift");
+		if ((hotkey.modifiers & HotkeyModifiers.RIGHT_SHIFT) != 0)
+			parts.Add("RightShift");
+		if ((hotkey.modifiers & HotkeyModifiers.LEFT_ALT) != 0)
+			parts.Add("LeftAlt");
+		if ((hotkey.modifiers & HotkeyModifiers.RIGHT_ALT) != 0)
+			parts.Add("RightAlt");
 
 		Key key = KeyInterop.KeyFromVirtualKey(hotkey.keyCode);
 		string keyText = CONVERTER.ConvertToInvariantString(key) ?? key.ToString();
@@ -170,12 +219,18 @@ public static class HotkeyUtil {
 			return HotkeyGesture.None;
 
 		HotkeyModifiers modifiers = HotkeyModifiers.NONE;
-		if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
-			modifiers |= HotkeyModifiers.CONTROL;
-		if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
-			modifiers |= HotkeyModifiers.SHIFT;
-		if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0)
-			modifiers |= HotkeyModifiers.ALT;
+		if (Keyboard.IsKeyDown(Key.LeftCtrl))
+			modifiers |= HotkeyModifiers.LEFT_CONTROL;
+		if (Keyboard.IsKeyDown(Key.RightCtrl))
+			modifiers |= HotkeyModifiers.RIGHT_CONTROL;
+		if (Keyboard.IsKeyDown(Key.LeftShift))
+			modifiers |= HotkeyModifiers.LEFT_SHIFT;
+		if (Keyboard.IsKeyDown(Key.RightShift))
+			modifiers |= HotkeyModifiers.RIGHT_SHIFT;
+		if (Keyboard.IsKeyDown(Key.LeftAlt) || Keyboard.IsKeyDown(Key.System))
+			modifiers |= HotkeyModifiers.LEFT_ALT;
+		if (Keyboard.IsKeyDown(Key.RightAlt))
+			modifiers |= HotkeyModifiers.RIGHT_ALT;
 
 		return normalize(new HotkeyGesture {
 			keyCode = KeyInterop.VirtualKeyFromKey(key),

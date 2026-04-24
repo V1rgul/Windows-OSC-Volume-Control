@@ -424,7 +424,7 @@ public partial class ConfigWindow : Window {
 		if (!item.isHotkeyCaptureActive || !_hotkeyCaptureAwaitingRelease || !ReferenceEquals(_hotkeyCaptureItem, item))
 			return;
 		HotkeyGesture up = HotkeyUtil.fromKeyEventArgs(e);
-		if (HotkeyUtil.normalize(up).keyCode != HotkeyUtil.normalize(_hotkeyCaptureGesture).keyCode)
+		if (HotkeyUtil.normalize(up) != HotkeyUtil.normalize(_hotkeyCaptureGesture))
 			return;
 		e.Handled = true;
 		finalizeHotkeyCapture(item, focusedBtn);
@@ -441,7 +441,7 @@ public partial class ConfigWindow : Window {
 		if (!item.isHotkeyCaptureActive || !_hotkeyCaptureAwaitingRelease || !ReferenceEquals(_hotkeyCaptureItem, item))
 			return;
 		HotkeyGesture up = HotkeyUtil.fromKeyEventArgs(e);
-		if (HotkeyUtil.normalize(up).keyCode != HotkeyUtil.normalize(_hotkeyCaptureGesture).keyCode)
+		if (HotkeyUtil.normalize(up) != HotkeyUtil.normalize(_hotkeyCaptureGesture))
 			return;
 		e.Handled = true;
 		finalizeHotkeyCapture(item, fe);

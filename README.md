@@ -15,7 +15,7 @@ Windows tray application that captures configurable global hotkeys and maps them
   Fader and toggle share the same editor pattern; fields and actions depend on the type.
   - **Fader**: float level, clamped between configurable min and max.
   - **Toggle**: bool-style parameter.
-- **Hotkeys per binding**: Each hotkey entry pairs a key combination (optionally with Ctrl/Shift/Alt) with one action. Fader actions are **set value** (absolute float) or **apply delta**. Toggle actions are **toggle** (flip) or **set state** (fixed on/off). A binding may define multiple entries; the default configuration uses the media volume keys for MAIN fader deltas and mute for MAIN toggle.
+  - **Hotkeys per binding**: Each hotkey entry pairs a key combination (optionally with **side-specific** modifiers: `LeftCtrl`, `RightCtrl`, `LeftShift`, `RightShift`, `LeftAlt`, `RightAlt`, combinable) with one action. Fader actions are **set value** (absolute float) or **apply delta**. Toggle actions are **toggle** (flip) or **set state** (fixed on/off). A binding may define multiple entries; the default configuration uses the media volume keys for MAIN fader deltas and mute for MAIN toggle.
 - **Short press and long press**: Each hotkey assignment is either a normal short press or marked **long press** so it runs only after a hold. Hold duration is set in the keyboard section of the settings window. The same key can combine tap vs hold behavior, or be reused on different bindings.
 - **On-screen status (OSD)**: Shows pending, level, toggle, and error feedback for hotkey actions. Size, position, and display duration are configurable
 - **Connection health feedback**: Startup connection test and runtime failure detection update tray state and surface errors

@@ -29,10 +29,36 @@ public class UnitTest1 {
 
 	[Fact]
 	public void HotkeyUtil_RoundTripsCompoundHotkeys() {
-		bool parsed = HotkeyUtil.tryParse("Ctrl+Shift+A", out HotkeyGesture hotkey);
+		bool parsed = HotkeyUtil.tryParse("LeftCtrl+LeftShift+A", out HotkeyGesture hotkey);
 
 		Assert.True(parsed);
-		Assert.Equal("Ctrl+Shift+A", HotkeyUtil.format(hotkey));
+		Assert.Equal("LeftCtrl+LeftShift+A", HotkeyUtil.format(hotkey));
+	}
+
+	[Fact]
+	public void HotkeyUtil_CanonicalizesModifierOrderInFormat() {
+		Assert.True(HotkeyUtil.tryParse("RightShift+LeftCtrl+A", out HotkeyGesture hotkey));
+
+		Assert.Equal("LeftCtrl+RightShift+A", HotkeyUtil.format(hotkey));
+	}
+
+	[Fact]
+	public void HotkeyUtil_RejectsLegacyGenericCtrlToken() {
+		Assert.False(HotkeyUtil.tryParse("Ctrl+A", out _));
+	}
+
+	[Theory]
+	[InlineData(HotkeyModifiers.NONE, HotkeyModifiers.NONE, true)]
+	[InlineData(HotkeyModifiers.NONE, HotkeyModifiers.LEFT_CONTROL, false)]
+	[InlineData(HotkeyModifiers.LEFT_CONTROL, HotkeyModifiers.LEFT_CONTROL, true)]
+	[InlineData(HotkeyModifiers.LEFT_CONTROL, HotkeyModifiers.LEFT_CONTROL | HotkeyModifiers.RIGHT_CONTROL, true)]
+	[InlineData(HotkeyModifiers.LEFT_CONTROL, HotkeyModifiers.RIGHT_CONTROL, false)]
+	[InlineData(HotkeyModifiers.LEFT_CONTROL | HotkeyModifiers.LEFT_SHIFT, HotkeyModifiers.LEFT_CONTROL, false)]
+	[InlineData(HotkeyModifiers.LEFT_CONTROL | HotkeyModifiers.LEFT_SHIFT, HotkeyModifiers.LEFT_CONTROL | HotkeyModifiers.LEFT_SHIFT, true)]
+	public void HotkeyUtil_ActiveSidesMatchGesture(HotkeyModifiers required, HotkeyModifiers active, bool expected) {
+		bool ok = HotkeyUtil.activeSidesMatchGesture(required, active);
+
+		Assert.Equal(expected, ok);
 	}
 
 	[Theory]
@@ -65,7 +91,7 @@ public class UnitTest1 {
 
 	[Fact]
 	public void BindingManager_MultipleRowsSameGesture_CollectsAllShortSlots() {
-		Assert.True(HotkeyUtil.tryParse("Ctrl+A", out HotkeyGesture hk));
+		Assert.True(HotkeyUtil.tryParse("LeftCtrl+A", out HotkeyGesture hk));
 		var f1 = new BindingFader {
 			name = "F1",
 			address = "/1",
@@ -89,7 +115,7 @@ public class UnitTest1 {
 
 	[Fact]
 	public void BindingManager_ShortAndLongSameGesture_SplitBuckets() {
-		Assert.True(HotkeyUtil.tryParse("Ctrl+B", out HotkeyGesture hk));
+		Assert.True(HotkeyUtil.tryParse("LeftCtrl+B", out HotkeyGesture hk));
 		var f = new BindingFader {
 			name = "F",
 			address = "/x",
