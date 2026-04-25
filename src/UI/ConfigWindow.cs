@@ -50,7 +50,7 @@ public partial class ConfigWindow : Window {
 		_configStore = configStore;
 		loadFromConfigStore();
 		syncTitlebarIconFromTray();
-		UiTextFeedbackPresenter.apply(AutostartFeedbackTextBlock, WindowsAutostart.getCurrentUiFeedback());
+		applyAutostartFeedback(WindowsAutostart.getCurrentUiFeedback());
 	}
 
 	public void syncTitlebarIconFromTray() => Icon = _trayController.windowIconSourceSnapshot;
@@ -176,7 +176,7 @@ public partial class ConfigWindow : Window {
 		HotkeyOptimizeNonLongPressCheckBox.IsChecked = hk.optimizeNonLongPressKeyDown;
 		HotkeySuppressLongPressOnlyCheckBox.IsChecked = hk.suppressKeyForLongPressOnlyGestures;
 		HotkeyAcceptMacroChordKeyOrderCheckBox.IsChecked = hk.acceptMacroChordKeyOrder;
-		ConfigPathTextBox.Text = _configStore.configPath;
+		ConfigPathTextBox.Text = _configStore.configPathForUi;
 		UiTextFeedbackPresenter.apply(ConfigFeedbackTextBlock, _configStore.lastDiskUiFeedback);
 		UiTextFeedbackPresenter.apply(InfoResultTextBox, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
 		UiTextFeedbackPresenter.apply(StatusTextBlock, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
@@ -355,7 +355,7 @@ public partial class ConfigWindow : Window {
 		_configStore.loadFromDisk();
 		_appCoordinator.applyConfigFromStore();
 		loadFromConfigStore();
-		UiTextFeedbackPresenter.apply(AutostartFeedbackTextBlock, WindowsAutostart.getCurrentUiFeedback());
+		applyAutostartFeedback(WindowsAutostart.getCurrentUiFeedback());
 		UiTextFeedbackPresenter.apply(StatusTextBlock, ConfigStore.reloadSettingsSuccessFeedback());
 	}
 
@@ -375,11 +375,11 @@ public partial class ConfigWindow : Window {
 	}
 
 	void buttonRegisterAutostart_Click(object sender, RoutedEventArgs e) {
-		UiTextFeedbackPresenter.apply(AutostartFeedbackTextBlock, WindowsAutostart.tryRegister());
+		applyAutostartFeedback(WindowsAutostart.tryRegister());
 	}
 
 	void buttonDeregisterAutostart_Click(object sender, RoutedEventArgs e) {
-		UiTextFeedbackPresenter.apply(AutostartFeedbackTextBlock, WindowsAutostart.tryDeregister());
+		applyAutostartFeedback(WindowsAutostart.tryDeregister());
 	}
 
 	void buttonDeregisterAutostartSplitMenu_Click(object sender, RoutedEventArgs e) {
@@ -392,10 +392,22 @@ public partial class ConfigWindow : Window {
 	}
 
 	void menuItemDeregisterAllAutostart_Click(object sender, RoutedEventArgs e) {
-		UiTextFeedbackPresenter.apply(
-			AutostartFeedbackTextBlock,
-			WindowsAutostart.uiFeedbackForDeregisterAll(WindowsAutostart.tryDeregisterAllCopiesFromRun()));
+		applyAutostartFeedback(WindowsAutostart.uiFeedbackForDeregisterAll(WindowsAutostart.tryDeregisterAllCopiesFromRun()));
 	}
+
+	void applyAutostartFeedback(WindowsAutostart.UiFeedbackDetail detail) {
+		UiTextFeedbackPresenter.apply(AutostartFeedbackTextBlock, detail.feedback);
+		if (string.IsNullOrEmpty(detail.pathOrNull)) {
+			AutostartFeedbackPathTextBox.Text = "";
+			AutostartFeedbackPathTextBox.Visibility = Visibility.Collapsed;
+			return;
+		}
+		AutostartFeedbackPathTextBox.Text = detail.pathOrNull;
+		AutostartFeedbackPathTextBox.Visibility = Visibility.Visible;
+	}
+
+	void applyAutostartFeedback(UiTextFeedback feedback) =>
+		applyAutostartFeedback(new WindowsAutostart.UiFeedbackDetail(feedback, null));
 
 	void buttonAddBinding_Click(object sender, RoutedEventArgs e) {
 		var ed = new BindingEditor {

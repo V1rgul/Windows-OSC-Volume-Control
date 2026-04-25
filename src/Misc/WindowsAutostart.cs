@@ -6,6 +6,10 @@ using Microsoft.Win32;
 namespace WindowsOscVolumeControl;
 
 static class WindowsAutostart {
+	public readonly record struct UiFeedbackDetail(
+		UiTextFeedback feedback,
+		string? pathOrNull);
+
 	/// <summary>Outcome of <see cref="tryDeregisterAllCopiesFromRun"/>.</summary>
 	public readonly record struct DeregisterAllResult(
 		bool registryFailure,
@@ -23,7 +27,7 @@ static class WindowsAutostart {
 		return text.Substring(0, half) + "\u2026" + text.Substring(text.Length - half);
 	}
 
-	public static UiTextFeedback getCurrentUiFeedback() {
+	public static UiFeedbackDetail getCurrentUiFeedback() {
 		List<(string valueName, string? parsedExePath, string rawCommand)> entries = listRunEntriesForThisAppExe();
 		string? current = Environment.ProcessPath;
 
@@ -46,21 +50,27 @@ static class WindowsAutostart {
 				sb.AppendLine();
 				sb.Append("\u2026");
 			}
-			return new UiTextFeedback(sb.ToString(), UiTextFeedbackKind.ERROR);
+			return new UiFeedbackDetail(new UiTextFeedback(sb.ToString(), UiTextFeedbackKind.ERROR), null);
 		}
 
 		if (entries.Count == 1) {
 			(_, string? parsedExePath, string rawCommand) = entries[0];
 			if (pathsEqualForAutostart(parsedExePath, current))
-				return new UiTextFeedback("Autostart is registered for this executable.", UiTextFeedbackKind.DEFAULT);
-			string showPath = parsedExePath ?? truncateForAutostartMessage(rawCommand, 200);
-			string line = truncateForAutostartMessage(showPath, 200);
-			return new UiTextFeedback(
-				"Autostart is registered but points to a different location:" + Environment.NewLine + line,
-				UiTextFeedbackKind.WARNING);
+				return new UiFeedbackDetail(new UiTextFeedback("Autostart is registered for this executable.", UiTextFeedbackKind.DEFAULT), null);
+			if (!string.IsNullOrEmpty(parsedExePath)) {
+				return new UiFeedbackDetail(
+					new UiTextFeedback("Autostart is registered but points to a different location:", UiTextFeedbackKind.WARNING),
+					parsedExePath);
+			}
+			string line = truncateForAutostartMessage(rawCommand, 200);
+			return new UiFeedbackDetail(
+				new UiTextFeedback(
+					"Autostart is registered but points to a different location:" + Environment.NewLine + line,
+					UiTextFeedbackKind.WARNING),
+				null);
 		}
 
-		return new UiTextFeedback("Autostart is currently not registered.", UiTextFeedbackKind.DEFAULT);
+		return new UiFeedbackDetail(new UiTextFeedback("Autostart is currently not registered.", UiTextFeedbackKind.DEFAULT), null);
 	}
 
 	public static UiTextFeedback uiFeedbackForDeregisterAll(DeregisterAllResult r) {
@@ -68,7 +78,7 @@ static class WindowsAutostart {
 			return new UiTextFeedback(r.failureOrNoneMessage ?? "Could not remove autostart entries.", UiTextFeedbackKind.ERROR);
 		if (r.removedCount == 0)
 			return new UiTextFeedback(r.failureOrNoneMessage!, UiTextFeedbackKind.SUCCESS);
-		UiTextFeedback tail = getCurrentUiFeedback();
+		UiTextFeedback tail = getCurrentUiFeedback().feedback;
 		string word = r.removedCount == 1 ? "entry" : "entries";
 		string prefix = "Removed " + r.removedCount + " autostart " + word + ". ";
 		return new UiTextFeedback(prefix + tail.text, UiTextFeedbackKind.SUCCESS);

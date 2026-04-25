@@ -21,10 +21,13 @@ public sealed class ConfigStore {
 	const string FILE_NAME = "Windows-OSC-Volume-Control.config";
 	const string APP_DIRECTORY_NAME = "Windows-OSC-Volume-Control";
 
+	static string configPathTail => Path.Combine(APP_DIRECTORY_NAME, FILE_NAME);
+
 	public string configPath => Path.Combine(
 		Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-		APP_DIRECTORY_NAME,
-		FILE_NAME);
+		configPathTail);
+
+	public string configPathForUi => Path.Combine("%APPDATA%", configPathTail);
 
 	public AppConfig appConfig { get; private set; }
 
