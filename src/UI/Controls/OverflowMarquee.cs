@@ -5,18 +5,18 @@ using System.Windows.Threading;
 
 namespace WindowsOscVolumeControl;
 
-public enum OverflowScrollMode {
-	ALWAYS,
-	ONLY_ON_HOVER,
-}
-
 public sealed class OverflowMarquee : ContentControl {
+	public enum ScrollMode {
+		ALWAYS,
+		ONLY_ON_HOVER,
+	}
+
 	public static readonly DependencyProperty scrollModeProperty =
 		DependencyProperty.Register(
 			nameof(scrollMode),
-			typeof(OverflowScrollMode),
+			typeof(ScrollMode),
 			typeof(OverflowMarquee),
-			new PropertyMetadata(OverflowScrollMode.ALWAYS, onConfigChanged));
+			new PropertyMetadata(ScrollMode.ALWAYS, onConfigChanged));
 
 	public static readonly DependencyProperty snapToStartOnHoverExitProperty =
 		DependencyProperty.Register(
@@ -61,8 +61,8 @@ public sealed class OverflowMarquee : ContentControl {
 		DefaultStyleKeyProperty.OverrideMetadata(typeof(OverflowMarquee), new FrameworkPropertyMetadata(typeof(OverflowMarquee)));
 	}
 
-	public OverflowScrollMode scrollMode {
-		get => (OverflowScrollMode)GetValue(scrollModeProperty);
+	public ScrollMode scrollMode {
+		get => (ScrollMode)GetValue(scrollModeProperty);
 		set => SetValue(scrollModeProperty, value);
 	}
 
@@ -106,7 +106,7 @@ public sealed class OverflowMarquee : ContentControl {
 
 	protected override void OnMouseEnter(System.Windows.Input.MouseEventArgs e) {
 		base.OnMouseEnter(e);
-		if (scrollMode != OverflowScrollMode.ONLY_ON_HOVER)
+		if (scrollMode != ScrollMode.ONLY_ON_HOVER)
 			return;
 		_hovering = true;
 		updateAnimationState();
@@ -114,7 +114,7 @@ public sealed class OverflowMarquee : ContentControl {
 
 	protected override void OnMouseLeave(System.Windows.Input.MouseEventArgs e) {
 		base.OnMouseLeave(e);
-		if (scrollMode != OverflowScrollMode.ONLY_ON_HOVER)
+		if (scrollMode != ScrollMode.ONLY_ON_HOVER)
 			return;
 		_hovering = false;
 		stopAnimation(snapToStart: snapToStartOnHoverExit);
@@ -126,7 +126,7 @@ public sealed class OverflowMarquee : ContentControl {
 	}
 
 	bool shouldAnimateForMode() =>
-		scrollMode == OverflowScrollMode.ALWAYS || (scrollMode == OverflowScrollMode.ONLY_ON_HOVER && _hovering);
+		scrollMode == ScrollMode.ALWAYS || (scrollMode == ScrollMode.ONLY_ON_HOVER && _hovering);
 
 	void updateAnimationState() {
 		if (_scroller == null)
@@ -139,7 +139,7 @@ public sealed class OverflowMarquee : ContentControl {
 		}
 
 		if (!shouldAnimateForMode()) {
-			if (scrollMode == OverflowScrollMode.ONLY_ON_HOVER && snapToStartOnHoverExit)
+			if (scrollMode == ScrollMode.ONLY_ON_HOVER && snapToStartOnHoverExit)
 				stopAnimation(snapToStart: true);
 			else
 				stopAnimation(snapToStart: false);
