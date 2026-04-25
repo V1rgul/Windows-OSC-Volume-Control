@@ -26,6 +26,11 @@ public partial class KeyboardHook : IDisposable {
 		/// <summary>When true, key down/up for gestures with only long-press actions are not delivered to other applications.</summary>
 		public bool suppressKeyForLongPressOnlyGestures { get; set; }
 
+		/// <summary>
+		/// When true, allow macro-like ordering where modifier key-up may arrive before the main key-up (e.g. RightCtrl↓ F11↓ RightCtrl↑ F11↑).
+		/// </summary>
+		public bool acceptMacroChordKeyOrder { get; set; } = true;
+
 		public Config() { }
 
 		public Config(Config other) {
@@ -34,6 +39,7 @@ public partial class KeyboardHook : IDisposable {
 			longPressDurationMs = c.longPressDurationMs;
 			optimizeNonLongPressKeyDown = c.optimizeNonLongPressKeyDown;
 			suppressKeyForLongPressOnlyGestures = c.suppressKeyForLongPressOnlyGestures;
+			acceptMacroChordKeyOrder = c.acceptMacroChordKeyOrder;
 		}
 
 		public static Config Clamped(Config? raw) {
@@ -42,6 +48,7 @@ public partial class KeyboardHook : IDisposable {
 				longPressDurationMs = Math.Clamp(raw.longPressDurationMs, MIN_LONG_PRESS_MS, MAX_LONG_PRESS_MS),
 				optimizeNonLongPressKeyDown = raw.optimizeNonLongPressKeyDown,
 				suppressKeyForLongPressOnlyGestures = raw.suppressKeyForLongPressOnlyGestures,
+				acceptMacroChordKeyOrder = raw.acceptMacroChordKeyOrder,
 			};
 		}
 	}
@@ -88,6 +95,7 @@ public partial class KeyboardHook : IDisposable {
 	int _longPressDurationMs = (int)Config.DEFAULT_LONG_PRESS_MS;
 	bool _optimizeNonLongPressKeyDown = true;
 	bool _suppressKeyForLongPressOnlyGestures;
+	bool _acceptMacroChordKeyOrder = true;
 	readonly Dictionary<HotkeyGesture, ActiveHotkeyPress> _activePresses = [];
 	bool _configuredHotkeysEnabled = true;
 	bool _disposed;
@@ -138,6 +146,7 @@ public partial class KeyboardHook : IDisposable {
 			_longPressDurationMs = (int)Math.Clamp(c.longPressDurationMs, 1u, int.MaxValue);
 			_optimizeNonLongPressKeyDown = c.optimizeNonLongPressKeyDown;
 			_suppressKeyForLongPressOnlyGestures = c.suppressKeyForLongPressOnlyGestures;
+			_acceptMacroChordKeyOrder = c.acceptMacroChordKeyOrder;
 		}
 	}
 
@@ -182,7 +191,50 @@ public partial class KeyboardHook : IDisposable {
 	static bool gestureModifiersMatch(HotkeyGesture g) =>
 		HotkeyUtil.activeSidesMatchGesture(g.modifiers, GetActiveModifierSides());
 
-	static bool gestureAppearsHeld(HotkeyGesture g) => gestureMainKeyHeld(g) && gestureModifiersMatch(g);
+	internal static bool deadlineGestureStillHeld(
+		bool mainKeyHeld,
+		HotkeyModifiers requiredModifiers,
+		HotkeyModifiers activeModifierSides,
+		bool acceptMacroChordKeyOrder) {
+		if (!mainKeyHeld)
+			return false;
+		if (acceptMacroChordKeyOrder)
+			return true;
+		return HotkeyUtil.activeSidesMatchGesture(requiredModifiers, activeModifierSides);
+	}
+
+	bool deadlineGestureStillHeld(HotkeyGesture g) =>
+		deadlineGestureStillHeld(
+			mainKeyHeld: gestureMainKeyHeld(g),
+			requiredModifiers: g.modifiers,
+			activeModifierSides: GetActiveModifierSides(),
+			acceptMacroChordKeyOrder: _acceptMacroChordKeyOrder);
+
+	internal static IReadOnlyList<HotkeyGesture> resolveKeyUpTargetsForTests(
+		int vkCode,
+		HotkeyModifiers modifierSidesAtKeyUp,
+		IEnumerable<HotkeyGesture> activePressKeys,
+		bool acceptMacroChordKeyOrder) {
+		ArgumentNullException.ThrowIfNull(activePressKeys);
+		var strictCandidate = HotkeyUtil.normalize(new HotkeyGesture { keyCode = vkCode, modifiers = modifierSidesAtKeyUp });
+		if (!strictCandidate.isNone) {
+			foreach (HotkeyGesture k in activePressKeys) {
+				if (k == strictCandidate)
+					return new[] { strictCandidate };
+			}
+		}
+		if (!acceptMacroChordKeyOrder)
+			return Array.Empty<HotkeyGesture>();
+
+		// Fallback: collect all active presses whose main key matches this vkCode.
+		var list = new List<HotkeyGesture>();
+		foreach (HotkeyGesture k in activePressKeys) {
+			if (k.keyCode == vkCode)
+				list.Add(k);
+		}
+		list.Sort(static (a, b) => a.modifiers != b.modifiers ? ((int)a.modifiers).CompareTo((int)b.modifiers) : a.keyCode.CompareTo(b.keyCode));
+		return list.Count == 0 ? Array.Empty<HotkeyGesture>() : list;
+	}
 
 	/// <summary>Completes long-press using <see cref="ActiveHotkeyPress.keyDownUtc"/> only (no GetAsyncKeyState), matching keyup semantics.</summary>
 	bool tryTakeLongPressIfDueLocked(ActiveHotkeyPress press, DateTime nowUtc, out IReadOnlyList<BindingManager.Slot>? longSlots) {
@@ -298,7 +350,7 @@ public partial class KeyboardHook : IDisposable {
 				return;
 			if (press.shortFired)
 				return;
-			if (!gestureAppearsHeld(g))
+			if (!deadlineGestureStillHeld(g))
 				return;
 			press.shortFired = true;
 			press.shortDeadlineTimer?.Dispose();
@@ -310,14 +362,29 @@ public partial class KeyboardHook : IDisposable {
 	}
 
 	bool tryHandleKeyUpLocked(int vkCode) {
-		HotkeyGesture candidate = HotkeyUtil.normalize(new HotkeyGesture {
-			keyCode = vkCode,
-			modifiers = GetActiveModifierSides(),
-		});
+		HotkeyModifiers sidesAtKeyUp = GetActiveModifierSides();
+		HotkeyGesture strictCandidate = HotkeyUtil.normalize(new HotkeyGesture { keyCode = vkCode, modifiers = sidesAtKeyUp });
 
-		if (!_activePresses.TryGetValue(candidate, out ActiveHotkeyPress? press))
+		if (_activePresses.TryGetValue(strictCandidate, out ActiveHotkeyPress? strictPress))
+			return completeKeyUpLocked(strictCandidate, strictPress);
+
+		if (!_acceptMacroChordKeyOrder)
 			return false;
 
+		IReadOnlyList<HotkeyGesture> targets = resolveKeyUpTargetsForTests(vkCode, sidesAtKeyUp, _activePresses.Keys, acceptMacroChordKeyOrder: true);
+		if (targets.Count == 0)
+			return false;
+
+		bool swallow = false;
+		foreach (HotkeyGesture g in targets) {
+			if (!_activePresses.TryGetValue(g, out ActiveHotkeyPress? press))
+				continue;
+			swallow |= completeKeyUpLocked(g, press);
+		}
+		return swallow;
+	}
+
+	bool completeKeyUpLocked(HotkeyGesture key, ActiveHotkeyPress press) {
 		press.disposeTimers();
 
 		bool hasLongBucket = press.targets.longPressSlots.Count > 0;
@@ -338,7 +405,7 @@ public partial class KeyboardHook : IDisposable {
 			}
 		}
 
-		_activePresses.Remove(candidate);
+		_activePresses.Remove(key);
 
 		if (longListFromKeyUp != null && longListFromKeyUp.Count > 0)
 			queueDispatch(() => _dispatchSlots(longListFromKeyUp));

@@ -110,6 +110,7 @@ public sealed class ConfigStore {
 			"hotkeyLongPressMs=" + hk.longPressDurationMs.ToString(CultureInfo.InvariantCulture),
 			"hotkeyOptimizeNonLongPressKeyDown=" + (hk.optimizeNonLongPressKeyDown ? "true" : "false"),
 			"hotkeySuppressKeyForLongPressOnly=" + (hk.suppressKeyForLongPressOnlyGestures ? "true" : "false"),
+			"hotkeyAcceptMacroChordKeyOrder=" + (hk.acceptMacroChordKeyOrder ? "true" : "false"),
 		};
 		for (int i = 0; i < bindings.Count; i++) {
 			BindingAbstract b = bindings[i];
@@ -208,6 +209,12 @@ public sealed class ConfigStore {
 				provisional.suppressKeyForLongPressOnlyGestures = sup;
 			else
 				repairNotes.Add("hotkeySuppressKeyForLongPressOnly invalid; using default.");
+		}
+		if (map.TryGetValue("hotkeyAcceptMacroChordKeyOrder", out string? macroStr)) {
+			if (bool.TryParse(macroStr.Trim(), out bool macro))
+				provisional.acceptMacroChordKeyOrder = macro;
+			else
+				repairNotes.Add("hotkeyAcceptMacroChordKeyOrder invalid; using default.");
 		}
 		return KeyboardHook.Config.Clamped(provisional);
 	}

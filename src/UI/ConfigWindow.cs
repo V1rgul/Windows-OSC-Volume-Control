@@ -172,6 +172,7 @@ public partial class ConfigWindow : Window {
 		HotkeyLongPressMsTextBox.Text = hk.longPressDurationMs.ToString(CultureInfo.InvariantCulture);
 		HotkeyOptimizeNonLongPressCheckBox.IsChecked = hk.optimizeNonLongPressKeyDown;
 		HotkeySuppressLongPressOnlyCheckBox.IsChecked = hk.suppressKeyForLongPressOnlyGestures;
+		HotkeyAcceptMacroChordKeyOrderCheckBox.IsChecked = hk.acceptMacroChordKeyOrder;
 		ConfigPathTextBox.Text = _configStore.configPath;
 		UiTextFeedbackPresenter.apply(ConfigFeedbackTextBlock, _configStore.lastDiskUiFeedback);
 		UiTextFeedbackPresenter.apply(InfoResultTextBox, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
@@ -198,6 +199,7 @@ public partial class ConfigWindow : Window {
 			HotkeyLongPressMsTextBox.Text,
 			HotkeyOptimizeNonLongPressCheckBox.IsChecked == true,
 			HotkeySuppressLongPressOnlyCheckBox.IsChecked == true,
+			HotkeyAcceptMacroChordKeyOrderCheckBox.IsChecked == true,
 			Bindings);
 		if (!okBuild) {
 			UiTextFeedbackPresenter.apply(StatusTextBlock, buildErr!.Value);
@@ -424,8 +426,16 @@ public partial class ConfigWindow : Window {
 		if (!item.isHotkeyCaptureActive || !_hotkeyCaptureAwaitingRelease || !ReferenceEquals(_hotkeyCaptureItem, item))
 			return;
 		HotkeyGesture up = HotkeyUtil.fromKeyEventArgs(e);
-		if (HotkeyUtil.normalize(up) != HotkeyUtil.normalize(_hotkeyCaptureGesture))
-			return;
+		HotkeyGesture normUp = HotkeyUtil.normalize(up);
+		HotkeyGesture normDown = HotkeyUtil.normalize(_hotkeyCaptureGesture);
+		bool acceptMacroKeyUpOrder = HotkeyAcceptMacroChordKeyOrderCheckBox.IsChecked == true;
+		if (acceptMacroKeyUpOrder) {
+			if (normUp.keyCode != normDown.keyCode)
+				return;
+		} else {
+			if (normUp != normDown)
+				return;
+		}
 		e.Handled = true;
 		finalizeHotkeyCapture(item, focusedBtn);
 	}
@@ -441,8 +451,16 @@ public partial class ConfigWindow : Window {
 		if (!item.isHotkeyCaptureActive || !_hotkeyCaptureAwaitingRelease || !ReferenceEquals(_hotkeyCaptureItem, item))
 			return;
 		HotkeyGesture up = HotkeyUtil.fromKeyEventArgs(e);
-		if (HotkeyUtil.normalize(up) != HotkeyUtil.normalize(_hotkeyCaptureGesture))
-			return;
+		HotkeyGesture normUp = HotkeyUtil.normalize(up);
+		HotkeyGesture normDown = HotkeyUtil.normalize(_hotkeyCaptureGesture);
+		bool acceptMacroKeyUpOrder = HotkeyAcceptMacroChordKeyOrderCheckBox.IsChecked == true;
+		if (acceptMacroKeyUpOrder) {
+			if (normUp.keyCode != normDown.keyCode)
+				return;
+		} else {
+			if (normUp != normDown)
+				return;
+		}
 		e.Handled = true;
 		finalizeHotkeyCapture(item, fe);
 	}

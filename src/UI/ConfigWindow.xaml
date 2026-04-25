@@ -257,6 +257,7 @@
 									<RowDefinition Height="Auto" />
 									<RowDefinition Height="Auto" />
 									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
 								</Grid.RowDefinitions>
 								<Grid.ColumnDefinitions>
 									<!-- Proportional to ~"Reload" : "Open folder" so the wider label keeps space in the narrow sidebar. -->
@@ -361,6 +362,7 @@
 									<RowDefinition Height="Auto" />
 									<RowDefinition Height="Auto" />
 									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
 								</Grid.RowDefinitions>
 								<TextBlock Margin="0,0,4,4" VerticalAlignment="Center" Text="Height" />
 								<TextBox
@@ -400,6 +402,7 @@
 									<RowDefinition Height="Auto" />
 									<RowDefinition Height="Auto" />
 									<RowDefinition Height="Auto" />
+									<RowDefinition Height="Auto" />
 								</Grid.RowDefinitions>
 								<TextBlock Margin="0,0,4,4" VerticalAlignment="Center" TextWrapping="Wrap" Text="Long-press duration" />
 								<TextBox
@@ -421,6 +424,13 @@
 									Grid.ColumnSpan="3"
 									Margin="0,4,0,0">
 									<TextBlock TextWrapping="Wrap" Text="Swallow short presses also for long-press-only hotkeys" />
+								</CheckBox>
+								<CheckBox
+									x:Name="HotkeyAcceptMacroChordKeyOrderCheckBox"
+									Grid.Row="3"
+									Grid.ColumnSpan="3"
+									Margin="0,4,0,0">
+									<TextBlock TextWrapping="Wrap" Text="Allow modifier key-up before main key (needed when simulated by macros in fixed order)" />
 								</CheckBox>
 							</Grid>
 						</GroupBox>

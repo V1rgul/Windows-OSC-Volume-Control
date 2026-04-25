@@ -17,6 +17,7 @@ static class SettingsFormDraft {
 		string hotkeyLongPressMsText,
 		bool hotkeyOptimizeNonLongPressKeyDown,
 		bool hotkeySuppressKeyForLongPressOnlyGestures,
+		bool hotkeyAcceptMacroChordKeyOrder,
 		IReadOnlyList<BindingEditor> bindings) {
 		if (!OscConnectionConfigParse.tryParseIpPort(ipText, portText, out IPAddress ip, out int port, out _, out string? oscError))
 			return (false, null, new UiTextFeedback(oscError ?? "Invalid OSC IP/port.", UiTextFeedbackKind.ERROR));
@@ -105,6 +106,7 @@ static class SettingsFormDraft {
 				longPressDurationMs = hotkeyLongPressMs,
 				optimizeNonLongPressKeyDown = hotkeyOptimizeNonLongPressKeyDown,
 				suppressKeyForLongPressOnlyGestures = hotkeySuppressKeyForLongPressOnlyGestures,
+				acceptMacroChordKeyOrder = hotkeyAcceptMacroChordKeyOrder,
 			}),
 		};
 		return (true, cfg, null);
