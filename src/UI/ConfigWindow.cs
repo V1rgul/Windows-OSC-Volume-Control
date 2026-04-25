@@ -8,8 +8,11 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Windows.Input;
 using Key = System.Windows.Input.Key;
 using Keyboard = System.Windows.Input.Keyboard;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -26,6 +29,38 @@ public partial class ConfigWindow : Window {
 	public const string HotkeyAssignmentCaptureTag = "HotkeyAssignmentCapture";
 	public const string BindingCardRestoreTag = "BindingCardRestore";
 
+	public static readonly DependencyProperty isDragInProgressProperty =
+		DependencyProperty.Register(nameof(isDragInProgress), typeof(bool), typeof(ConfigWindow), new PropertyMetadata(false));
+
+	public static readonly DependencyProperty dragItemProperty =
+		DependencyProperty.Register(nameof(dragItem), typeof(object), typeof(ConfigWindow), new PropertyMetadata(null));
+
+	public static readonly DependencyProperty dragOwnerListProperty =
+		DependencyProperty.Register(nameof(dragOwnerList), typeof(ItemsControl), typeof(ConfigWindow), new PropertyMetadata(null));
+
+	public static readonly DependencyProperty dragPlaceholderHeightProperty =
+		DependencyProperty.Register(nameof(dragPlaceholderHeight), typeof(double), typeof(ConfigWindow), new PropertyMetadata(0d));
+
+	public bool isDragInProgress {
+		get => (bool)GetValue(isDragInProgressProperty);
+		set => SetValue(isDragInProgressProperty, value);
+	}
+
+	public object? dragItem {
+		get => (object?)GetValue(dragItemProperty);
+		set => SetValue(dragItemProperty, value);
+	}
+
+	public ItemsControl? dragOwnerList {
+		get => (ItemsControl?)GetValue(dragOwnerListProperty);
+		set => SetValue(dragOwnerListProperty, value);
+	}
+
+	public double dragPlaceholderHeight {
+		get => (double)GetValue(dragPlaceholderHeightProperty);
+		set => SetValue(dragPlaceholderHeightProperty, value);
+	}
+
 	HotkeyActionEditor? _hotkeyCaptureItem;
 	DateTime? _hotkeyCaptureDownUtc;
 	HotkeyGesture _hotkeyCaptureGesture;
@@ -38,6 +73,8 @@ public partial class ConfigWindow : Window {
 
 	/// <summary>Fluent Expander template: <see cref="Expander"/> → HeaderSite → ChevronGrid.</summary>
 	readonly Dictionary<Expander, (BindingEditor bed, PropertyChangedEventHandler handler)> _bindingCardChevronDimHooks = [];
+
+	readonly Dictionary<ItemsControl, InsertionLineAdorner> _insertionLineAdorners = [];
 
 	public ObservableCollection<BindingEditor> Bindings { get; } = [];
 
@@ -59,6 +96,16 @@ public partial class ConfigWindow : Window {
 		DependencyObject? cur = start;
 		while (cur != null) {
 			if (cur is FrameworkElement { DataContext: T match })
+				return match;
+			cur = VisualTreeHelper.GetParent(cur);
+		}
+		return null;
+	}
+
+	static T? findVisualAncestor<T>(DependencyObject start) where T : DependencyObject {
+		DependencyObject? cur = start;
+		while (cur != null) {
+			if (cur is T match)
 				return match;
 			cur = VisualTreeHelper.GetParent(cur);
 		}
@@ -625,5 +672,263 @@ public partial class ConfigWindow : Window {
 		_ = fe.MoveFocus(new TraversalRequest(System.Windows.Input.FocusNavigationDirection.Next));
 	}
 
+}
+
+public sealed class DragActivePlaceholderMultiConverter : IMultiValueConverter {
+	public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture) {
+		if (values.Length < 5)
+			return false;
+		object? item = values[0];
+		object? draggedItem = values[1];
+		bool isDragging = values[2] is bool b && b;
+		object? list = values[3];
+		object? activeList = values[4];
+		if (!isDragging)
+			return false;
+		return ReferenceEquals(item, draggedItem) && ReferenceEquals(list, activeList);
+	}
+
+	public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>
+		throw new NotSupportedException();
+}
+
+partial class ConfigWindow {
+	const string REORDER_DRAG_FORMAT = "WindowsOscVolumeControl.ReorderItem";
+
+	void reorderThumb_DragStarted(object sender, DragStartedEventArgs e) {
+		if (sender is not Thumb thumb)
+			return;
+		if (thumb.DataContext == null)
+			return;
+
+		ItemsControl? list = findVisualAncestor<ItemsControl>(thumb);
+		if (list == null)
+			return;
+
+		object item = thumb.DataContext;
+		if (item is BindingEditor be && be.isDeleted)
+			return;
+		if (item is HotkeyActionEditor he && he.isDeleted)
+			return;
+
+		FrameworkElement? container = list switch {
+			System.Windows.Controls.ListBox lb => lb.ContainerFromElement(thumb) as FrameworkElement,
+			_ => null,
+		};
+
+		dragOwnerList = list;
+		dragItem = item;
+		isDragInProgress = true;
+		dragPlaceholderHeight = container?.ActualHeight ?? 0d;
+
+		try {
+			hideInsertionLine(list);
+			var data = new System.Windows.DataObject();
+			data.SetData(REORDER_DRAG_FORMAT, item);
+			_ = System.Windows.DragDrop.DoDragDrop(thumb, data, System.Windows.DragDropEffects.Move);
+		} finally {
+			hideInsertionLine(list);
+			isDragInProgress = false;
+			dragItem = null;
+			dragOwnerList = null;
+			dragPlaceholderHeight = 0d;
+		}
+	}
+
+	void reorderList_DragLeave(object sender, System.Windows.DragEventArgs e) {
+		// DragLeave bubbles for child-to-child transitions inside the list; only hide when leaving the list itself.
+		if (sender is not ItemsControl list)
+			return;
+		if (!ReferenceEquals(e.OriginalSource, list))
+			return;
+		hideInsertionLine(list);
+	}
+
+	void reorderList_DragOver(object sender, System.Windows.DragEventArgs e) {
+		if (sender is not ItemsControl list) {
+			e.Effects = System.Windows.DragDropEffects.None;
+			e.Handled = true;
+			return;
+		}
+
+		if (!isDragInProgress || dragOwnerList == null || !ReferenceEquals(list, dragOwnerList)) {
+			hideInsertionLine(list);
+			e.Effects = System.Windows.DragDropEffects.None;
+			e.Handled = true;
+			return;
+		}
+
+		if (!e.Data.GetDataPresent(REORDER_DRAG_FORMAT) || dragItem == null) {
+			hideInsertionLine(list);
+			e.Effects = System.Windows.DragDropEffects.None;
+			e.Handled = true;
+			return;
+		}
+
+		System.Windows.Point p = e.GetPosition(list);
+		int dropIndex = computeDropIndex(list, p, dragItem, out double lineY);
+		showInsertionLine(list, lineY);
+
+		e.Effects = System.Windows.DragDropEffects.Move;
+		e.Handled = true;
+	}
+
+	void reorderList_Drop(object sender, System.Windows.DragEventArgs e) {
+		if (sender is not ItemsControl list) {
+			e.Effects = System.Windows.DragDropEffects.None;
+			e.Handled = true;
+			return;
+		}
+
+		try {
+			if (!isDragInProgress || dragOwnerList == null || !ReferenceEquals(list, dragOwnerList) || dragItem == null) {
+				e.Effects = System.Windows.DragDropEffects.None;
+				return;
+			}
+			if (!e.Data.GetDataPresent(REORDER_DRAG_FORMAT)) {
+				e.Effects = System.Windows.DragDropEffects.None;
+				return;
+			}
+
+			System.Windows.Point p = e.GetPosition(list);
+			int dropIndex = computeDropIndex(list, p, dragItem, out _);
+			tryMoveDraggedItem(list, dragItem, dropIndex);
+			e.Effects = System.Windows.DragDropEffects.Move;
+		} finally {
+			hideInsertionLine(list);
+			e.Handled = true;
+		}
+	}
+
+	void tryMoveDraggedItem(ItemsControl list, object dragged, int dropIndex) {
+		if (dragged is BindingEditor bed) {
+			int oldIndex = Bindings.IndexOf(bed);
+			if (oldIndex < 0)
+				return;
+			int newIndex = dropIndexToMoveIndex(oldIndex, dropIndex, Bindings.Count);
+			if (oldIndex == newIndex)
+				return;
+			Bindings.Move(oldIndex, newIndex);
+			return;
+		}
+
+		if (dragged is HotkeyActionEditor hed && list.DataContext is BindingEditor owner) {
+			ObservableCollection<HotkeyActionEditor> hotkeys = owner.hotkeys;
+			int oldIndex = hotkeys.IndexOf(hed);
+			if (oldIndex < 0)
+				return;
+			int newIndex = dropIndexToMoveIndex(oldIndex, dropIndex, hotkeys.Count);
+			if (oldIndex == newIndex)
+				return;
+			hotkeys.Move(oldIndex, newIndex);
+		}
+	}
+
+	static int dropIndexToMoveIndex(int oldIndex, int dropIndex, int count) {
+		int idx = Math.Clamp(dropIndex, 0, count);
+		// Drop indices are between items (0..count). Convert to a valid Move() index (0..count-1).
+		// When moving downward past the old position, removing the item shifts the target left by 1.
+		int moveIdx = idx > oldIndex ? idx - 1 : idx;
+		return Math.Clamp(moveIdx, 0, Math.Max(0, count - 1));
+	}
+
+	int computeDropIndex(ItemsControl list, System.Windows.Point p, object dragged, out double insertionLineY) {
+		insertionLineY = 0d;
+		int n = list.Items.Count;
+		if (n <= 0)
+			return 0;
+
+		int draggedIndex = list.Items.IndexOf(dragged);
+		FrameworkElement? draggedContainer = draggedIndex >= 0
+			? list.ItemContainerGenerator.ContainerFromIndex(draggedIndex) as FrameworkElement
+			: null;
+		System.Windows.Point draggedTopLeft = draggedContainer != null
+			? draggedContainer.TranslatePoint(new System.Windows.Point(0, 0), list)
+			: new System.Windows.Point(0, 0);
+
+		// If hovering over the dragged item's own row, use the row's top/bottom boundary depending on pointer half.
+		DependencyObject? hit = list.InputHitTest(p) as DependencyObject;
+		if (hit != null) {
+			if (findVisualAncestor<ListBoxItem>(hit) is ListBoxItem li && ReferenceEquals(li.DataContext, dragged)) {
+				System.Windows.Point topLeft = li.TranslatePoint(new System.Windows.Point(0, 0), list);
+				double midY = topLeft.Y + (li.ActualHeight / 2d);
+				if (p.Y < midY) {
+					insertionLineY = topLeft.Y;
+					return draggedIndex < 0 ? 0 : draggedIndex;
+				}
+				insertionLineY = topLeft.Y + li.ActualHeight;
+				return draggedIndex < 0 ? 0 : Math.Min(draggedIndex + 1, n);
+			}
+		}
+
+		// Scan actual containers in original list order (including the dragged item's placeholder container).
+		FrameworkElement? lastContainer = null;
+		double lastBottom = 0d;
+		for (int i = 0; i < n; i++) {
+			if (list.ItemContainerGenerator.ContainerFromIndex(i) is not FrameworkElement c)
+				continue;
+			System.Windows.Point topLeft = c.TranslatePoint(new System.Windows.Point(0, 0), list);
+			double midY = topLeft.Y + (c.ActualHeight / 2d);
+			if (p.Y < midY) {
+				insertionLineY = topLeft.Y;
+				return i;
+			}
+			lastContainer = c;
+			lastBottom = topLeft.Y + c.ActualHeight;
+		}
+
+		insertionLineY = lastContainer != null ? lastBottom : 0d;
+		return n;
+	}
+
+	void showInsertionLine(ItemsControl list, double y) {
+		AdornerLayer? layer = AdornerLayer.GetAdornerLayer(list);
+		if (layer == null)
+			return;
+		if (!_insertionLineAdorners.TryGetValue(list, out InsertionLineAdorner? adorner)) {
+			adorner = new InsertionLineAdorner(list);
+			_insertionLineAdorners[list] = adorner;
+			layer.Add(adorner);
+		}
+		if (Math.Abs(adorner.y - y) < 0.5)
+			return;
+		adorner.y = y;
+		adorner.InvalidateVisual();
+	}
+
+	void hideInsertionLine(ItemsControl list) {
+		if (!_insertionLineAdorners.TryGetValue(list, out InsertionLineAdorner? adorner))
+			return;
+		AdornerLayer? layer = AdornerLayer.GetAdornerLayer(list);
+		if (layer == null)
+			return;
+		layer.Remove(adorner);
+		_insertionLineAdorners.Remove(list);
+	}
+
+	sealed class InsertionLineAdorner : Adorner {
+		public double y;
+
+		public InsertionLineAdorner(UIElement adornedElement) : base(adornedElement) {
+			IsHitTestVisible = false;
+		}
+
+		protected override void OnRender(DrawingContext drawingContext) {
+			if (y < 0)
+				return;
+			double width = AdornedElement.RenderSize.Width;
+			if (width <= 0)
+				return;
+
+			Brush b = (AdornedElement as FrameworkElement)?.TryFindResource("TextFillColorPrimaryBrush") as Brush
+			          ?? Brushes.White;
+
+			var pen = new System.Windows.Media.Pen(b, 2.0);
+			pen.Freeze();
+
+			double yy = Math.Round(y) + 0.5;
+			drawingContext.DrawLine(pen, new System.Windows.Point(0, yy), new System.Windows.Point(width, yy));
+		}
+	}
 }
 
