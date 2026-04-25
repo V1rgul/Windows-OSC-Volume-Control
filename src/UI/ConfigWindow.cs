@@ -398,14 +398,6 @@ public partial class ConfigWindow : Window {
 		}
 	}
 
-	void buttonReload_Click(object sender, RoutedEventArgs e) {
-		_configStore.loadFromDisk();
-		_appCoordinator.applyConfigFromStore();
-		loadFromConfigStore();
-		applyAutostartFeedback(WindowsAutostart.getCurrentUiFeedback());
-		UiTextFeedbackPresenter.apply(StatusTextBlock, ConfigStore.reloadSettingsSuccessFeedback());
-	}
-
 	void buttonOpenConfigFolder_Click(object sender, RoutedEventArgs e) {
 		string? dir = Path.GetDirectoryName(_configStore.configPath);
 		if (string.IsNullOrEmpty(dir))

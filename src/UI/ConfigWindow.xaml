@@ -43,44 +43,7 @@
 				</DataTrigger>
 			</Style.Triggers>
 		</Style>
-		<!-- Fluent default Button template ignores Foreground for caption; custom template + TemplateBinding so hover can tint text. -->
-		<Style x:Key="ConfigReloadButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-			<Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-			<Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-			<Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
-			<Setter Property="BorderThickness" Value="1" />
-			<Setter Property="SnapsToDevicePixels" Value="True" />
-			<Setter Property="Template">
-				<Setter.Value>
-					<ControlTemplate TargetType="Button">
-						<Border
-							x:Name="Chrome"
-							Background="{TemplateBinding Background}"
-							BorderBrush="{TemplateBinding BorderBrush}"
-							BorderThickness="{TemplateBinding BorderThickness}"
-							CornerRadius="4"
-							Padding="{TemplateBinding Padding}"
-							SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
-							<ContentPresenter
-								HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-								VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-								Focusable="False"
-								RecognizesAccessKey="True"
-								TextElement.Foreground="{TemplateBinding Foreground}" />
-						</Border>
-						<ControlTemplate.Triggers>
-							<Trigger Property="IsEnabled" Value="False">
-								<Setter TargetName="Chrome" Property="Opacity" Value="0.5" />
-							</Trigger>
-							<Trigger Property="IsMouseOver" Value="True">
-								<Setter Property="Foreground" Value="DarkOrange" />
-								<Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
-							</Trigger>
-						</ControlTemplate.Triggers>
-					</ControlTemplate>
-				</Setter.Value>
-			</Setter>
-		</Style>
+		<!-- (removed ConfigReloadButtonStyle along with reload button) -->
 		<!-- Custom template so IsMouseOver does not paint over capture highlight (Fluent default template wins over Style triggers). -->
 		<Style x:Key="OscHotkeyAssignmentButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
 			<Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
@@ -267,18 +230,15 @@
 								<Grid.RowDefinitions>
 									<RowDefinition Height="Auto" />
 									<RowDefinition Height="Auto" />
-									<RowDefinition Height="Auto" />
-									<RowDefinition Height="Auto" />
 								</Grid.RowDefinitions>
 								<Grid.ColumnDefinitions>
-									<!-- Proportional to ~"Reload" : "Open folder" so the wider label keeps space in the narrow sidebar. -->
-									<ColumnDefinition Width="6*" />
-									<ColumnDefinition Width="11*" />
+									<ColumnDefinition Width="*" />
+									<ColumnDefinition Width="Auto" />
 								</Grid.ColumnDefinitions>
 								<TextBox
 									x:Name="ConfigPathTextBox"
 									Grid.Row="0"
-									Grid.ColumnSpan="2"
+									Grid.Column="0"
 									IsReadOnly="True"
 									FontSize="12"
 									TextWrapping="Wrap"
@@ -287,34 +247,22 @@
 									HorizontalScrollBarVisibility="Disabled"
 									Margin="0,0,0,4" />
 								<Button
-									Grid.Row="1"
-									Grid.Column="0"
-									Margin="0,0,4,4"
-									Padding="12,6"
-									Style="{StaticResource ConfigReloadButtonStyle}"
-									HorizontalAlignment="Stretch"
-									VerticalAlignment="Center"
-									HorizontalContentAlignment="Center"
-									VerticalContentAlignment="Center"
-									Click="buttonReload_Click"
-									ToolTip="Reload settings from disk">
-									Reload
-								</Button>
-								<Button
-									Grid.Row="1"
+									Grid.Row="0"
 									Grid.Column="1"
-									Margin="4,0,0,4"
-									Padding="12,6"
-									HorizontalAlignment="Stretch"
-									VerticalAlignment="Center"
+									Margin="8,0,0,4"
+									MinWidth="40"
+									Padding="0"
+									HorizontalAlignment="Right"
+									VerticalAlignment="Stretch"
 									HorizontalContentAlignment="Center"
 									VerticalContentAlignment="Center"
-									Click="buttonOpenConfigFolder_Click">
-									Open folder
+									Click="buttonOpenConfigFolder_Click"
+									ToolTip="Open config folder">
+									<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE838;" />
 								</Button>
 								<TextBlock
 									x:Name="ConfigFeedbackTextBlock"
-									Grid.Row="2"
+									Grid.Row="1"
 									Grid.ColumnSpan="2"
 									TextWrapping="Wrap" />
 							</Grid>
@@ -675,13 +623,22 @@
 																Margin="0,0,8,0"
 																VerticalAlignment="Center"
 																Orientation="Horizontal">
-																<Button Margin="0,0,8,0" Padding="10,6" Click="buttonBindingDelete_Click" Content="Delete" Style="{StaticResource OscBindingSoftDeleteButtonStyle}" />
+																<Button
+																	Margin="0,0,8,0"
+																	Padding="10,6"
+																	Click="buttonBindingDelete_Click"
+																	Style="{StaticResource OscBindingSoftDeleteButtonStyle}"
+																	ToolTip="Delete">
+																	<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE74D;" />
+																</Button>
 																<Button
 																	Padding="10,6"
 																	Click="buttonBindingRestore_Click"
-																	Content="Restore"
 																	Style="{StaticResource OscRestoreButtonStyle}"
-																	Tag="{x:Static local:ConfigWindow.BindingCardRestoreTag}" />
+																	Tag="{x:Static local:ConfigWindow.BindingCardRestoreTag}"
+																	ToolTip="Restore">
+																	<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE7A7;" />
+																</Button>
 															</StackPanel>
 														</Grid>
 													</Expander.Header>
@@ -738,7 +695,9 @@
 																Padding="12,6"
 																VerticalAlignment="Center"
 																Click="buttonAddHotkeyToBinding_Click"
-																Content="Add hotkey" />
+																ToolTip="Add hotkey">
+																<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE710;" />
+															</Button>
 															<TextBlock FontWeight="SemiBold" VerticalAlignment="Center" Text="Hotkeys" />
 														</DockPanel>
 														<ListBox
@@ -912,14 +871,18 @@
 																					Margin="0,0,8,0"
 																					Padding="10,6"
 																					Click="buttonHotkeyRestore_Click"
-																					Content="Restore"
-																					Style="{StaticResource OscRestoreButtonStyle}" />
+																					Style="{StaticResource OscRestoreButtonStyle}"
+																					ToolTip="Restore">
+																					<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE7A7;" />
+																				</Button>
 																				<Button
 																					Margin="0"
 																					Padding="10,6"
 																					Click="buttonHotkeyDelete_Click"
-																					Content="Delete"
-																					Style="{StaticResource OscSoftDeleteButtonStyle}" />
+																					Style="{StaticResource OscSoftDeleteButtonStyle}"
+																					ToolTip="Delete">
+																					<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE74D;" />
+																				</Button>
 																			</StackPanel>
 																		</Grid>
 																		</Border>
@@ -990,7 +953,14 @@
 									</DataTemplate>
 								</ListBox.ItemTemplate>
 							</ListBox>
-							<Button Margin="0,8,0,0" Padding="14,8" HorizontalAlignment="Center" Click="buttonAddBinding_Click">Add binding</Button>
+							<Button
+								Margin="0,8,0,0"
+								Padding="14,8"
+								HorizontalAlignment="Center"
+								Click="buttonAddBinding_Click"
+								ToolTip="Add binding">
+								<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE710;" />
+							</Button>
 						</StackPanel>
 					</GroupBox>
 				</local:SmoothScrollViewer>
