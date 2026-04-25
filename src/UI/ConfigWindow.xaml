@@ -345,7 +345,49 @@
 									Style="{StaticResource ConfigNumericTextBoxStyle}" />
 								<TextBlock Grid.Row="3" Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
 								<StackPanel Grid.Row="4" Grid.ColumnSpan="3">
-									<TextBlock x:Name="NetworkFeedbackTextBlock" TextWrapping="Wrap" />
+									<Grid Margin="0,8,0,6" HorizontalAlignment="Stretch" TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+										<Grid.ColumnDefinitions>
+											<ColumnDefinition Width="Auto" />
+											<ColumnDefinition Width="*" MinWidth="48" />
+											<ColumnDefinition Width="*" MinWidth="56" />
+											<ColumnDefinition Width="Auto" />
+										</Grid.ColumnDefinitions>
+										<Grid.RowDefinitions>
+											<RowDefinition Height="Auto" />
+											<RowDefinition Height="Auto" />
+											<RowDefinition Height="Auto" />
+											<RowDefinition Height="Auto" />
+											<RowDefinition Height="Auto" />
+										</Grid.RowDefinitions>
+
+										<TextBlock FontWeight="SemiBold" Margin="0,0,10,0" Text="Latency" TextAlignment="Left" HorizontalAlignment="Left" />
+										<TextBlock Grid.Column="1" FontWeight="SemiBold" Margin="0,0,10,0" Text="Ping" TextAlignment="Center" HorizontalAlignment="Stretch" />
+										<local:OverflowMarquee Grid.Column="2" Margin="0,0,10,0" HorizontalContentAlignment="Stretch" scrollMode="ONLY_ON_HOVER">
+											<TextBlock x:Name="OscHeaderTextBlock" FontWeight="SemiBold" Text="OSC" TextAlignment="Center" HorizontalAlignment="Stretch" />
+										</local:OverflowMarquee>
+										<TextBlock Grid.Column="3" FontWeight="SemiBold" Text="" TextAlignment="Center" HorizontalAlignment="Stretch" />
+
+										<TextBlock Grid.Row="1" Margin="0,2,10,0" Text="Min" />
+										<TextBlock x:Name="PingMinTextBlock" Grid.Row="1" Grid.Column="1" Margin="0,2,10,0" Text="—" TextAlignment="Right" />
+										<TextBlock x:Name="OscMinTextBlock" Grid.Row="1" Grid.Column="2" Margin="0,2,10,0" Text="—" TextAlignment="Right" />
+										<TextBlock Grid.Row="1" Grid.Column="3" Margin="0,2,0,0" Text="ms" />
+
+										<TextBlock Grid.Row="2" Margin="0,2,10,0" Text="Median" />
+										<TextBlock x:Name="PingMedianTextBlock" Grid.Row="2" Grid.Column="1" Margin="0,2,10,0" Text="—" TextAlignment="Right" />
+										<TextBlock x:Name="OscMedianTextBlock" Grid.Row="2" Grid.Column="2" Margin="0,2,10,0" Text="—" TextAlignment="Right" />
+										<TextBlock Grid.Row="2" Grid.Column="3" Margin="0,2,0,0" Text="ms" />
+
+										<TextBlock Grid.Row="3" Margin="0,2,10,0" Text="Max" />
+										<TextBlock x:Name="PingMaxTextBlock" Grid.Row="3" Grid.Column="1" Margin="0,2,10,0" Text="—" TextAlignment="Right" />
+										<TextBlock x:Name="OscMaxTextBlock" Grid.Row="3" Grid.Column="2" Margin="0,2,10,0" Text="—" TextAlignment="Right" />
+										<TextBlock Grid.Row="3" Grid.Column="3" Margin="0,2,0,0" Text="ms" />
+
+										<TextBlock Grid.Row="4" Margin="0,2,10,0" Text="Responses" />
+										<TextBlock x:Name="PingLossTextBlock" Grid.Row="4" Grid.Column="1" Margin="0,2,10,0" Text="—" TextAlignment="Right" />
+										<TextBlock x:Name="OscLossTextBlock" Grid.Row="4" Grid.Column="2" Margin="0,2,10,0" Text="—" TextAlignment="Right" />
+										<TextBlock x:Name="LossUnitTextBlock" Grid.Row="4" Grid.Column="3" Margin="0,2,0,0" Text="/0" TextAlignment="Left" />
+									</Grid>
+									<TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Text="/info" />
 									<TextBox x:Name="InfoResultTextBox" Margin="0,4,0,0" MinHeight="96" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AcceptsReturn="True" />
 								</StackPanel>
 							</Grid>

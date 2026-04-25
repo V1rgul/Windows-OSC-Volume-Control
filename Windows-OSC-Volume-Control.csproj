@@ -30,6 +30,9 @@
     <Page Include="src\UI\*.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="src\UI\Controls\*.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
   </ItemGroup>
 
   <ItemGroup>

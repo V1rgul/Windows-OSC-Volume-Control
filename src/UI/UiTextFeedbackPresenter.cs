@@ -35,16 +35,25 @@ static class UiTextFeedbackPresenter {
 		applyKind(box, feedback.kind);
 	}
 
+	static System.Windows.Media.Brush tryGetThemeBrush(FrameworkElement element, string key, System.Windows.Media.Brush fallback) =>
+		element.TryFindResource(key) as System.Windows.Media.Brush ?? fallback;
+
 	static void applyKind(FrameworkElement element, UiTextFeedbackKind kind) {
 		switch (kind) {
 			case UiTextFeedbackKind.SUCCESS:
-				element.SetValue(TextElement.ForegroundProperty, System.Windows.Media.Brushes.DarkGreen);
+				element.SetValue(
+					TextElement.ForegroundProperty,
+					tryGetThemeBrush(element, "SystemFillColorSuccessBrush", System.Windows.Media.Brushes.LimeGreen));
 				break;
 			case UiTextFeedbackKind.ERROR:
-				element.SetValue(TextElement.ForegroundProperty, System.Windows.Media.Brushes.IndianRed);
+				element.SetValue(
+					TextElement.ForegroundProperty,
+					tryGetThemeBrush(element, "SystemFillColorCriticalBrush", System.Windows.Media.Brushes.IndianRed));
 				break;
 			case UiTextFeedbackKind.WARNING:
-				element.SetValue(TextElement.ForegroundProperty, System.Windows.Media.Brushes.DarkOrange);
+				element.SetValue(
+					TextElement.ForegroundProperty,
+					tryGetThemeBrush(element, "SystemFillColorCautionBrush", System.Windows.Media.Brushes.DarkOrange));
 				break;
 			default:
 				element.ClearValue(TextElement.ForegroundProperty);

@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -112,6 +113,8 @@ public partial class ConfigWindow : Window {
 	void applyBindingCardChevronDim(Expander exp) {
 		if (!tryFindFluentExpanderChevronGrid(exp, out UIElement? grid))
 			return;
+		if (grid == null)
+			return;
 		bool dim = exp.DataContext is BindingEditor { isDeleted: true };
 		grid.Opacity = dim ? BINDING_CARD_SOFT_DELETE_CHEVRON_OPACITY : 1d;
 	}
@@ -176,11 +179,85 @@ public partial class ConfigWindow : Window {
 		ConfigPathTextBox.Text = _configStore.configPath;
 		UiTextFeedbackPresenter.apply(ConfigFeedbackTextBlock, _configStore.lastDiskUiFeedback);
 		UiTextFeedbackPresenter.apply(InfoResultTextBox, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
-		UiTextFeedbackPresenter.apply(NetworkFeedbackTextBlock, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
 		UiTextFeedbackPresenter.apply(StatusTextBlock, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
 		Bindings.Clear();
 		foreach (BindingAbstract binding in cfg.trayApp?.bindings ?? [])
 			Bindings.Add(BindingEditor.fromBinding(binding));
+	}
+
+	static string formatLatencyCellText(int? rttMs) {
+		if (rttMs == null)
+			return "—";
+		int ms = rttMs.Value;
+		if (ms == 0)
+			return "<1";
+		return ms.ToString(CultureInfo.InvariantCulture);
+	}
+
+	enum ConfigUiStatus {
+		MUTED,
+		SUCCESS,
+		CAUTION,
+		CRITICAL,
+	}
+
+	Brush tryGetThemeBrush(string key, Brush fallback) =>
+		TryFindResource(key) as Brush ?? fallback;
+
+	Brush brushForStatus(ConfigUiStatus status) => status switch {
+		ConfigUiStatus.MUTED => tryGetThemeBrush("TextFillColorSecondaryBrush", Brushes.Gray),
+		// Prefer system/theme success; fall back to the more-legible green.
+		ConfigUiStatus.SUCCESS => tryGetThemeBrush("SystemFillColorSuccessBrush", Brushes.LimeGreen),
+		ConfigUiStatus.CAUTION => tryGetThemeBrush("SystemFillColorCautionBrush", Brushes.DarkOrange),
+		ConfigUiStatus.CRITICAL => tryGetThemeBrush("SystemFillColorCriticalBrush", Brushes.IndianRed),
+		_ => tryGetThemeBrush("TextFillColorPrimaryBrush", Brushes.White),
+	};
+
+	ConfigUiStatus responseStatus(int completed, int received) {
+		if (completed <= 0)
+			return ConfigUiStatus.MUTED;
+		if (received <= 0)
+			return ConfigUiStatus.CRITICAL;
+		return received < completed ? ConfigUiStatus.CAUTION : ConfigUiStatus.SUCCESS;
+	}
+
+	ConfigUiStatus latencyStatus(int timeoutMs, int? rttMs) {
+		if (rttMs == null)
+			return ConfigUiStatus.MUTED;
+		if (timeoutMs <= 0)
+			return ConfigUiStatus.MUTED;
+		double ratio = rttMs.Value / (double)timeoutMs;
+		if (ratio < 0.10)
+			return ConfigUiStatus.SUCCESS;
+		if (ratio < 0.50)
+			return ConfigUiStatus.CAUTION;
+		return ConfigUiStatus.CRITICAL;
+	}
+
+	void applyLatencyStatsToUi(int timeoutMs, RttStatsSnapshot ping, RttStatsSnapshot osc) {
+		PingMinTextBlock.Text = formatLatencyCellText(ping.minMs);
+		PingMedianTextBlock.Text = formatLatencyCellText(ping.medianMs);
+		PingMaxTextBlock.Text = formatLatencyCellText(ping.maxMs);
+		PingLossTextBlock.Text = ping.completedCount == 0 ? "—" : ping.receivedCount.ToString(CultureInfo.InvariantCulture);
+
+		OscMinTextBlock.Text = formatLatencyCellText(osc.minMs);
+		OscMedianTextBlock.Text = formatLatencyCellText(osc.medianMs);
+		OscMaxTextBlock.Text = formatLatencyCellText(osc.maxMs);
+		OscLossTextBlock.Text = osc.completedCount == 0 ? "—" : osc.receivedCount.ToString(CultureInfo.InvariantCulture);
+
+		int completed = ping.completedCount;
+		LossUnitTextBlock.Text = "/" + completed.ToString(CultureInfo.InvariantCulture);
+
+		PingLossTextBlock.Foreground = brushForStatus(responseStatus(ping.completedCount, ping.receivedCount));
+		OscLossTextBlock.Foreground = brushForStatus(responseStatus(osc.completedCount, osc.receivedCount));
+
+		PingMinTextBlock.Foreground = brushForStatus(latencyStatus(timeoutMs, ping.minMs));
+		PingMedianTextBlock.Foreground = brushForStatus(latencyStatus(timeoutMs, ping.medianMs));
+		PingMaxTextBlock.Foreground = brushForStatus(latencyStatus(timeoutMs, ping.maxMs));
+
+		OscMinTextBlock.Foreground = brushForStatus(latencyStatus(timeoutMs, osc.minMs));
+		OscMedianTextBlock.Foreground = brushForStatus(latencyStatus(timeoutMs, osc.medianMs));
+		OscMaxTextBlock.Foreground = brushForStatus(latencyStatus(timeoutMs, osc.maxMs));
 	}
 
 	async void buttonApplySaveAndTest_Click(object sender, RoutedEventArgs e) {
@@ -211,18 +288,62 @@ public partial class ConfigWindow : Window {
 			_appCoordinator.commitConfigFromSettingsForm(newConfig!);
 			UiTextFeedbackPresenter.apply(ConfigFeedbackTextBlock, _configStore.lastDiskUiFeedback);
 
-			var progress = new Progress<UiTextFeedback>(sample => UiTextFeedbackPresenter.apply(NetworkFeedbackTextBlock, sample));
-
 			int timeoutMs = Math.Max(1, (int)newConfig!.mixer.timeoutMs);
-			Task<UiTextFeedback> pingTask = NetworkPingTest.PingFeedbackAsync(newConfig.oscTransport.endPoint.Address, timeoutMs: timeoutMs, probeProgress: progress);
-			Task<(bool Ok, string Detail)> infoTask = _mixer.QueryInfoAsync();
-			await Task.WhenAll(pingTask, infoTask);
+			const int probes = 10;
 
-			UiTextFeedback pingResult = pingTask.Result;
-			(bool infoOk, string detail) = infoTask.Result;
-			UiTextFeedbackPresenter.apply(NetworkFeedbackTextBlock, pingResult);
-			UiTextFeedbackPresenter.apply(InfoResultTextBox, MixerController.infoQueryDetailFeedback(infoOk, detail));
-			UiTextFeedbackPresenter.apply(StatusTextBlock, MixerController.settingsApplyMixerSummaryFeedback(infoOk));
+			var pingStats = new RttStatsAccumulator();
+			var oscStats = new RttStatsAccumulator();
+
+			applyLatencyStatsToUi(timeoutMs, pingStats.snapshot(), oscStats.snapshot());
+
+			BindingFader? firstFader = (newConfig.trayApp?.bindings ?? []).OfType<BindingFader>().FirstOrDefault();
+			bool oscUsesBinding = firstFader != null;
+			string oscAddress = oscUsesBinding ? firstFader!.address : "/info";
+			OscHeaderTextBlock.Text = oscUsesBinding ? "OSC Binding #1" : "OSC /info";
+
+			bool lastInfoOk = false;
+			string lastInfoDetail = "";
+
+			async Task<int?> probeOscOnceAsync() {
+				if (oscUsesBinding) {
+					float? reply = await _mixer.QueryFaderAsync(oscAddress);
+					if (reply == null)
+						return null;
+				} else {
+					(bool ok, string detail) = await _mixer.QueryInfoAsync();
+					lastInfoOk = ok;
+					lastInfoDetail = detail;
+					if (!ok)
+						return null;
+				}
+
+				if (!_mixer.tryGetMeasuredLatency(oscAddress, out TimeSpan latency))
+					return null;
+				double ms = latency.TotalMilliseconds;
+				if (!double.IsFinite(ms) || ms < 0 || ms > int.MaxValue)
+					return null;
+				return (int)Math.Round(ms);
+			}
+
+			for (int i = 0; i < probes; i++) {
+				Task<int?> pingTask = NetworkPingTest.PingOnceAsync(newConfig.oscTransport.endPoint.Address, timeoutMs);
+				Task<int?> oscTask = probeOscOnceAsync();
+				await Task.WhenAll(pingTask, oscTask);
+
+				pingStats.push(pingTask.Result);
+				oscStats.push(oscTask.Result);
+
+				RttStatsSnapshot pingSnap = pingStats.snapshot();
+				RttStatsSnapshot oscSnap = oscStats.snapshot();
+				applyLatencyStatsToUi(timeoutMs, pingSnap, oscSnap);
+			}
+
+			if (oscUsesBinding) {
+				(lastInfoOk, lastInfoDetail) = await _mixer.QueryInfoAsync();
+			}
+
+			UiTextFeedbackPresenter.apply(InfoResultTextBox, MixerController.infoQueryDetailFeedback(lastInfoOk, lastInfoDetail));
+			UiTextFeedbackPresenter.apply(StatusTextBlock, MixerController.settingsApplyMixerSummaryFeedback(lastInfoOk));
 		} catch (Exception ex) {
 			UiTextFeedbackPresenter.apply(StatusTextBlock, MixerController.exceptionMessageFeedback(ex));
 		} finally {
