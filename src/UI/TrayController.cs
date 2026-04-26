@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Net;
 using System.Windows.Forms;
 using System.Windows.Media;
 
@@ -13,6 +14,7 @@ public enum AppTrayIconState {
 public sealed class TrayController : IDisposable {
 	const string DEFAULT_TEXT = "Windows OSC Volume Control";
 	readonly NotifyIcon _trayIcon;
+	readonly ToolStripMenuItem _endPointItem;
 
 	public TrayController(Action onConfigure, Action onExit) {
 		_trayIcon = new NotifyIcon {
@@ -22,9 +24,20 @@ public sealed class TrayController : IDisposable {
 		};
 		ApplyState(AppTrayIconState.STARTING_OR_INVALID_CONFIG);
 		ContextMenuStrip menu = _trayIcon.ContextMenuStrip!;
+		_endPointItem = new ToolStripMenuItem("0.0.0.0:0") { Enabled = false };
+		menu.Items.Add(_endPointItem);
 		menu.Items.Add("Configure…", null, (_, _) => onConfigure());
 		menu.Items.Add("Exit", null, (_, _) => onExit());
 		_trayIcon.DoubleClick += (_, _) => onConfigure();
+		_trayIcon.MouseDoubleClick += (_, e) => {
+			if (e.Button == MouseButtons.Left)
+				onConfigure();
+		};
+	}
+
+	public void setOscEndPoint(IPEndPoint endPoint) {
+		ArgumentNullException.ThrowIfNull(endPoint);
+		_endPointItem.Text = $"{endPoint.Address}:{endPoint.Port}";
 	}
 
 	public void setStatusText(string? detail) {

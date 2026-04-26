@@ -33,6 +33,7 @@ public sealed class AppCoordinator : IDisposable {
 
 		_osd = new OSDController(_configStore.appConfig.osd);
 		_tray = new TrayController(openConfig, closeApp);
+		_tray.setOscEndPoint(_configStore.appConfig.oscTransport.endPoint);
 		_transport = new OscTransport(_configStore.appConfig.oscTransport);
 		_mixer = new MixerController(_transport, _configStore.appConfig.mixer);
 		_hook = new KeyboardHook();
@@ -84,6 +85,7 @@ public sealed class AppCoordinator : IDisposable {
 	public void applyConfigFromStore() {
 		AppConfig cfg = _configStore.appConfig;
 		_transport.applyConfig(cfg.oscTransport);
+		_tray.setOscEndPoint(cfg.oscTransport.endPoint);
 		_mixer.ApplyConfig(cfg.mixer);
 		_osd.ApplyConfig(cfg.osd);
 		rebuildHotkeysFromConfig(cfg.trayApp?.bindings ?? []);

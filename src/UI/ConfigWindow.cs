@@ -13,6 +13,7 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
 using System.Windows.Input;
+using System.Windows.Forms;
 using Key = System.Windows.Input.Key;
 using Keyboard = System.Windows.Input.Keyboard;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -33,6 +34,7 @@ public partial class ConfigWindow : Window {
 	DateTime? _hotkeyCaptureDownUtc;
 	HotkeyGesture _hotkeyCaptureGesture;
 	bool _hotkeyCaptureAwaitingRelease;
+	bool _initialPlacementDone;
 
 	readonly MixerController _mixer;
 	readonly TrayController _trayController;
@@ -58,9 +60,53 @@ public partial class ConfigWindow : Window {
 		vm.PropertyChanged += vm_PropertyChanged;
 		loadFromConfigStore();
 		syncTitlebarIconFromTray();
+		WindowStartupLocation = WindowStartupLocation.Manual;
+		ContentRendered += (_, _) => placeNearTrayCornerOnce();
 	}
 
 	public void syncTitlebarIconFromTray() => Icon = _trayController.windowIconSourceSnapshot;
+
+	void placeNearTrayCornerOnce() {
+		if (_initialPlacementDone)
+			return;
+		_initialPlacementDone = true;
+
+		System.Drawing.Point cursor = System.Windows.Forms.Cursor.Position;
+		Screen screen = Screen.FromPoint(cursor);
+		System.Drawing.Rectangle waPx = screen.WorkingArea;
+
+		PresentationSource? ps = PresentationSource.FromVisual(this);
+		Matrix fromDevice = ps?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+
+		// WinForms gives pixels; WPF window coordinates are DIPs.
+		System.Windows.Point waTopLeft = fromDevice.Transform(new System.Windows.Point(waPx.Left, waPx.Top));
+		System.Windows.Point waBottomRight = fromDevice.Transform(new System.Windows.Point(waPx.Right, waPx.Bottom));
+		var wa = new System.Windows.Rect(waTopLeft, waBottomRight);
+
+		const double insetDip = 24d;
+
+		double w = ActualWidth > 0 ? ActualWidth : Width;
+		double h = ActualHeight > 0 ? ActualHeight : Height;
+
+		double left = wa.Right - w - insetDip;
+		double top = wa.Bottom - h - insetDip;
+
+		double minLeft = wa.Left + insetDip;
+		double minTop = wa.Top + insetDip;
+		double maxLeft = wa.Right - w - insetDip;
+		double maxTop = wa.Bottom - h - insetDip;
+
+		// If the window is larger than the working area, keep it pinned to the top-left of the working area.
+		if (maxLeft < minLeft)
+			Left = wa.Left;
+		else
+			Left = Math.Clamp(left, minLeft, maxLeft);
+
+		if (maxTop < minTop)
+			Top = wa.Top;
+		else
+			Top = Math.Clamp(top, minTop, maxTop);
+	}
 
 	void vm_PropertyChanged(object? sender, PropertyChangedEventArgs e) {
 		// Window owns the bottom status bar only; per-panel feedback is handled inside the UserControls.
@@ -450,16 +496,17 @@ public partial class ConfigWindow : Window {
 
 public sealed class DragActivePlaceholderMultiConverter : IMultiValueConverter {
 	public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture) {
-		if (values.Length < 5)
+		if (values.Length < 3)
 			return false;
 		object? item = values[0];
 		object? draggedItem = values[1];
 		bool isDragging = values[2] is bool b && b;
-		object? list = values[3];
-		object? activeList = values[4];
 		if (!isDragging)
 			return false;
-		return ReferenceEquals(item, draggedItem) && ReferenceEquals(list, activeList);
+		// Placeholder should be at the original slot of the dragged item.
+		// Comparing list identity here is brittle (templates / visual tree changes can break it),
+		// but item reference equality is stable and sufficient because the dragged item instance is unique.
+		return ReferenceEquals(item, draggedItem);
 	}
 
 	public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>

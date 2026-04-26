@@ -18,7 +18,7 @@
 		</ResourceDictionary>
 	</Window.Resources>
 	<DockPanel>
-		<Border DockPanel.Dock="Bottom" Padding="8" BorderThickness="1,1,0,0" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}">
+		<Border DockPanel.Dock="Bottom" Padding="8" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}">
 			<DockPanel LastChildFill="False">
 				<TextBlock x:Name="StatusTextBlock" DockPanel.Dock="Left" FontWeight="SemiBold" VerticalAlignment="Center" />
 				<Button

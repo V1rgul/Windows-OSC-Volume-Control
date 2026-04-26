@@ -340,7 +340,11 @@ public partial class BindingsPanelView : UserControl {
 		m.dragOwnerList = list;
 		m.dragItem = item;
 		m.isDragInProgress = true;
-		m.dragPlaceholderHeight = container?.ActualHeight ?? 0d;
+		// The container height already includes the card's outer margin. The placeholder uses the same margin,
+		// so we subtract it here to keep total reserved space identical while dragging.
+		double h = container?.ActualHeight ?? 0d;
+		var outerMargin = (Thickness)(TryFindResource("ReorderCardOuterMargin") ?? new Thickness(0));
+		m.dragPlaceholderHeight = Math.Max(0d, h - (outerMargin.Top + outerMargin.Bottom));
 
 		try {
 			hideInsertionLine(list);
@@ -459,16 +463,29 @@ public partial class BindingsPanelView : UserControl {
 			return 0;
 
 		int draggedIndex = list.Items.IndexOf(dragged);
-		FrameworkElement? draggedContainer = draggedIndex >= 0 ? list.ItemContainerGenerator.ContainerFromIndex(draggedIndex) as FrameworkElement : null;
-		Point draggedTopLeft = draggedContainer != null ? draggedContainer.TranslatePoint(new Point(0, 0), list) : new Point(0, 0);
 
 		for (int i = 0; i < n; i++) {
-			if (i == draggedIndex)
-				continue;
 			if (list.ItemContainerGenerator.ContainerFromIndex(i) is not FrameworkElement container)
 				continue;
 			Point topLeft = container.TranslatePoint(new Point(0, 0), list);
-			double midY = topLeft.Y + container.ActualHeight / 2d;
+			double height = container.ActualHeight;
+			double midY = topLeft.Y + height / 2d;
+
+			// Treat the dragged item's placeholder like any other item:
+			// - hover top half  => line at top (insert before)
+			// - hover bottom half => line at bottom (insert after)
+			if (i == draggedIndex) {
+				double bottomY = topLeft.Y + height;
+				if (p.Y >= topLeft.Y && p.Y <= bottomY) {
+					if (p.Y < midY) {
+						insertionLineY = topLeft.Y;
+						return i;
+					}
+					insertionLineY = bottomY;
+					return Math.Min(n, i + 1);
+				}
+			}
+
 			if (p.Y < midY) {
 				insertionLineY = topLeft.Y;
 				return i;
@@ -476,7 +493,14 @@ public partial class BindingsPanelView : UserControl {
 		}
 
 		// drop at end
-		double endY = draggedContainer != null ? draggedTopLeft.Y + draggedContainer.ActualHeight : list.ActualHeight;
+		int lastIndex = n - 1;
+		if (lastIndex == draggedIndex)
+			lastIndex = n - 2;
+		double endY = list.ActualHeight;
+		if (lastIndex >= 0 && list.ItemContainerGenerator.ContainerFromIndex(lastIndex) is FrameworkElement lastContainer) {
+			Point lastTopLeft = lastContainer.TranslatePoint(new Point(0, 0), list);
+			endY = lastTopLeft.Y + lastContainer.ActualHeight;
+		}
 		insertionLineY = endY;
 		return n;
 	}
