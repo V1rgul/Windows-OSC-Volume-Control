@@ -152,10 +152,30 @@
 														</TextBlock>
 														<ComboBox
 															DisplayMemberPath="label"
-															ItemsSource="{Binding typeChoices}"
+															ItemsSource="{Binding groupedTypeChoices}"
 															SelectedValue="{Binding type, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
 															SelectedValuePath="value"
 															VerticalAlignment="Center">
+															<ComboBox.GroupStyle>
+																<GroupStyle>
+																	<GroupStyle.HeaderTemplate>
+																		<DataTemplate>
+																			<TextBlock Margin="0,4,0,2" FontWeight="SemiBold" Opacity="0.75" Text="{Binding Path=Name}">
+																				<TextBlock.Style>
+																					<Style TargetType="TextBlock">
+																						<Setter Property="Visibility" Value="Visible" />
+																						<Style.Triggers>
+																							<DataTrigger Binding="{Binding Path=Name}" Value="">
+																								<Setter Property="Visibility" Value="Collapsed" />
+																							</DataTrigger>
+																						</Style.Triggers>
+																					</Style>
+																				</TextBlock.Style>
+																			</TextBlock>
+																		</DataTemplate>
+																	</GroupStyle.HeaderTemplate>
+																</GroupStyle>
+															</ComboBox.GroupStyle>
 															<ComboBox.Style>
 																<Style BasedOn="{StaticResource {x:Type ComboBox}}" TargetType="ComboBox">
 																	<Setter Property="Visibility" Value="Visible" />
@@ -212,13 +232,43 @@
 														<Grid.RowDefinitions>
 															<RowDefinition Height="Auto" />
 															<RowDefinition Height="Auto" />
+															<RowDefinition Height="Auto" />
 														</Grid.RowDefinitions>
 														<TextBlock Margin="0,0,8,4" VerticalAlignment="Center" Text="OSC address" />
-														<TextBox Grid.Column="1" Grid.ColumnSpan="3" Margin="0,0,0,4" Text="{Binding address, UpdateSourceTrigger=PropertyChanged}" />
-														<TextBlock Grid.Row="1" Margin="0,8,8,4" VerticalAlignment="Center" Text="Minimum" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
-														<TextBox Grid.Row="1" Grid.Column="1" Margin="0,8,8,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding minimum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
-														<TextBlock Grid.Row="1" Grid.Column="2" Margin="0,8,8,4" VerticalAlignment="Center" Text="Maximum" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
-														<TextBox Grid.Row="1" Grid.Column="3" Margin="0,8,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding maximum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
+														<DockPanel Grid.Column="1" Grid.ColumnSpan="3" Margin="0,0,0,4" LastChildFill="True">
+															<Button
+																DockPanel.Dock="Right"
+																Margin="8,0,0,0"
+																Padding="10,6"
+																Style="{DynamicResource AccentButtonStyle}"
+																IsEnabled="{Binding hasX32CatalogMatch}"
+																Command="{Binding DataContext.fillFromX32CatalogCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+																CommandParameter="{Binding}"
+																ToolTip="{Binding x32CatalogTooltip}">
+																<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+																	<TextBlock
+																		Margin="0,1,6,0"
+																		VerticalAlignment="Center"
+																		FontFamily="{DynamicResource SymbolThemeFontFamily}"
+																		Text="&#xE8F1;" />
+																	<TextBlock VerticalAlignment="Center" Text="X32" />
+																</StackPanel>
+															</Button>
+															<ComboBox
+																IsEditable="True"
+																IsTextSearchEnabled="False"
+																IsSynchronizedWithCurrentItem="False"
+																StaysOpenOnEdit="True"
+																ItemsSource="{Binding addressSuggestions}"
+																SelectedItem="{Binding selectedAddressSuggestion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+																Text="{Binding address, UpdateSourceTrigger=PropertyChanged}" />
+														</DockPanel>
+														<TextBlock Grid.Row="1" Margin="0,8,8,4" VerticalAlignment="Center" Text="Minimum" Visibility="{Binding showsMinMax, Converter={StaticResource BoolToVisibility}}" />
+														<TextBox Grid.Row="1" Grid.Column="1" Margin="0,8,8,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding minimum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsMinMax, Converter={StaticResource BoolToVisibility}}" />
+														<TextBlock Grid.Row="1" Grid.Column="2" Margin="0,8,8,4" VerticalAlignment="Center" Text="Maximum" Visibility="{Binding showsMinMax, Converter={StaticResource BoolToVisibility}}" />
+														<TextBox Grid.Row="1" Grid.Column="3" Margin="0,8,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding maximum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsMinMax, Converter={StaticResource BoolToVisibility}}" />
+														<TextBlock Grid.Row="2" Margin="0,8,8,4" VerticalAlignment="Center" Text="Unit" Visibility="{Binding showsUnit, Converter={StaticResource BoolToVisibility}}" />
+														<TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,8,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding unit, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsUnit, Converter={StaticResource BoolToVisibility}}" />
 													</Grid>
 													<Border Height="1" Margin="0,10,0,10" Background="{DynamicResource ControlStrokeColorDefaultBrush}" />
 													<DockPanel Margin="0,0,0,8" LastChildFill="True">
@@ -236,7 +286,7 @@
 														<TextBlock FontWeight="SemiBold" VerticalAlignment="Center" Text="Hotkeys" />
 													</DockPanel>
 													<ListBox
-														ItemsSource="{Binding hotkeys}"
+														ItemsSource="{Binding actions}"
 														BorderThickness="0"
 														Background="Transparent"
 														HorizontalContentAlignment="Stretch"
@@ -281,7 +331,7 @@
 															</Style>
 														</ListBox.ItemContainerStyle>
 														<ListBox.ItemTemplate>
-															<DataTemplate DataType="{x:Type local:HotkeyActionEditor}">
+															<DataTemplate DataType="{x:Type local:ControlActionEditor}">
 																<Grid>
 																	<Border
 																		x:Name="HotkeyRowBorder"
@@ -371,6 +421,7 @@
 																						<DockPanel VerticalAlignment="Center" LastChildFill="True">
 																							<StackPanel DockPanel.Dock="Right" Margin="4,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" Orientation="Horizontal">
 																								<TextBox MinWidth="100" Margin="0,0,8,0" HorizontalAlignment="Left" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding floatValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
+																								<TextBlock MinWidth="32" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="{Binding floatValueLabel}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
 																								<CheckBox MinWidth="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left" VerticalAlignment="Center" VerticalContentAlignment="Center" IsChecked="{Binding boolValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsBoolInput, Converter={StaticResource BoolToVisibility}}">
 																									<TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="On" />
 																								</CheckBox>

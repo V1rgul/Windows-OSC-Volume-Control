@@ -1,12 +1,12 @@
 namespace WindowsOscVolumeControl;
 
 public sealed class BindingToggle : BindingAbstract {
-	static readonly HotkeyAction[] _prototypes = [
-		new HotkeyActionToggleSet(),
-		new HotkeyActionToggleFlip(),
+	static readonly ControlAction[] _prototypes = [
+		new ControlActionToggleSet(),
+		new ControlActionToggleFlip(),
 	];
 
-	public override IReadOnlyList<HotkeyAction> availableActionPrototypes => _prototypes;
+	public override IReadOnlyList<ControlAction> availableActionPrototypes => _prototypes;
 
 	public BindingToggle() { }
 

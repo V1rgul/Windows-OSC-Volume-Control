@@ -10,9 +10,9 @@ public readonly struct HotkeyDispatchTargets {
 	public bool hasAny => shortPressSlots.Count > 0 || longPressSlots.Count > 0;
 }
 
-/// <summary>Runtime OSC fader/toggle rows and hotkey → slot map built from tray configuration.</summary>
+/// <summary>Runtime OSC bindings and hotkey → slot map built from tray configuration.</summary>
 public sealed class BindingManager {
-	/// <summary>OSC fader and toggle bindings; persisted via <see cref="ConfigStore"/>.</summary>
+	/// <summary>OSC bindings; persisted via <see cref="ConfigStore"/>.</summary>
 	public sealed class Config {
 		public Config() { }
 
@@ -22,22 +22,25 @@ public sealed class BindingManager {
 		}
 
 		static BindingAbstract cloneBinding(BindingAbstract b) => b switch {
-			BindingFader f => new BindingFader(f),
+			BindingLinear f => new BindingLinear(f),
+			BindingLinf x => new BindingLinf(x),
+			BindingLogf g => new BindingLogf(g),
+			BindingLevel l => new BindingLevel(l),
 			BindingToggle t => new BindingToggle(t),
 			_ => throw new InvalidOperationException("Unknown binding type: " + b.GetType().Name),
 		};
 
-		public static BindingFader createDefaultFaderBinding() => new() {
+		public static BindingLinear createDefaultLinearBinding() => new() {
 			name = "MAIN",
 			address = "/main/st/mix/fader",
 			minimum = 0f,
 			maximum = 1f,
-			hotkeys = [
-				new HotkeyActionFaderDelta {
+			actions = [
+				new ControlActionContinuousDelta {
 					hotkey = new HotkeyGesture { keyCode = HotkeyGesture.VK_VOLUME_DOWN },
 					delta = -0.02f,
 				},
-				new HotkeyActionFaderDelta {
+				new ControlActionContinuousDelta {
 					hotkey = new HotkeyGesture { keyCode = HotkeyGesture.VK_VOLUME_UP },
 					delta = 0.02f,
 				},
@@ -47,22 +50,22 @@ public sealed class BindingManager {
 		public static BindingToggle createDefaultToggleBinding() => new() {
 			name = "MAIN",
 			address = "/main/st/mix/on",
-			hotkeys = [
-				new HotkeyActionToggleFlip {
+			actions = [
+				new ControlActionToggleFlip {
 					hotkey = new HotkeyGesture { keyCode = HotkeyGesture.VK_VOLUME_MUTE },
 				},
 			],
 		};
 
-		public List<BindingAbstract> bindings { get; set; } = [createDefaultFaderBinding(), createDefaultToggleBinding()];
+		public List<BindingAbstract> bindings { get; set; } = [createDefaultLinearBinding(), createDefaultToggleBinding()];
 	}
 
 	/// <summary>One hotkey’s target binding and action.</summary>
 	public readonly struct Slot {
 		public BindingAbstract binding { get; }
-		public HotkeyAction action { get; }
+		public ControlAction action { get; }
 
-		public Slot(BindingAbstract binding, HotkeyAction action) {
+		public Slot(BindingAbstract binding, ControlAction action) {
 			this.binding = binding;
 			this.action = action;
 		}
@@ -80,11 +83,14 @@ public sealed class BindingManager {
 		var merge = new Dictionary<HotkeyGesture, GestureBuckets>();
 		foreach (BindingAbstract b in bindings) {
 			BindingAbstract row = b switch {
-				BindingFader f => new BindingFader(f),
+				BindingLinear f => new BindingLinear(f),
+				BindingLinf x => new BindingLinf(x),
+				BindingLogf g => new BindingLogf(g),
+				BindingLevel l => new BindingLevel(l),
 				BindingToggle t => new BindingToggle(t),
 				_ => throw new InvalidOperationException("Unknown binding type: " + b.GetType().Name),
 			};
-			foreach (HotkeyAction ha in row.hotkeys) {
+			foreach (ControlAction ha in row.actions) {
 				if (ha.hotkey.isNone)
 					continue;
 				HotkeyGesture k = HotkeyUtil.normalize(ha.hotkey);

@@ -33,6 +33,7 @@ public sealed class AppCoordinator : IDisposable {
 	public AppCoordinator() {
 		_dispatcher = System.Windows.Application.Current.Dispatcher;
 		_configStore.loadFromDisk();
+		X32Catalog.ensureLoaded();
 
 		_osd = new OSDController(_configStore.appConfig.osd);
 		_tray = new TrayController(openConfig, closeApp);
@@ -153,8 +154,10 @@ public sealed class AppCoordinator : IDisposable {
 	void onMixerEvent(MixerController.Event evt) {
 		ui(() => {
 			switch (evt) {
-				case MixerController.Event.FaderChanged f when tryGetFaderBinding(f.address, out BindingFader? binding):
-					_osd.ShowLevel(binding.displayName, binding.minimum, binding.maximum, f.newLevel, f.volumeIncreased, guessFaderStepForOsd(binding));
+				case MixerController.Event.FaderChanged f when tryGetFloatBinding(f.address, out BindingFloatAbstract? bf):
+					float ratio = bf.getNormalizedRatio(f.newLevel);
+					string display = formatContinuousDisplay(f.newLevel, bf);
+					_osd.ShowLevel(bf.displayName, ratio, display, f.volumeIncreased, bf.osdFractionalDigits);
 					break;
 				case MixerController.Event.ToggleChanged t when tryGetToggleBinding(t.address, out BindingToggle? toggleBinding):
 					_osd.ShowToggle(toggleBinding.displayName, t.nowOn);
@@ -166,8 +169,8 @@ public sealed class AppCoordinator : IDisposable {
 		});
 	}
 
-	bool tryGetFaderBinding(string address, [NotNullWhen(true)] out BindingFader? binding) {
-		binding = _configStore.appConfig.trayApp?.bindings.OfType<BindingFader>()
+	bool tryGetFloatBinding(string address, [NotNullWhen(true)] out BindingFloatAbstract? binding) {
+		binding = _configStore.appConfig.trayApp?.bindings.OfType<BindingFloatAbstract>()
 			.FirstOrDefault(f => string.Equals(f.address, address, StringComparison.Ordinal));
 		return binding != null;
 	}
@@ -178,12 +181,20 @@ public sealed class AppCoordinator : IDisposable {
 		return binding != null;
 	}
 
-	static float guessFaderStepForOsd(BindingFader f) {
-		foreach (HotkeyAction ha in f.hotkeys) {
-			if (ha is HotkeyActionFaderDelta d && d.delta != 0f)
-				return Math.Abs(d.delta);
+	static string formatContinuousDisplay(float wire, BindingFloatAbstract bf) {
+		if (bf is BindingLevel bl) {
+			if (wire <= 0f)
+				return "-∞ dB";
+			float db = bl.toReal(wire);
+			return ContinuousFloatUtil.FormatOsdLevelValue(db, bf.osdFractionalDigits) + " dB";
 		}
-		return 0.02f;
+		if (bf is BindingFloatNormalizedAbstract n) {
+			float real = n.toReal(wire);
+			string core = ContinuousFloatUtil.FormatOsdLevelValue(real, bf.osdFractionalDigits);
+			return bf.unit is { } u ? core + " " + u : core;
+		}
+		string c = ContinuousFloatUtil.FormatOsdLevelValue(wire, bf.osdFractionalDigits);
+		return bf.unit is { } u2 ? c + " " + u2 : c;
 	}
 
 	void openConfig() {
@@ -228,22 +239,19 @@ public sealed class AppCoordinator : IDisposable {
 		_ = _dispatcher.BeginInvoke(action, DispatcherPriority.Normal);
 	}
 
-	void handleOscHotkey(BindingAbstract binding, HotkeyAction action) {
+	void handleOscHotkey(BindingAbstract binding, ControlAction action) {
 		string display = binding.displayName;
 		switch (action) {
-			case HotkeyActionFaderSet fs when binding is BindingFader fader:
-				_mixer.setFader(fader.address, fs.value, fader.minimum, fader.maximum);
+			case ControlActionContinuousAbstract ca when binding is BindingFloatAbstract bf:
+				if (ca.needsCurrentWire && !_mixer.HasFreshContinuousSample(bf.address))
+					ui(() => _osd.ShowPending(display, bf.osdFractionalDigits));
+				_mixer.enqueueContinuousAction(bf.address, ca, bf);
 				break;
-			case HotkeyActionFaderDelta fd when binding is BindingFader fader2:
-				if (!_mixer.HasFreshFaderSample(fader2.address))
-					ui(() => _osd.ShowPending(display, Math.Abs(fd.delta)));
-				_mixer.nudge(fader2.address, fd.delta, fader2.minimum, fader2.maximum);
-				break;
-			case HotkeyActionToggleSet ts when binding is BindingToggle toggle:
+			case ControlActionToggleSet ts when binding is BindingToggle toggle:
 				ui(() => _osd.ShowPending(display));
 				_mixer.setToggle(toggle.address, ts.on);
 				break;
-			case HotkeyActionToggleFlip when binding is BindingToggle toggle2:
+			case ControlActionToggleFlip when binding is BindingToggle toggle2:
 				ui(() => _osd.ShowPending(display));
 				_mixer.toggle(toggle2.address);
 				break;

@@ -32,7 +32,7 @@ public partial class ConfigWindow : Window {
 	public const string HotkeyAssignmentCaptureTag = "HotkeyAssignmentCapture";
 	public const string BindingCardRestoreTag = "BindingCardRestore";
 
-	HotkeyActionEditor? _hotkeyCaptureItem;
+	ControlActionEditor? _hotkeyCaptureItem;
 	DateTime? _hotkeyCaptureDownUtc;
 	HotkeyGesture _hotkeyCaptureGesture;
 	bool _hotkeyCaptureAwaitingRelease;
@@ -345,9 +345,9 @@ public partial class ConfigWindow : Window {
 
 			applyLatencyStatsToUi(timeoutMs, pingStats.snapshot(), oscStats.snapshot());
 
-			BindingFader? firstFader = (newConfig.trayApp?.bindings ?? []).OfType<BindingFader>().FirstOrDefault();
-			bool oscUsesBinding = firstFader != null;
-			string oscAddress = oscUsesBinding ? firstFader!.address : "/info";
+			BindingLinear? firstLinear = (newConfig.trayApp?.bindings ?? []).OfType<BindingLinear>().FirstOrDefault();
+			bool oscUsesBinding = firstLinear != null;
+			string oscAddress = oscUsesBinding ? firstLinear!.address : "/info";
 			vm.oscHeaderText = oscUsesBinding ? "OSC Binding #1" : "OSC /info";
 			// TODO(split-to-resources): bind this via VM once latency panel is VM-driven.
 
@@ -356,7 +356,7 @@ public partial class ConfigWindow : Window {
 
 			async Task<int?> probeOscOnceAsync() {
 				if (oscUsesBinding) {
-					float? reply = await _mixer.QueryFaderAsync(oscAddress);
+					float? reply = await _mixer.QueryContinuousWireAsync(oscAddress);
 					if (reply == null)
 						return null;
 				} else {
@@ -448,7 +448,7 @@ public partial class ConfigWindow : Window {
 
 	// Hotkey capture moved to BindingsPanelView.
 
-	void finalizeHotkeyCapture(HotkeyActionEditor item, FrameworkElement focusMoveAnchor) {
+	void finalizeHotkeyCapture(ControlActionEditor item, FrameworkElement focusMoveAnchor) {
 		if (!_hotkeyCaptureDownUtc.HasValue)
 			return;
 		HotkeyGesture g = HotkeyUtil.normalize(_hotkeyCaptureGesture);
@@ -465,7 +465,7 @@ public partial class ConfigWindow : Window {
 
 	// Hotkey capture moved to BindingsPanelView.
 
-	void beginHotkeyCaptureKeyDown(KeyEventArgs e, HotkeyActionEditor item) {
+	void beginHotkeyCaptureKeyDown(KeyEventArgs e, ControlActionEditor item) {
 		HotkeyGesture hotkey = HotkeyUtil.fromKeyEventArgs(e);
 		if (hotkey.isNone) {
 			e.Handled = true;

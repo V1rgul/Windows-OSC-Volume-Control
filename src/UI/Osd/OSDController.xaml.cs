@@ -21,7 +21,7 @@ public partial class OSDController : Window {
 	}
 
 	readonly record struct LayoutKey(LayoutMode mode, string labelText);
-	readonly record struct PendingLevelUpdate(string rowLabel, float min, float max, float value, bool volumeIncreased, float step);
+	readonly record struct PendingLevelUpdate(string rowLabel, double normalizedRatio, string displayText, bool volumeIncreased, int layoutFractionalDigits);
 
 	const int WS_EX_TOOLWINDOW = 0x00000080;
 	const int WS_EX_NOACTIVATE = 0x08000000;
@@ -116,8 +116,6 @@ public partial class OSDController : Window {
 	double _valueWidth;
 	double _barHeight;
 	int _levelFracDigits = 2;
-	float _cachedFaderStep = float.NaN;
-	int _cachedFaderStepDigits = 2;
 	LayoutKey _layoutKey = new(LayoutMode.NONE, "");
 	bool _layoutMeasureDirty = true;
 	bool _windowPlacementDirty = true;
@@ -329,7 +327,7 @@ public partial class OSDController : Window {
 		_levelUpdateQueued = false;
 		if (pending == null)
 			return;
-		showLevelNow(pending.Value.rowLabel, pending.Value.min, pending.Value.max, pending.Value.value, pending.Value.volumeIncreased, pending.Value.step);
+		showLevelNow(pending.Value.rowLabel, pending.Value.normalizedRatio, pending.Value.displayText, pending.Value.volumeIncreased, pending.Value.layoutFractionalDigits);
 	}
 
 	void placeWindow(IntPtr hwnd, double width) =>
@@ -470,23 +468,13 @@ public partial class OSDController : Window {
 		LabelTextBlock.Visibility = Visibility.Visible;
 	}
 
-	int getOsdFractionalDigits(float step) {
-		if (!float.IsFinite(step) || step <= 0f)
-			return Math.Max(0, _cachedFaderStepDigits);
-		if (!float.IsFinite(_cachedFaderStep) || Math.Abs(_cachedFaderStep - step) > 1e-6f) {
-			_cachedFaderStep = step;
-			_cachedFaderStepDigits = FaderFloatUtil.GetOsdFractionalDigitsFromStep(step);
-		}
-		return _cachedFaderStepDigits;
-	}
+	public void ShowPending() => ShowPending("", 2);
 
-	public void ShowPending() => ShowPending("", float.NaN);
+	public void ShowPending(string rowLabel) => ShowPending(rowLabel, 2);
 
-	public void ShowPending(string rowLabel) => ShowPending(rowLabel, float.NaN);
-
-	public void ShowPending(string rowLabel, float faderStepForLayout) {
+	public void ShowPending(string rowLabel, int layoutFractionalDigits) {
 		cancelPendingLevelUpdate();
-		_levelFracDigits = getOsdFractionalDigits(faderStepForLayout);
+		_levelFracDigits = Math.Clamp(layoutFractionalDigits, 0, ContinuousFloatUtil.BindingFractionalDigits);
 		bool layoutChanged = updateLayoutKey(LayoutMode.BAR, rowLabel);
 		hideExtraVisuals();
 		applyLabel(rowLabel);
@@ -512,19 +500,18 @@ public partial class OSDController : Window {
 		showNoActivate(layoutChanged);
 	}
 
-	public void ShowLevel(string rowLabel, float min, float max, float value, bool volumeIncreased, float step) {
-		queueLevelUpdate(new PendingLevelUpdate(rowLabel, min, max, value, volumeIncreased, step));
+	public void ShowLevel(string rowLabel, double normalizedRatio, string displayText, bool volumeIncreased, int layoutFractionalDigits) {
+		queueLevelUpdate(new PendingLevelUpdate(rowLabel, normalizedRatio, displayText, volumeIncreased, layoutFractionalDigits));
 	}
 
-	void showLevelNow(string rowLabel, float min, float max, float value, bool volumeIncreased, float step) {
-		_levelFracDigits = getOsdFractionalDigits(step);
+	void showLevelNow(string rowLabel, double normalizedRatio, string displayText, bool volumeIncreased, int layoutFractionalDigits) {
+		_levelFracDigits = Math.Clamp(layoutFractionalDigits, 0, ContinuousFloatUtil.BindingFractionalDigits);
 		bool layoutChanged = updateLayoutKey(LayoutMode.BAR, rowLabel);
 		hideExtraVisuals();
 		applyLabel(rowLabel);
 		BarFill.Background = ACTIVE_BRUSH;
-		double normalized = normalized01(value, min, max);
-		updateBarFill(normalized);
-		ValueTextBlock.Text = FaderFloatUtil.FormatOsdLevelValue(value, _levelFracDigits);
+		updateBarFill(normalizedRatio);
+		ValueTextBlock.Text = displayText;
 		FlashMarkerVertical.Visibility = volumeIncreased ? Visibility.Visible : Visibility.Collapsed;
 		positionFlash(volumeIncreased);
 		FlashMarker.Visibility = Visibility.Visible;
@@ -579,13 +566,6 @@ public partial class OSDController : Window {
 			: Math.Min(Math.Max(0, fillEndX - markerWidth - insideGap), Math.Max(0, _trackWidth - markerWidth));
 		FlashTransform.X = x;
 		FlashTransform.Y = verticalOffset;
-	}
-
-	static double normalized01(float value, float min, float max) {
-		if (max - min < 1e-9f)
-			return 0.5;
-		double t = (value - min) / (max - min);
-		return Math.Clamp(t, 0.0, 1.0);
 	}
 
 	const int GWL_EXSTYLE = -20;

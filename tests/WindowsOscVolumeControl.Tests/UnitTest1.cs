@@ -5,7 +5,7 @@ public class UnitTest1 {
 	public void RoundToBindingDecimals_UsesProjectBindingPrecision() {
 		float value = 0.1236f;
 
-		float rounded = FaderFloatUtil.RoundToBindingDecimals(value);
+		float rounded = ContinuousFloatUtil.RoundToBindingDecimals(value);
 
 		Assert.Equal(0.124f, rounded);
 	}
@@ -15,14 +15,14 @@ public class UnitTest1 {
 	[InlineData(0.2f, 1)]
 	[InlineData(1f, 0)]
 	public void GetOsdFractionalDigitsFromStep_MatchesRoundedStep(float step, int expectedDigits) {
-		int digits = FaderFloatUtil.GetOsdFractionalDigitsFromStep(step);
+		int digits = ContinuousFloatUtil.GetOsdFractionalDigitsFromStep(step);
 
 		Assert.Equal(expectedDigits, digits);
 	}
 
 	[Fact]
 	public void FormatOsdLevelValue_RespectsRequestedPrecision() {
-		string formatted = FaderFloatUtil.FormatOsdLevelValue(0.1256f, 2);
+		string formatted = ContinuousFloatUtil.FormatOsdLevelValue(0.1256f, 2);
 
 		Assert.Equal("0.13", formatted);
 	}
@@ -74,37 +74,37 @@ public class UnitTest1 {
 
 	[Fact]
 	public void BindingManager_DefaultBindings_UseVolumeKeys() {
-		BindingFader fader = BindingManager.Config.createDefaultFaderBinding();
+		BindingLinear linear = BindingManager.Config.createDefaultLinearBinding();
 		BindingToggle toggle = BindingManager.Config.createDefaultToggleBinding();
 
-		Assert.Equal(2, fader.hotkeys.Count);
-		Assert.Single(toggle.hotkeys);
-		var down = Assert.IsType<HotkeyActionFaderDelta>(fader.hotkeys[0]);
-		var up = Assert.IsType<HotkeyActionFaderDelta>(fader.hotkeys[1]);
+		Assert.Equal(2, linear.actions.Count);
+		Assert.Single(toggle.actions);
+		var down = Assert.IsType<ControlActionContinuousDelta>(linear.actions[0]);
+		var up = Assert.IsType<ControlActionContinuousDelta>(linear.actions[1]);
 		Assert.Equal(HotkeyGesture.VK_VOLUME_DOWN, down.hotkey.keyCode);
 		Assert.Equal(HotkeyGesture.VK_VOLUME_UP, up.hotkey.keyCode);
 		Assert.Equal(-0.02f, down.delta);
 		Assert.Equal(0.02f, up.delta);
-		var flip = Assert.IsType<HotkeyActionToggleFlip>(toggle.hotkeys[0]);
+		var flip = Assert.IsType<ControlActionToggleFlip>(toggle.actions[0]);
 		Assert.Equal(HotkeyGesture.VK_VOLUME_MUTE, flip.hotkey.keyCode);
 	}
 
 	[Fact]
 	public void BindingManager_MultipleRowsSameGesture_CollectsAllShortSlots() {
 		Assert.True(HotkeyUtil.tryParse("LeftCtrl+A", out HotkeyGesture hk));
-		var f1 = new BindingFader {
+		var f1 = new BindingLinear {
 			name = "F1",
 			address = "/1",
 			minimum = 0f,
 			maximum = 1f,
-			hotkeys = [new HotkeyActionFaderDelta { hotkey = hk, delta = -0.01f }],
+			actions = [new ControlActionContinuousDelta { hotkey = hk, delta = -0.01f }],
 		};
-		var f2 = new BindingFader {
+		var f2 = new BindingLinear {
 			name = "F2",
 			address = "/2",
 			minimum = 0f,
 			maximum = 1f,
-			hotkeys = [new HotkeyActionFaderDelta { hotkey = hk, delta = 0.01f }],
+			actions = [new ControlActionContinuousDelta { hotkey = hk, delta = 0.01f }],
 		};
 		var bm = new BindingManager();
 		bm.rebuildFromConfig(new BindingAbstract[] { f1, f2 });
@@ -116,14 +116,14 @@ public class UnitTest1 {
 	[Fact]
 	public void BindingManager_ShortAndLongSameGesture_SplitBuckets() {
 		Assert.True(HotkeyUtil.tryParse("LeftCtrl+B", out HotkeyGesture hk));
-		var f = new BindingFader {
+		var f = new BindingLinear {
 			name = "F",
 			address = "/x",
 			minimum = 0f,
 			maximum = 1f,
-			hotkeys = [
-				new HotkeyActionFaderDelta { hotkey = hk, delta = -0.01f, longPress = false },
-				new HotkeyActionFaderDelta { hotkey = hk, delta = 0.05f, longPress = true },
+			actions = [
+				new ControlActionContinuousDelta { hotkey = hk, delta = -0.01f, longPress = false },
+				new ControlActionContinuousDelta { hotkey = hk, delta = 0.05f, longPress = true },
 			],
 		};
 		var bm = new BindingManager();
@@ -156,7 +156,7 @@ public class UnitTest1 {
 		Assert.True(cfg.keyboardHook.acceptMacroChordKeyOrder);
 		BindingManager.Config tray = cfg.trayApp;
 		var toggle = Assert.IsType<BindingToggle>(Assert.Single(tray.bindings));
-		var flip = Assert.IsType<HotkeyActionToggleFlip>(Assert.Single(toggle.hotkeys));
+		var flip = Assert.IsType<ControlActionToggleFlip>(Assert.Single(toggle.actions));
 		Assert.True(flip.longPress);
 	}
 

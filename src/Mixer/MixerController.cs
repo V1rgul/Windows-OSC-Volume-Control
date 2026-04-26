@@ -15,13 +15,12 @@ public abstract partial record Error {
 	}
 }
 
-/// <summary>High-level mixer operations (per-path fader nudge, OSC toggles, <c>/info</c>) with optional per-address level cache.</summary>
+/// <summary>High-level mixer operations (continuous float paths, OSC toggles, <c>/info</c>) with optional per-address value cache.</summary>
 public sealed class MixerController {
 	const string INFO_ADDRESS = "/info";
 
 	public sealed class Config {
-		public const float MIN_FADER_STEP = 0.001f;
-		public const float MAX_FADER_STEP = 10.0f;
+		public const float MIN_CONTINUOUS_STEP = 0.001f;
 		public const uint MIN_TIMEOUT_MS = 1;
 		public const uint MAX_TIMEOUT_MS = 10_000;
 		public const uint MIN_VALUE_CACHE_TTL_MS = 0;
@@ -91,11 +90,11 @@ public sealed class MixerController {
 		errors.clearAll();
 	}
 
-	public bool HasFreshFaderSample(string address) {
+	public bool HasFreshContinuousSample(string address) {
 		lock (_lock) {
 			return _stateByAddress.TryGetValue(address, out MixerAddressState? state)
-				&& state is MixerAddressState.Fader fader
-				&& fader.isCacheFresh(_config.ValueCacheTtlMs);
+				&& state is MixerAddressState.Continuous cont
+				&& cont.isCacheFresh(_config.ValueCacheTtlMs);
 		}
 	}
 
@@ -114,46 +113,37 @@ public sealed class MixerController {
 		return false;
 	}
 
-	public void nudge(string path, float delta, float min, float max) {
-		delta = Math.Clamp(delta, -Config.MAX_FADER_STEP, Config.MAX_FADER_STEP);
-		if (!float.IsFinite(delta) || !float.IsFinite(min) || !float.IsFinite(max) || min > max)
+	public void enqueueContinuousAction(string path, ControlActionContinuousAbstract action, BindingFloatAbstract binding) {
+		ArgumentNullException.ThrowIfNull(path);
+		ArgumentNullException.ThrowIfNull(action);
+		ArgumentNullException.ThrowIfNull(binding);
+		if (!float.IsFinite(binding.minimum) || !float.IsFinite(binding.maximum) || binding.minimum > binding.maximum)
 			return;
 
 		lock (_lock) {
-			MixerAddressState.Fader fader = getOrAddFaderState(path);
-			fader.addDelta(delta, min, max, DateTime.UtcNow);
-
-			if (fader.tryGetCachedValueTyped(_config.ValueCacheTtlMs) != null) {
-				applyPending(path, fader);
+			MixerAddressState.Continuous cont = getOrAddContinuousState(path);
+			if (!action.needsCurrentWire) {
+				cont.prepareImmediateSet(binding, DateTime.UtcNow);
+				float wire = binding.applyContinuousAction(action, 0f);
+				float? prev = cont.tryGetCachedValueTyped(_config.ValueCacheTtlMs);
+				bool increased = prev == null || wire >= prev.Value;
+				cont.updateCache(wire);
+				sendAndEmit(
+					path,
+					wire,
+					new Event.FaderChanged {
+						address = path,
+						newLevel = wire,
+						volumeIncreased = increased,
+					});
 				return;
 			}
 
-			refreshCache(path, fader);
-		}
-	}
-
-	/// <summary>Sets fader to an absolute level; clears pending delta and updates cache so later <see cref="nudge"/> uses the new baseline.</summary>
-	public void setFader(string path, float value, float min, float max) {
-		if (!float.IsFinite(value) || !float.IsFinite(min) || !float.IsFinite(max) || min > max)
-			return;
-
-		float clamped = Math.Clamp(FaderFloatUtil.RoundToBindingDecimals(value), min, max);
-		clamped = Math.Clamp(clamped, min, max);
-
-		lock (_lock) {
-			MixerAddressState.Fader fader = getOrAddFaderState(path);
-			float? prev = fader.tryGetCachedValueTyped(_config.ValueCacheTtlMs);
-			bool increased = prev == null || clamped >= prev.Value;
-			fader.clearPending();
-			fader.updateCache(clamped);
-			sendAndEmit(
-				path,
-				clamped,
-				new Event.FaderChanged {
-					address = path,
-					newLevel = clamped,
-					volumeIncreased = increased,
-				});
+			cont.enqueue(action, binding, DateTime.UtcNow);
+			if (cont.tryGetCachedValueTyped(_config.ValueCacheTtlMs) != null)
+				applyPending(path, cont);
+			else
+				refreshCache(path, cont);
 		}
 	}
 
@@ -187,10 +177,10 @@ public sealed class MixerController {
 		}
 	}
 
-	public async Task<float?> QueryFaderAsync(string address) {
+	public async Task<float?> QueryContinuousWireAsync(string address) {
 		TaskCompletionSource<OscMessage> reply = createPendingReply();
 		lock (_lock)
-			getOrAddFaderState(address).markQuerySent(DateTime.UtcNow);
+			getOrAddContinuousState(address).markQuerySent(DateTime.UtcNow);
 
 		void handler(OscMessage message) {
 			if (StringComparer.Ordinal.Equals(message.Address, address))
@@ -267,17 +257,17 @@ public sealed class MixerController {
 			state.tryRecordQueryLatency(DateTime.UtcNow);
 
 			switch (state) {
-				case MixerAddressState.Fader fader:
-					if (!fader.tryUpdateCacheFromReply(msg)) {
-						if (fader.hasPending) {
-							fader.clearPending();
+				case MixerAddressState.Continuous cont:
+					if (!cont.tryUpdateCacheFromReply(msg)) {
+						if (cont.hasPending) {
+							cont.clearPending();
 							errors.setError(new Error.MixerController.InvalidReply(), true);
 							emitFailure(msg.Address);
 						}
 						return;
 					}
 					errors.setError(new Error.MixerController.InvalidReply(), false);
-					applyPending(msg.Address, fader);
+					applyPending(msg.Address, cont);
 					return;
 
 				case MixerAddressState.Toggle toggleState:
@@ -305,11 +295,11 @@ public sealed class MixerController {
 		_ = _transport.sendAsync(address);
 	}
 
-	void applyPending(string address, MixerAddressState.Fader fader) {
-		if (!fader.hasPending)
+	void applyPending(string address, MixerAddressState.Continuous cont) {
+		if (!cont.hasPending)
 			return;
 
-		if (!fader.tryApplyPending(_config.timeoutMs, out float newVal, out bool requestedIncrease)) {
+		if (!cont.tryApplyPending(_config.timeoutMs, out float newVal, out bool requestedIncrease)) {
 			errors.setError(new Error.MixerController.Network(), true);
 			emitFailure(address);
 			return;
@@ -363,12 +353,12 @@ public sealed class MixerController {
 
 	TimeSpan getTimeout() => TimeSpan.FromMilliseconds(_config.timeoutMs);
 
-	MixerAddressState.Fader getOrAddFaderState(string address) {
+	MixerAddressState.Continuous getOrAddContinuousState(string address) {
 		if (!_stateByAddress.TryGetValue(address, out MixerAddressState? state)) {
-			state = new MixerAddressState.Fader();
+			state = new MixerAddressState.Continuous();
 			_stateByAddress[address] = state;
 		}
-		return (MixerAddressState.Fader)state;
+		return (MixerAddressState.Continuous)state;
 	}
 
 	MixerAddressState.Toggle getOrAddToggleState(string address) {

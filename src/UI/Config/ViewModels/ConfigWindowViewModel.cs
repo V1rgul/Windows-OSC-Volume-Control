@@ -121,7 +121,7 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	public ItemsControl? dragOwnerList { get => _dragOwnerList; set => setProperty(ref _dragOwnerList, value); }
 	public double dragPlaceholderHeight { get => _dragPlaceholderHeight; set => setProperty(ref _dragPlaceholderHeight, value); }
 
-	// Binding editor collection (kept as-is; BindingEditor / HotkeyActionEditor own per-row state).
+	// Binding editor collection (kept as-is; BindingEditor / ControlActionEditor own per-row state).
 	public ObservableCollection<BindingEditor> bindings { get; } = [];
 
 	public string Error => "";
@@ -191,9 +191,10 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 		softDeleteBindingCommand = new RelayCommand<BindingEditor>(softDeleteBinding);
 		restoreBindingCommand = new RelayCommand<BindingEditor>(restoreBinding);
 		addHotkeyToBindingCommand = new RelayCommand<BindingEditor>(addHotkeyToBinding);
+		fillFromX32CatalogCommand = new RelayCommand<BindingEditor>(fillFromX32Catalog);
 
-		softDeleteHotkeyCommand = new RelayCommand<HotkeyActionEditor>(softDeleteHotkey);
-		restoreHotkeyCommand = new RelayCommand<HotkeyActionEditor>(restoreHotkey);
+		softDeleteHotkeyCommand = new RelayCommand<ControlActionEditor>(softDeleteHotkey);
+		restoreHotkeyCommand = new RelayCommand<ControlActionEditor>(restoreHotkey);
 
 		loadFromConfigStore();
 	}
@@ -241,19 +242,21 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	public IRelayCommand<BindingEditor> softDeleteBindingCommand { get; }
 	public IRelayCommand<BindingEditor> restoreBindingCommand { get; }
 	public IRelayCommand<BindingEditor> addHotkeyToBindingCommand { get; }
+	public IRelayCommand<BindingEditor> fillFromX32CatalogCommand { get; }
 
-	public IRelayCommand<HotkeyActionEditor> softDeleteHotkeyCommand { get; }
-	public IRelayCommand<HotkeyActionEditor> restoreHotkeyCommand { get; }
+	public IRelayCommand<ControlActionEditor> softDeleteHotkeyCommand { get; }
+	public IRelayCommand<ControlActionEditor> restoreHotkeyCommand { get; }
 
 	void addBinding() {
 		var ed = new BindingEditor {
-			type = BindingEditorType.FADER,
+			type = BindingEditorType.LINEAR,
 			name = "",
 			address = "",
 			minimum = "0",
 			maximum = "1",
+			bindingExpanded = true,
 		};
-		ed.hotkeys.Add(ed.createHotkeyEditor());
+		ed.actions.Add(ed.createActionEditor());
 		bindings.Add(ed);
 	}
 
@@ -261,11 +264,19 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 
 	void restoreBinding(BindingEditor item) => item.isDeleted = false;
 
-	void addHotkeyToBinding(BindingEditor owner) => owner.hotkeys.Add(owner.createHotkeyEditor());
+	void addHotkeyToBinding(BindingEditor owner) => owner.actions.Add(owner.createActionEditor());
 
-	void softDeleteHotkey(HotkeyActionEditor item) => item.isDeleted = true;
+	void fillFromX32Catalog(BindingEditor? ed) {
+		if (ed == null)
+			return;
+		X32Catalog.ensureLoaded();
+		if (X32Catalog.tryResolve(ed.address.Trim(), out X32CatalogEntry e))
+			ed.tryApplyX32CatalogEntry(e);
+	}
 
-	void restoreHotkey(HotkeyActionEditor item) => item.isDeleted = false;
+	void softDeleteHotkey(ControlActionEditor item) => item.isDeleted = true;
+
+	void restoreHotkey(ControlActionEditor item) => item.isDeleted = false;
 
 	void openConfigFolder() {
 		string? dir = Path.GetDirectoryName(_configStore.configPath);

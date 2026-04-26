@@ -97,10 +97,11 @@ public sealed class OscTransport : IDisposable {
 
 		var message = new OscMessage(address, args);
 		byte[] bytes = message.GetBytes();
-		AppTrace.OscTransport.TraceEvent(
-			TraceEventType.Information,
-			0,
-			$"Sending {address}, {bytes.Length} B");
+		string argText = args.Length == 0
+			? ""
+			: " args=[" + string.Join(", ", args.Select(static a => a == null ? "null" : (a.GetType().Name + ":" + a))) + "]";
+		string line = $"Sending {address}, {bytes.Length} B{argText}";
+		AppTrace.OscTransport.TraceEvent(TraceEventType.Information, 0, line);
 		await udp.SendAsync(bytes, bytes.Length, remote).ConfigureAwait(false);
 	}
 

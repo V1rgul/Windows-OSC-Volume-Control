@@ -58,7 +58,7 @@ public partial class BindingsPanelView : UserControl {
 	DragGhostAdorner? _dragGhostAdorner;
 	ItemsControl? _dragGhostOwnerList;
 
-	HotkeyActionEditor? _hotkeyCaptureItem;
+	ControlActionEditor? _hotkeyCaptureItem;
 	DateTime? _hotkeyCaptureDownUtc;
 	HotkeyGesture _hotkeyCaptureGesture;
 	bool _hotkeyCaptureAwaitingRelease;
@@ -211,7 +211,7 @@ public partial class BindingsPanelView : UserControl {
 		if (m == null)
 			return;
 		m.setConfiguredHotkeysEnabled(false);
-		if (sender is FrameworkElement { DataContext: HotkeyActionEditor item }) {
+		if (sender is FrameworkElement { DataContext: ControlActionEditor item }) {
 			item.isHotkeyCaptureActive = true;
 			item.hotkey = HotkeyGesture.None;
 			m.statusFeedback = new UiTextFeedback("", UiTextFeedbackKind.DEFAULT);
@@ -222,7 +222,7 @@ public partial class BindingsPanelView : UserControl {
 
 	void hotkeyControl_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) {
 		ConfigWindowViewModel? m = vm;
-		if (sender is FrameworkElement { DataContext: HotkeyActionEditor item }) {
+		if (sender is FrameworkElement { DataContext: ControlActionEditor item }) {
 			item.isHotkeyCaptureActive = false;
 			if (ReferenceEquals(_hotkeyCaptureItem, item))
 				clearHotkeyCaptureTracking();
@@ -231,7 +231,7 @@ public partial class BindingsPanelView : UserControl {
 	}
 
 	void hotkeyRow_PreviewKeyDown(object sender, KeyEventArgs e) {
-		if (sender is FrameworkElement fe && fe.DataContext is HotkeyActionEditor item && item.isHotkeyCaptureActive)
+		if (sender is FrameworkElement fe && fe.DataContext is ControlActionEditor item && item.isHotkeyCaptureActive)
 			beginHotkeyCaptureKeyDown(e, item);
 	}
 
@@ -239,7 +239,7 @@ public partial class BindingsPanelView : UserControl {
 		ConfigWindowViewModel? m = vm;
 		if (m == null)
 			return;
-		if (sender is not FrameworkElement fe || fe.DataContext is not HotkeyActionEditor item)
+		if (sender is not FrameworkElement fe || fe.DataContext is not ControlActionEditor item)
 			return;
 		if (!item.isHotkeyCaptureActive || !_hotkeyCaptureAwaitingRelease || !ReferenceEquals(_hotkeyCaptureItem, item))
 			return;
@@ -273,7 +273,7 @@ public partial class BindingsPanelView : UserControl {
 		return true;
 	}
 
-	void finalizeHotkeyCapture(ConfigWindowViewModel m, HotkeyActionEditor item, FrameworkElement focusMoveAnchor) {
+	void finalizeHotkeyCapture(ConfigWindowViewModel m, ControlActionEditor item, FrameworkElement focusMoveAnchor) {
 		if (!_hotkeyCaptureDownUtc.HasValue)
 			return;
 		HotkeyGesture g = HotkeyUtil.normalize(_hotkeyCaptureGesture);
@@ -293,7 +293,7 @@ public partial class BindingsPanelView : UserControl {
 		focusMoveAnchor.Dispatcher.BeginInvoke(DispatcherPriority.Background, moveFocusAwayAfterAssign, focusMoveAnchor);
 	}
 
-	void beginHotkeyCaptureKeyDown(KeyEventArgs e, HotkeyActionEditor item) {
+	void beginHotkeyCaptureKeyDown(KeyEventArgs e, ControlActionEditor item) {
 		ConfigWindowViewModel? m = vm;
 		if (m == null)
 			return;
@@ -438,7 +438,7 @@ public partial class BindingsPanelView : UserControl {
 	static double resolveCardCornerRadiusFromTemplate(FrameworkElement container, object draggedItem) {
 		string? borderName = draggedItem switch {
 			BindingEditor => "BindingOscCardBorder",
-			HotkeyActionEditor => "HotkeyRowBorder",
+			ControlActionEditor => "HotkeyRowBorder",
 			_ => null,
 		};
 		if (borderName == null)
@@ -493,7 +493,7 @@ public partial class BindingsPanelView : UserControl {
 		object item = thumb.DataContext;
 		if (item is BindingEditor be && be.isDeleted)
 			return;
-		if (item is HotkeyActionEditor he && he.isDeleted)
+		if (item is ControlActionEditor he && he.isDeleted)
 			return;
 
 		FrameworkElement? container = list switch {
@@ -649,8 +649,8 @@ public partial class BindingsPanelView : UserControl {
 			return;
 		}
 
-		if (dragged is HotkeyActionEditor hed && list.DataContext is BindingEditor owner) {
-			var hotkeys = owner.hotkeys;
+		if (dragged is ControlActionEditor hed && list.DataContext is BindingEditor owner) {
+			var hotkeys = owner.actions;
 			int oldIndex = hotkeys.IndexOf(hed);
 			if (oldIndex < 0)
 				return;

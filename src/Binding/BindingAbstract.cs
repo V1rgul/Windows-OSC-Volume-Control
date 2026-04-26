@@ -24,11 +24,11 @@ public abstract class BindingAbstract {
 	/// <summary>Label for OSD / tray: <see cref="name"/> when set, otherwise <see cref="address"/> (required for a valid binding). Updated when those properties change.</summary>
 	public string displayName => _displayName;
 
-	/// <summary>Hotkey rows for this binding.</summary>
-	public List<HotkeyAction> hotkeys { get; set; } = [];
+	/// <summary>Control actions (hotkey + payload) for this binding.</summary>
+	public List<ControlAction> actions { get; set; } = [];
 
 	/// <summary>Prototype instances for the settings UI action picker (hotkey may be <see cref="HotkeyGesture.None"/>).</summary>
-	public abstract IReadOnlyList<HotkeyAction> availableActionPrototypes { get; }
+	public abstract IReadOnlyList<ControlAction> availableActionPrototypes { get; }
 
 	protected BindingAbstract() {
 		refreshDisplayName();
@@ -38,7 +38,7 @@ public abstract class BindingAbstract {
 		ArgumentNullException.ThrowIfNull(other);
 		_name = other._name;
 		_address = other._address;
-		hotkeys = other.hotkeys.Select(static h => h.clone()).ToList();
+		actions = other.actions.Select(static h => h.clone()).ToList();
 		refreshDisplayName();
 	}
 

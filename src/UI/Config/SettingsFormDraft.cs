@@ -43,49 +43,102 @@ static class SettingsFormDraft {
 			if (string.IsNullOrWhiteSpace(editor.name) || string.IsNullOrWhiteSpace(editor.address))
 				return (false, null, new UiTextFeedback($"Binding {i + 1} requires name and OSC address.", UiTextFeedbackKind.ERROR));
 
-			if (editor.type == BindingEditorType.FADER) {
-				if (!tryParseFloat(editor.minimum, "Minimum", out float min, out string? emin))
-					return (false, null, feedback(emin));
-				if (!tryParseFloat(editor.maximum, "Maximum", out float max, out string? emax))
-					return (false, null, feedback(emax));
-				if (min > max)
-					return (false, null, new UiTextFeedback($"Binding {i + 1}: minimum must be less than or equal to maximum.", UiTextFeedbackKind.ERROR));
-				min = FaderFloatUtil.RoundToBindingDecimals(min);
-				max = FaderFloatUtil.RoundToBindingDecimals(max);
-				var fader = new BindingFader {
-					name = editor.name.Trim(),
-					address = editor.address.Trim(),
-					minimum = min,
-					maximum = max,
-				};
-				for (int h = 0; h < editor.hotkeys.Count; h++) {
-					HotkeyActionEditor hk = editor.hotkeys[h];
-					if (hk.isDeleted || isHotkeyRowBlank(hk))
-						continue;
-					if (!hk.tryBuildModel(editor.type, out HotkeyAction? action, out string? hkErr))
-						return (false, null, new UiTextFeedback($"Binding {i + 1}, hotkey {h + 1}: {hkErr}", UiTextFeedbackKind.ERROR));
-					fader.hotkeys.Add(action!);
+			switch (editor.type) {
+				case BindingEditorType.LINEAR:
+					if (!tryParseFloatWithDigits(editor.minimum, "Minimum", out float min, out int minDig, out string? emin))
+						return (false, null, feedback(emin));
+					if (!tryParseFloatWithDigits(editor.maximum, "Maximum", out float max, out int maxDig, out string? emax))
+						return (false, null, feedback(emax));
+					if (min > max)
+						return (false, null, new UiTextFeedback($"Binding {i + 1}: minimum must be less than or equal to maximum.", UiTextFeedbackKind.ERROR));
+					min = ContinuousFloatUtil.RoundToBindingDecimals(min);
+					max = ContinuousFloatUtil.RoundToBindingDecimals(max);
+					var linear = new BindingLinear {
+						name = editor.name.Trim(),
+						address = editor.address.Trim(),
+						minimum = min,
+						maximum = max,
+						minimumFractionalDigits = minDig,
+						maximumFractionalDigits = maxDig,
+						unit = string.IsNullOrWhiteSpace(editor.unit) ? null : editor.unit.Trim(),
+					};
+					if (!appendActions(editor, i, linear.actions, out UiTextFeedback? hkErr))
+						return (false, null, hkErr);
+					built.Add(linear);
+					break;
+				case BindingEditorType.LINF:
+					if (!tryParseFloatWithDigits(editor.minimum, "Minimum", out float lmin, out int lminDig, out string? elmin))
+						return (false, null, feedback(elmin));
+					if (!tryParseFloatWithDigits(editor.maximum, "Maximum", out float lmax, out int lmaxDig, out string? elmax))
+						return (false, null, feedback(elmax));
+					if (lmin > lmax)
+						return (false, null, new UiTextFeedback($"Binding {i + 1}: minimum must be less than or equal to maximum.", UiTextFeedbackKind.ERROR));
+					var linf = new BindingLinf {
+						name = editor.name.Trim(),
+						address = editor.address.Trim(),
+						minimum = ContinuousFloatUtil.RoundToBindingDecimals(lmin),
+						maximum = ContinuousFloatUtil.RoundToBindingDecimals(lmax),
+						minimumFractionalDigits = lminDig,
+						maximumFractionalDigits = lmaxDig,
+						unit = string.IsNullOrWhiteSpace(editor.unit) ? null : editor.unit.Trim(),
+					};
+					if (!appendActions(editor, i, linf.actions, out UiTextFeedback? hkErr2))
+						return (false, null, hkErr2);
+					built.Add(linf);
+					break;
+				case BindingEditorType.LOGF:
+					if (!tryParseFloatWithDigits(editor.minimum, "Minimum", out float gmin, out int gminDig, out string? egmin))
+						return (false, null, feedback(egmin));
+					if (!tryParseFloatWithDigits(editor.maximum, "Maximum", out float gmax, out int gmaxDig, out string? egmax))
+						return (false, null, feedback(egmax));
+					if (gmin > gmax || gmin <= 0f || gmax <= 0f)
+						return (false, null, new UiTextFeedback($"Binding {i + 1}: logf requires positive minimum and maximum.", UiTextFeedbackKind.ERROR));
+					var logf = new BindingLogf {
+						name = editor.name.Trim(),
+						address = editor.address.Trim(),
+						minimum = ContinuousFloatUtil.RoundToBindingDecimals(gmin),
+						maximum = ContinuousFloatUtil.RoundToBindingDecimals(gmax),
+						minimumFractionalDigits = gminDig,
+						maximumFractionalDigits = gmaxDig,
+						unit = string.IsNullOrWhiteSpace(editor.unit) ? null : editor.unit.Trim(),
+					};
+					if (!appendActions(editor, i, logf.actions, out UiTextFeedback? hkErr3))
+						return (false, null, hkErr3);
+					built.Add(logf);
+					break;
+				case BindingEditorType.LEVEL:
+					if (!tryParseFloatWithDigits(editor.minimum, "Minimum", out float lvmin, out int lvminDig, out string? elvmin))
+						return (false, null, feedback(elvmin));
+					if (!tryParseFloatWithDigits(editor.maximum, "Maximum", out float lvmax, out int lvmaxDig, out string? elvmax))
+						return (false, null, feedback(elvmax));
+					if (lvmin > lvmax)
+						return (false, null, new UiTextFeedback($"Binding {i + 1}: minimum must be less than or equal to maximum.", UiTextFeedbackKind.ERROR));
+					var level = new BindingLevel {
+						name = editor.name.Trim(),
+						address = editor.address.Trim(),
+						minimum = ContinuousFloatUtil.RoundToBindingDecimals(lvmin),
+						maximum = ContinuousFloatUtil.RoundToBindingDecimals(lvmax),
+						minimumFractionalDigits = lvminDig,
+						maximumFractionalDigits = lvmaxDig,
+					};
+					if (!appendActions(editor, i, level.actions, out UiTextFeedback? hkErr4))
+						return (false, null, hkErr4);
+					built.Add(level);
+					break;
+				case BindingEditorType.TOGGLE: {
+					var toggle = new BindingToggle {
+						name = editor.name.Trim(),
+						address = editor.address.Trim(),
+					};
+					if (!appendActions(editor, i, toggle.actions, out UiTextFeedback? hkErr5))
+						return (false, null, hkErr5);
+					built.Add(toggle);
+					break;
 				}
-				built.Add(fader);
-			} else {
-				var toggle = new BindingToggle {
-					name = editor.name.Trim(),
-					address = editor.address.Trim(),
-				};
-				for (int h = 0; h < editor.hotkeys.Count; h++) {
-					HotkeyActionEditor hk = editor.hotkeys[h];
-					if (hk.isDeleted || isHotkeyRowBlank(hk))
-						continue;
-					if (!hk.tryBuildModel(editor.type, out HotkeyAction? action, out string? hkErr))
-						return (false, null, new UiTextFeedback($"Binding {i + 1}, hotkey {h + 1}: {hkErr}", UiTextFeedbackKind.ERROR));
-					toggle.hotkeys.Add(action!);
-				}
-				built.Add(toggle);
 			}
 		}
 
-		if (built.OfType<BindingFader>().FirstOrDefault() == null)
-			return (false, null, new UiTextFeedback("Add at least one non-deleted fader binding with name and address.", UiTextFeedbackKind.ERROR));
+		// No binding-type requirement: allow saving configs that only contain toggles (or no bindings yet).
 
 		var cfg = new AppConfig {
 			oscTransport = new OscTransport.Config {
@@ -111,6 +164,21 @@ static class SettingsFormDraft {
 			}),
 		};
 		return (true, cfg, null);
+	}
+
+	static bool appendActions(BindingEditor editor, int bindingIndex, List<ControlAction> target, out UiTextFeedback? error) {
+		for (int h = 0; h < editor.actions.Count; h++) {
+			ControlActionEditor hk = editor.actions[h];
+			if (hk.isDeleted || isHotkeyRowBlank(hk))
+				continue;
+			if (!hk.tryBuildModel(editor.type, out ControlAction? action, out string? hkErr)) {
+				error = new UiTextFeedback($"Binding {bindingIndex + 1}, hotkey {h + 1}: {hkErr}", UiTextFeedbackKind.ERROR);
+				return false;
+			}
+			target.Add(action!);
+		}
+		error = null;
+		return true;
 	}
 
 	static UiTextFeedback feedback(string? message) =>
@@ -146,14 +214,16 @@ static class SettingsFormDraft {
 		return true;
 	}
 
-	static bool tryParseFloat(string text, string label, out float value, out string? error) {
+	static bool tryParseFloatWithDigits(string text, string label, out float value, out int fractionalDigits, out string? error) {
 		value = 0;
+		fractionalDigits = 0;
 		error = null;
 		if (!float.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed) || !float.IsFinite(parsed)) {
 			error = $"{label} must be a finite number.";
 			return false;
 		}
 		value = parsed;
+		fractionalDigits = ContinuousFloatUtil.fractionalDigitsOfTypedString(text);
 		return true;
 	}
 
@@ -162,7 +232,8 @@ static class SettingsFormDraft {
 		&& string.IsNullOrWhiteSpace(editor.address)
 		&& string.IsNullOrWhiteSpace(editor.minimum)
 		&& string.IsNullOrWhiteSpace(editor.maximum)
-		&& editor.hotkeys.Count == 0;
+		&& string.IsNullOrWhiteSpace(editor.unit)
+		&& editor.actions.Count == 0;
 
-	static bool isHotkeyRowBlank(HotkeyActionEditor hk) => hk.hotkey.isNone;
+	static bool isHotkeyRowBlank(ControlActionEditor hk) => hk.hotkey.isNone;
 }

@@ -3,18 +3,23 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Windows.Data;
 using WindowsOscVolumeControl.UI.Osd;
 
 namespace WindowsOscVolumeControl.UI.Config;
 
 public enum BindingEditorType {
-	FADER,
+	LINEAR,
 	TOGGLE,
+	LINF,
+	LOGF,
+	LEVEL,
 }
 
-public sealed class BindingTypeUiChoice(BindingEditorType value, string label) {
+public sealed class BindingTypeUiChoice(BindingEditorType value, string label, string category) {
 	public BindingEditorType value { get; } = value;
 	public string label { get; } = label;
+	public string category { get; } = category;
 }
 
 public sealed class OsdAnchorUiChoice(OSDController.Config.OsdScreenAnchor value, string label) {
@@ -35,7 +40,7 @@ public static class OsdAnchorUiChoices {
 	];
 }
 
-public sealed class HotkeyActionChoice(Type actionType, string displayName) {
+public sealed class ControlActionChoice(Type actionType, string displayName) {
 	public Type actionType { get; } = actionType;
 	public string displayName { get; } = displayName;
 }
@@ -57,15 +62,43 @@ public abstract class ObservableObject : INotifyPropertyChanged {
 }
 
 public sealed class BindingEditor : ObservableObject {
-	BindingEditorType _type = BindingEditorType.FADER;
+	static readonly List<BindingTypeUiChoice> _typeChoiceList = [
+		new(BindingEditorType.LINEAR, "Linear", ""),
+		new(BindingEditorType.TOGGLE, "Toggle", ""),
+		new(BindingEditorType.LINF, "linf", "X32 Specific"),
+		new(BindingEditorType.LOGF, "logf", "X32 Specific"),
+		new(BindingEditorType.LEVEL, "level", "X32 Specific"),
+	];
+
+	BindingEditorType _type = BindingEditorType.LINEAR;
 	string _name = "";
 	string _address = "";
+	string? _selectedAddressSuggestion;
+	bool _suppressAddressSuggestionRebuild;
 	string _minimum = "0";
 	string _maximum = "1";
+	string _unit = "";
+	bool _hasX32CatalogMatch;
+	string _x32CatalogTooltip = "No X32 catalog match for this address.";
 	bool _isDeleted;
 	bool _bindingExpanded;
-	// Stable list instance: ComboBox matches SelectedItem by reference; rebuilding the list each get left the box blank.
-	IReadOnlyList<HotkeyActionChoice>? _actionChoices;
+	IReadOnlyList<ControlActionChoice>? _actionChoices;
+
+	readonly ICollectionView _groupedTypeChoices;
+	readonly ObservableCollection<string> _addressSuggestions = [];
+
+	public BindingEditor() {
+		// Per-row view instance: avoids WPF "currency" leaking across multiple ComboBoxes.
+		var cvs = new CollectionViewSource { Source = _typeChoiceList };
+		cvs.GroupDescriptions.Add(new PropertyGroupDescription(nameof(BindingTypeUiChoice.category)));
+		_groupedTypeChoices = cvs.View;
+
+		X32Catalog.ensureLoaded();
+		rebuildAddressSuggestions();
+		refreshX32CatalogMatch();
+	}
+
+	public ICollectionView groupedTypeChoices => _groupedTypeChoices;
 
 	public string name {
 		get => _name;
@@ -74,7 +107,81 @@ public sealed class BindingEditor : ObservableObject {
 
 	public string address {
 		get => _address;
-		set => setProperty(ref _address, value ?? "");
+		set {
+			if (setProperty(ref _address, value ?? "")) {
+				// User-typed edits should not keep a stale selection.
+				if (_selectedAddressSuggestion != null && !string.Equals(_selectedAddressSuggestion, _address, StringComparison.Ordinal)) {
+					_selectedAddressSuggestion = null;
+					raisePropertyChanged(nameof(selectedAddressSuggestion));
+				}
+				if (!_suppressAddressSuggestionRebuild)
+					rebuildAddressSuggestions();
+				refreshX32CatalogMatch();
+			}
+		}
+	}
+
+	public ObservableCollection<string> addressSuggestions => _addressSuggestions;
+
+	public string? selectedAddressSuggestion {
+		get => _selectedAddressSuggestion;
+		set {
+			if (!setProperty(ref _selectedAddressSuggestion, value))
+				return;
+			if (!string.IsNullOrWhiteSpace(value)) {
+				try {
+					_suppressAddressSuggestionRebuild = true;
+					address = value;
+				} finally {
+					_suppressAddressSuggestionRebuild = false;
+				}
+			}
+		}
+	}
+
+	void rebuildAddressSuggestions() {
+		_addressSuggestions.Clear();
+		string needle = (_address ?? "").Trim();
+		const int limit = 200;
+		int count = 0;
+		foreach (string s in X32Catalog.addressPatterns) {
+			if (needle.Length == 0 || s.Contains(needle, StringComparison.OrdinalIgnoreCase)) {
+				_addressSuggestions.Add(s);
+				count++;
+				if (count >= limit)
+					break;
+			}
+		}
+	}
+
+	public bool hasX32CatalogMatch => _hasX32CatalogMatch;
+
+	public string x32CatalogTooltip => _x32CatalogTooltip;
+
+	void refreshX32CatalogMatch() {
+		string a = (_address ?? "").Trim();
+		if (a.Length == 0) {
+			_hasX32CatalogMatch = false;
+			_x32CatalogTooltip = "Enter an OSC address to check the X32 catalog.";
+		} else if (X32Catalog.tryResolve(a, out X32CatalogEntry e)) {
+			_hasX32CatalogMatch = true;
+			string kind = e.kind switch {
+				X32CatalogKind.Linf => "linf",
+				X32CatalogKind.Logf => "logf",
+				X32CatalogKind.Level => "level",
+				X32CatalogKind.Toggle => "toggle",
+				_ => "x32",
+			};
+			string unit = e.unit ?? (e.kind == X32CatalogKind.Level ? "dB" : "");
+			_x32CatalogTooltip = string.IsNullOrWhiteSpace(unit)
+				? ("Detected: " + kind)
+				: ("Detected: " + kind + " · " + unit);
+		} else {
+			_hasX32CatalogMatch = false;
+			_x32CatalogTooltip = "No X32 catalog match for this address.";
+		}
+		raisePropertyChanged(nameof(hasX32CatalogMatch));
+		raisePropertyChanged(nameof(x32CatalogTooltip));
 	}
 
 	public BindingEditorType type {
@@ -82,11 +189,13 @@ public sealed class BindingEditor : ObservableObject {
 		set {
 			if (setProperty(ref _type, value)) {
 				rebuildActionChoices();
-				raisePropertyChanged(nameof(isFader));
+				raisePropertyChanged(nameof(isLinear));
+				raisePropertyChanged(nameof(showsMinMax));
+				raisePropertyChanged(nameof(showsUnit));
 				raisePropertyChanged(nameof(typeDisplayLabel));
 				raisePropertyChanged(nameof(actionChoices));
-				pruneHotkeysForType();
-				foreach (HotkeyActionEditor h in hotkeys)
+				pruneActionsForType();
+				foreach (ControlActionEditor h in actions)
 					h.refreshChoiceFromOwner();
 			}
 		}
@@ -100,6 +209,16 @@ public sealed class BindingEditor : ObservableObject {
 	public string maximum {
 		get => _maximum;
 		set => setProperty(ref _maximum, value ?? "");
+	}
+
+	public string unit {
+		get => _unit;
+		set {
+			if (!setProperty(ref _unit, value ?? ""))
+				return;
+			foreach (ControlActionEditor h in actions)
+				h.raiseFloatValueLabelChanged();
+		}
 	}
 
 	public bool isDeleted {
@@ -117,27 +236,34 @@ public sealed class BindingEditor : ObservableObject {
 
 	public bool isNotDeleted => !_isDeleted;
 
-	/// <summary>Two-way with the binding card Expander; collapsed while soft-deleted.</summary>
 	public bool bindingExpanded {
 		get => _bindingExpanded;
 		set => setProperty(ref _bindingExpanded, value);
 	}
 
-	public ObservableCollection<HotkeyActionEditor> hotkeys { get; } = [];
+	public ObservableCollection<ControlActionEditor> actions { get; } = [];
 
-	public bool isFader => type == BindingEditorType.FADER;
+	public bool isLinear => type == BindingEditorType.LINEAR;
+	public bool showsMinMax => type is BindingEditorType.LINEAR or BindingEditorType.LINF or BindingEditorType.LOGF or BindingEditorType.LEVEL;
+	public bool showsUnit => type is BindingEditorType.LINF or BindingEditorType.LOGF;
 
-	public string typeDisplayLabel => isFader ? "Fader" : "Toggle";
+	public string typeDisplayLabel => type switch {
+		BindingEditorType.LINEAR => "Linear",
+		BindingEditorType.TOGGLE => "Toggle",
+		BindingEditorType.LINF => "linf",
+		BindingEditorType.LOGF => "logf",
+		BindingEditorType.LEVEL => "level",
+		_ => "",
+	};
 
-	public IReadOnlyList<BindingTypeUiChoice> typeChoices { get; } = [
-		new(BindingEditorType.FADER, "Fader"),
-		new(BindingEditorType.TOGGLE, "Toggle"),
-	];
+	public IReadOnlyList<ControlAction> availableActionPrototypes =>
+		type switch {
+			BindingEditorType.LINEAR => BindingEditorStatics.linearPrototypes,
+			BindingEditorType.TOGGLE => BindingEditorStatics.togglePrototypes,
+			_ => BindingEditorStatics.x32FloatPrototypes,
+		};
 
-	public IReadOnlyList<HotkeyAction> availableActionPrototypes =>
-		isFader ? BindingEditorStatics.faderPrototypes : BindingEditorStatics.togglePrototypes;
-
-	public IReadOnlyList<HotkeyActionChoice> actionChoices {
+	public IReadOnlyList<ControlActionChoice> actionChoices {
 		get {
 			_actionChoices ??= buildActionChoices();
 			return _actionChoices;
@@ -148,41 +274,104 @@ public sealed class BindingEditor : ObservableObject {
 		_actionChoices = buildActionChoices();
 	}
 
-	List<HotkeyActionChoice> buildActionChoices() =>
-		availableActionPrototypes.Select(static p => new HotkeyActionChoice(p.GetType(), p.name)).ToList();
+	List<ControlActionChoice> buildActionChoices() =>
+		availableActionPrototypes.Select(static p => new ControlActionChoice(p.GetType(), p.name)).ToList();
 
-	void pruneHotkeysForType() {
-		for (int i = hotkeys.Count - 1; i >= 0; i--) {
-			if (!hotkeys[i].isCompatibleWithBindingType(type))
-				hotkeys.RemoveAt(i);
+	void pruneActionsForType() {
+		for (int i = actions.Count - 1; i >= 0; i--) {
+			if (!actions[i].isCompatibleWithBindingType(type))
+				actions.RemoveAt(i);
 		}
+	}
+
+	public bool tryApplyX32CatalogEntry(X32CatalogEntry e) {
+		type = e.kind switch {
+			X32CatalogKind.Linf => BindingEditorType.LINF,
+			X32CatalogKind.Logf => BindingEditorType.LOGF,
+			X32CatalogKind.Level => BindingEditorType.LEVEL,
+			X32CatalogKind.Toggle => BindingEditorType.TOGGLE,
+			_ => BindingEditorType.LINF,
+		};
+		if (type != BindingEditorType.TOGGLE) {
+			int minDig = ContinuousFloatUtil.fractionalDigitsForValue(e.minimum);
+			int maxDig = ContinuousFloatUtil.fractionalDigitsForValue(e.maximum);
+			minimum = ContinuousFloatUtil.formatFloatForConfig(e.minimum, minDig);
+			maximum = ContinuousFloatUtil.formatFloatForConfig(e.maximum, maxDig);
+		}
+		if (type is BindingEditorType.LINF or BindingEditorType.LOGF)
+			unit = e.unit ?? "";
+		else
+			unit = "";
+		return true;
 	}
 
 	public static BindingEditor fromBinding(BindingAbstract binding) {
 		var ed = new BindingEditor();
 		switch (binding) {
-			case BindingFader f:
-				ed.type = BindingEditorType.FADER;
+			case BindingLinear f:
+				ed.type = BindingEditorType.LINEAR;
 				ed.name = f.name;
 				ed.address = f.address;
-				ed.minimum = FaderFloatUtil.FormatGridFloat(f.minimum);
-				ed.maximum = FaderFloatUtil.FormatGridFloat(f.maximum);
-				foreach (HotkeyAction ha in f.hotkeys) {
-					var he = HotkeyActionEditor.fromAction(ha);
+				ed.minimum = ContinuousFloatUtil.formatFloatForConfig(f.minimum, f.minimumFractionalDigits);
+				ed.maximum = ContinuousFloatUtil.formatFloatForConfig(f.maximum, f.maximumFractionalDigits);
+				ed.unit = f.unit ?? "";
+				foreach (ControlAction ha in f.actions) {
+					var he = ControlActionEditor.fromAction(ha);
 					he.owner = ed;
 					he.refreshChoiceFromOwner();
-					ed.hotkeys.Add(he);
+					ed.actions.Add(he);
+				}
+				break;
+			case BindingLinf lf:
+				ed.type = BindingEditorType.LINF;
+				ed.name = lf.name;
+				ed.address = lf.address;
+				ed.minimum = ContinuousFloatUtil.formatFloatForConfig(lf.minimum, lf.minimumFractionalDigits);
+				ed.maximum = ContinuousFloatUtil.formatFloatForConfig(lf.maximum, lf.maximumFractionalDigits);
+				ed.unit = lf.unit ?? "";
+				foreach (ControlAction ha in lf.actions) {
+					var he = ControlActionEditor.fromAction(ha);
+					he.owner = ed;
+					he.refreshChoiceFromOwner();
+					ed.actions.Add(he);
+				}
+				break;
+			case BindingLogf lg:
+				ed.type = BindingEditorType.LOGF;
+				ed.name = lg.name;
+				ed.address = lg.address;
+				ed.minimum = ContinuousFloatUtil.formatFloatForConfig(lg.minimum, lg.minimumFractionalDigits);
+				ed.maximum = ContinuousFloatUtil.formatFloatForConfig(lg.maximum, lg.maximumFractionalDigits);
+				ed.unit = lg.unit ?? "";
+				foreach (ControlAction ha in lg.actions) {
+					var he = ControlActionEditor.fromAction(ha);
+					he.owner = ed;
+					he.refreshChoiceFromOwner();
+					ed.actions.Add(he);
+				}
+				break;
+			case BindingLevel lv:
+				ed.type = BindingEditorType.LEVEL;
+				ed.name = lv.name;
+				ed.address = lv.address;
+				ed.minimum = ContinuousFloatUtil.formatFloatForConfig(lv.minimum, lv.minimumFractionalDigits);
+				ed.maximum = ContinuousFloatUtil.formatFloatForConfig(lv.maximum, lv.maximumFractionalDigits);
+				foreach (ControlAction ha in lv.actions) {
+					var he = ControlActionEditor.fromAction(ha);
+					he.owner = ed;
+					he.refreshChoiceFromOwner();
+					ed.actions.Add(he);
 				}
 				break;
 			case BindingToggle t:
 				ed.type = BindingEditorType.TOGGLE;
 				ed.name = t.name;
 				ed.address = t.address;
-				foreach (HotkeyAction ha in t.hotkeys) {
-					var he = HotkeyActionEditor.fromAction(ha);
+				foreach (ControlAction ha in t.actions) {
+					var he = ControlActionEditor.fromAction(ha);
 					he.owner = ed;
 					he.refreshChoiceFromOwner();
-					ed.hotkeys.Add(he);
+					ed.actions.Add(he);
 				}
 				break;
 			default:
@@ -191,8 +380,8 @@ public sealed class BindingEditor : ObservableObject {
 		return ed;
 	}
 
-	public HotkeyActionEditor createHotkeyEditor() {
-		var he = new HotkeyActionEditor { owner = this };
+	public ControlActionEditor createActionEditor() {
+		var he = new ControlActionEditor { owner = this };
 		he.refreshChoiceFromOwner();
 		if (he.selectedChoice == null && actionChoices.Count > 0)
 			he.selectedChoice = actionChoices[0];
@@ -201,19 +390,20 @@ public sealed class BindingEditor : ObservableObject {
 }
 
 static file class BindingEditorStatics {
-	internal static readonly IReadOnlyList<HotkeyAction> faderPrototypes = new BindingFader().availableActionPrototypes;
-	internal static readonly IReadOnlyList<HotkeyAction> togglePrototypes = new BindingToggle().availableActionPrototypes;
+	internal static readonly IReadOnlyList<ControlAction> linearPrototypes = new BindingLinear().availableActionPrototypes;
+	internal static readonly IReadOnlyList<ControlAction> x32FloatPrototypes = new BindingLinf().availableActionPrototypes;
+	internal static readonly IReadOnlyList<ControlAction> togglePrototypes = new BindingToggle().availableActionPrototypes;
 }
 
-public sealed class HotkeyActionEditor : ObservableObject {
-	Type _selectedActionType = typeof(HotkeyActionFaderDelta);
+public sealed class ControlActionEditor : ObservableObject {
+	Type _selectedActionType = typeof(ControlActionContinuousDelta);
 	HotkeyGesture _hotkey = HotkeyGesture.None;
 	bool _isHotkeyCaptureActive;
 	string _floatValue = "0";
 	bool _boolValue;
 	bool _isDeleted;
 	bool _longPress;
-	HotkeyActionChoice? _selectedChoice;
+	ControlActionChoice? _selectedChoice;
 	BindingEditor? _owner;
 
 	public BindingEditor? owner {
@@ -226,9 +416,9 @@ public sealed class HotkeyActionEditor : ObservableObject {
 		}
 	}
 
-	public IReadOnlyList<HotkeyActionChoice>? choiceList => owner?.actionChoices;
+	public IReadOnlyList<ControlActionChoice>? choiceList => owner?.actionChoices;
 
-	public HotkeyActionChoice? selectedChoice {
+	public ControlActionChoice? selectedChoice {
 		get => _selectedChoice;
 		set {
 			if (!setProperty(ref _selectedChoice, value))
@@ -237,6 +427,7 @@ public sealed class HotkeyActionEditor : ObservableObject {
 				_selectedActionType = value.actionType;
 				raisePropertyChanged(nameof(selectedActionType));
 				raisePropertyChanged(nameof(showsFloatInput));
+				raisePropertyChanged(nameof(floatValueLabel));
 				raisePropertyChanged(nameof(showsBoolInput));
 			}
 		}
@@ -248,6 +439,7 @@ public sealed class HotkeyActionEditor : ObservableObject {
 			if (!setProperty(ref _selectedActionType, value))
 				return;
 			raisePropertyChanged(nameof(showsFloatInput));
+			raisePropertyChanged(nameof(floatValueLabel));
 			raisePropertyChanged(nameof(showsBoolInput));
 		}
 	}
@@ -274,7 +466,25 @@ public sealed class HotkeyActionEditor : ObservableObject {
 
 	public string floatValue {
 		get => _floatValue;
-		set => setProperty(ref _floatValue, value ?? "");
+		set {
+			if (setProperty(ref _floatValue, value ?? ""))
+				raisePropertyChanged(nameof(floatValueLabel));
+		}
+	}
+
+	internal void raiseFloatValueLabelChanged() => raisePropertyChanged(nameof(floatValueLabel));
+
+	public string floatValueLabel {
+		get {
+			if (owner == null)
+				return "";
+			if (selectedActionType == typeof(ControlActionContinuousRawDelta))
+				return "";
+			string? u = owner.unit;
+			if (string.IsNullOrWhiteSpace(u))
+				return "";
+			return u.Trim();
+		}
 	}
 
 	public bool boolValue {
@@ -310,15 +520,15 @@ public sealed class HotkeyActionEditor : ObservableObject {
 
 	public bool showsFloatInput {
 		get {
-			HotkeyAction? p = tryInstantiatePrototype(selectedActionType);
-			return p?.valueKind == HotkeyActionValueKind.FLOAT;
+			ControlAction? p = tryInstantiatePrototype(selectedActionType);
+			return p?.valueKind == ControlActionValueKind.FLOAT;
 		}
 	}
 
 	public bool showsBoolInput {
 		get {
-			HotkeyAction? p = tryInstantiatePrototype(selectedActionType);
-			return p?.valueKind == HotkeyActionValueKind.BOOL;
+			ControlAction? p = tryInstantiatePrototype(selectedActionType);
+			return p?.valueKind == ControlActionValueKind.BOOL;
 		}
 	}
 
@@ -335,45 +545,49 @@ public sealed class HotkeyActionEditor : ObservableObject {
 		raisePropertyChanged(nameof(selectedChoice));
 		raisePropertyChanged(nameof(selectedActionType));
 		raisePropertyChanged(nameof(showsFloatInput));
+		raisePropertyChanged(nameof(floatValueLabel));
 		raisePropertyChanged(nameof(showsBoolInput));
 		raisePropertyChanged(nameof(choiceList));
 	}
 
 	public bool isCompatibleWithBindingType(BindingEditorType bindingType) {
-		if (bindingType == BindingEditorType.FADER)
-			return typeof(HotkeyActionFaderAbstract).IsAssignableFrom(selectedActionType);
-		return typeof(HotkeyActionToggleAbstract).IsAssignableFrom(selectedActionType);
+		if (bindingType == BindingEditorType.TOGGLE)
+			return typeof(ControlActionToggleAbstract).IsAssignableFrom(selectedActionType);
+		return typeof(ControlActionContinuousAbstract).IsAssignableFrom(selectedActionType);
 	}
 
-	static HotkeyAction? tryInstantiatePrototype(Type t) {
+	static ControlAction? tryInstantiatePrototype(Type t) {
 		try {
-			return (HotkeyAction)Activator.CreateInstance(t)!;
+			return (ControlAction)Activator.CreateInstance(t)!;
 		} catch {
 			return null;
 		}
 	}
 
-	public static HotkeyActionEditor fromAction(HotkeyAction a) {
-		var ed = new HotkeyActionEditor {
+	public static ControlActionEditor fromAction(ControlAction a) {
+		var ed = new ControlActionEditor {
 			selectedActionType = a.GetType(),
 			hotkey = a.hotkey,
 			longPress = a.longPress,
 		};
 		switch (a) {
-			case HotkeyActionFaderSet fs:
-				ed.floatValue = FaderFloatUtil.FormatGridFloat(fs.value);
+			case ControlActionContinuousSet fs:
+				ed.floatValue = ContinuousFloatUtil.formatFloatForConfig(fs.value, fs.fractionalDigits);
 				break;
-			case HotkeyActionFaderDelta fd:
-				ed.floatValue = FaderFloatUtil.FormatGridFloat(fd.delta);
+			case ControlActionContinuousDelta fd:
+				ed.floatValue = ContinuousFloatUtil.formatFloatForConfig(fd.delta, fd.fractionalDigits);
 				break;
-			case HotkeyActionToggleSet ts:
+			case ControlActionContinuousRawDelta rd:
+				ed.floatValue = ContinuousFloatUtil.formatFloatForConfig(rd.delta, rd.fractionalDigits);
+				break;
+			case ControlActionToggleSet ts:
 				ed.boolValue = ts.on;
 				break;
 		}
 		return ed;
 	}
 
-	public bool tryBuildModel(BindingEditorType bindingType, [NotNullWhen(true)] out HotkeyAction? action, out string? error) {
+	public bool tryBuildModel(BindingEditorType bindingType, [NotNullWhen(true)] out ControlAction? action, out string? error) {
 		action = null;
 		error = null;
 		if (!isCompatibleWithBindingType(bindingType)) {
@@ -389,34 +603,50 @@ public sealed class HotkeyActionEditor : ObservableObject {
 			return false;
 		}
 
+		string floatText = floatValue.Trim();
+		int frac = ContinuousFloatUtil.fractionalDigitsOfTypedString(floatText);
+
 		switch (Activator.CreateInstance(selectedActionType)) {
-			case HotkeyActionFaderSet fs:
-				if (!float.TryParse(floatValue.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float v) || !float.IsFinite(v)) {
+			case ControlActionContinuousSet fs:
+				if (!float.TryParse(floatText, NumberStyles.Float, CultureInfo.InvariantCulture, out float v) || !float.IsFinite(v)) {
 					error = "Set value must be a finite number.";
 					return false;
 				}
-				fs.value = FaderFloatUtil.RoundToBindingDecimals(v);
+				fs.value = ContinuousFloatUtil.RoundToBindingDecimals(v);
+				fs.fractionalDigits = frac;
 				fs.hotkey = HotkeyUtil.normalize(hotkey);
 				fs.longPress = longPress;
 				action = fs;
 				return true;
-			case HotkeyActionFaderDelta fd:
-				if (!float.TryParse(floatValue.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float d) || !float.IsFinite(d)) {
+			case ControlActionContinuousDelta fd:
+				if (!float.TryParse(floatText, NumberStyles.Float, CultureInfo.InvariantCulture, out float d) || !float.IsFinite(d)) {
 					error = "Delta must be a finite number.";
 					return false;
 				}
-				fd.delta = FaderFloatUtil.RoundToBindingDecimals(d);
+				fd.delta = ContinuousFloatUtil.RoundToBindingDecimals(d);
+				fd.fractionalDigits = frac;
 				fd.hotkey = HotkeyUtil.normalize(hotkey);
 				fd.longPress = longPress;
 				action = fd;
 				return true;
-			case HotkeyActionToggleSet ts:
+			case ControlActionContinuousRawDelta fr:
+				if (!float.TryParse(floatText, NumberStyles.Float, CultureInfo.InvariantCulture, out float r) || !float.IsFinite(r)) {
+					error = "Raw delta must be a finite number.";
+					return false;
+				}
+				fr.delta = ContinuousFloatUtil.RoundToBindingDecimals(r);
+				fr.fractionalDigits = frac;
+				fr.hotkey = HotkeyUtil.normalize(hotkey);
+				fr.longPress = longPress;
+				action = fr;
+				return true;
+			case ControlActionToggleSet ts:
 				ts.on = boolValue;
 				ts.hotkey = HotkeyUtil.normalize(hotkey);
 				ts.longPress = longPress;
 				action = ts;
 				return true;
-			case HotkeyActionToggleFlip tf:
+			case ControlActionToggleFlip tf:
 				tf.hotkey = HotkeyUtil.normalize(hotkey);
 				tf.longPress = longPress;
 				action = tf;

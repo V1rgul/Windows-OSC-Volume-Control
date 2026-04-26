@@ -121,34 +121,62 @@ public sealed class ConfigStore {
 			string p = i.ToString(CultureInfo.InvariantCulture);
 			lines.Add("osc." + p + ".name=" + b.name.Trim());
 			lines.Add("osc." + p + ".address=" + b.address.Trim());
-			if (b is BindingFader f) {
-				lines.Add("osc." + p + ".type=fader");
-				lines.Add("osc." + p + ".minimum=" + FaderFloatUtil.FormatGridFloat(f.minimum));
-				lines.Add("osc." + p + ".maximum=" + FaderFloatUtil.FormatGridFloat(f.maximum));
-			} else if (b is BindingToggle) {
-				lines.Add("osc." + p + ".type=toggle");
+			switch (b) {
+				case BindingLinear f:
+					lines.Add("osc." + p + ".type=linear");
+					lines.Add("osc." + p + ".minimum=" + ContinuousFloatUtil.formatFloatForConfig(f.minimum, f.minimumFractionalDigits));
+					lines.Add("osc." + p + ".maximum=" + ContinuousFloatUtil.formatFloatForConfig(f.maximum, f.maximumFractionalDigits));
+					if (f.unit is { } lu)
+						lines.Add("osc." + p + ".unit=" + lu);
+					break;
+				case BindingLinf lf:
+					lines.Add("osc." + p + ".type=linf");
+					lines.Add("osc." + p + ".minimum=" + ContinuousFloatUtil.formatFloatForConfig(lf.minimum, lf.minimumFractionalDigits));
+					lines.Add("osc." + p + ".maximum=" + ContinuousFloatUtil.formatFloatForConfig(lf.maximum, lf.maximumFractionalDigits));
+					if (lf.unit is { } lu2)
+						lines.Add("osc." + p + ".unit=" + lu2);
+					break;
+				case BindingLogf lg:
+					lines.Add("osc." + p + ".type=logf");
+					lines.Add("osc." + p + ".minimum=" + ContinuousFloatUtil.formatFloatForConfig(lg.minimum, lg.minimumFractionalDigits));
+					lines.Add("osc." + p + ".maximum=" + ContinuousFloatUtil.formatFloatForConfig(lg.maximum, lg.maximumFractionalDigits));
+					if (lg.unit is { } lu3)
+						lines.Add("osc." + p + ".unit=" + lu3);
+					break;
+				case BindingLevel lv:
+					lines.Add("osc." + p + ".type=level");
+					lines.Add("osc." + p + ".minimum=" + ContinuousFloatUtil.formatFloatForConfig(lv.minimum, lv.minimumFractionalDigits));
+					lines.Add("osc." + p + ".maximum=" + ContinuousFloatUtil.formatFloatForConfig(lv.maximum, lv.maximumFractionalDigits));
+					break;
+				case BindingToggle:
+					lines.Add("osc." + p + ".type=toggle");
+					break;
 			}
 
-			for (int h = 0; h < b.hotkeys.Count; h++) {
-				HotkeyAction ha = b.hotkeys[h];
+			for (int h = 0; h < b.actions.Count; h++) {
+				ControlAction ha = b.actions[h];
 				string hp = h.ToString(CultureInfo.InvariantCulture);
 				lines.Add("osc." + p + ".hotkey." + hp + ".key=" + HotkeyUtil.format(ha.hotkey));
 				if (ha.longPress)
 					lines.Add("osc." + p + ".hotkey." + hp + ".longPress=true");
 				switch (ha) {
-					case HotkeyActionFaderSet fs:
+					case ControlActionContinuousSet fs:
 						lines.Add("osc." + p + ".hotkey." + hp + ".action=set");
-						lines.Add("osc." + p + ".hotkey." + hp + ".value=" + FaderFloatUtil.FormatGridFloat(fs.value));
+						lines.Add("osc." + p + ".hotkey." + hp + ".value=" + ContinuousFloatUtil.formatFloatForConfig(fs.value, fs.fractionalDigits));
 						break;
-					case HotkeyActionFaderDelta fd:
+					case ControlActionContinuousDelta fd:
 						lines.Add("osc." + p + ".hotkey." + hp + ".action=delta");
-						lines.Add("osc." + p + ".hotkey." + hp + ".value=" + FaderFloatUtil.FormatGridFloat(fd.delta));
+						lines.Add("osc." + p + ".hotkey." + hp + ".value=" + ContinuousFloatUtil.formatFloatForConfig(fd.delta, fd.fractionalDigits));
 						break;
-					case HotkeyActionToggleSet ts:
+					case ControlActionContinuousRawDelta rd:
+						lines.Add("osc." + p + ".hotkey." + hp + ".action=raw_delta");
+						lines.Add("osc." + p + ".hotkey." + hp + ".value=" + ContinuousFloatUtil.formatFloatForConfig(rd.delta, rd.fractionalDigits));
+						break;
+					case ControlActionToggleSet ts:
 						lines.Add("osc." + p + ".hotkey." + hp + ".action=set");
 						lines.Add("osc." + p + ".hotkey." + hp + ".value=" + (ts.on ? "true" : "false"));
 						break;
-					case HotkeyActionToggleFlip:
+					case ControlActionToggleFlip:
 						lines.Add("osc." + p + ".hotkey." + hp + ".action=toggle");
 						break;
 				}
@@ -179,7 +207,10 @@ public sealed class ConfigStore {
 	static List<BindingAbstract> cloneDefaultBindings() {
 		var trayDefaults = new BindingManager.Config();
 		return trayDefaults.bindings.Select(static b => b switch {
-			BindingFader f => (BindingAbstract)new BindingFader(f),
+			BindingLinear f => (BindingAbstract)new BindingLinear(f),
+			BindingLinf x => new BindingLinf(x),
+			BindingLogf g => new BindingLogf(g),
+			BindingLevel l => new BindingLevel(l),
 			BindingToggle t => new BindingToggle(t),
 			_ => throw new InvalidOperationException("Unknown binding type."),
 		}).ToList();
@@ -306,8 +337,11 @@ public sealed class ConfigStore {
 		public string name = "";
 		public string address = "";
 		public string type = "";
+		public string minimumRaw = "";
+		public string maximumRaw = "";
 		public float minimum;
 		public float maximum;
+		public string? unitRaw;
 		public readonly Dictionary<int, OscHotkeyLoadRow> hotkeyRows = new();
 	}
 
@@ -380,12 +414,17 @@ public sealed class ConfigStore {
 						row.type = value.Trim();
 						break;
 					case "minimum":
-						if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float mn) && float.IsFinite(mn))
+						row.minimumRaw = value.Trim();
+						if (float.TryParse(row.minimumRaw, NumberStyles.Float, CultureInfo.InvariantCulture, out float mn) && float.IsFinite(mn))
 							row.minimum = mn;
 						break;
 					case "maximum":
-						if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float mx) && float.IsFinite(mx))
+						row.maximumRaw = value.Trim();
+						if (float.TryParse(row.maximumRaw, NumberStyles.Float, CultureInfo.InvariantCulture, out float mx) && float.IsFinite(mx))
 							row.maximum = mx;
+						break;
+					case "unit":
+						row.unitRaw = value.Trim();
 						break;
 				}
 			}
@@ -397,10 +436,10 @@ public sealed class ConfigStore {
 			if (string.IsNullOrWhiteSpace(r.name) || string.IsNullOrWhiteSpace(r.address))
 				continue;
 			string t = r.type.Trim().ToLowerInvariant();
-			if (t is not ("fader" or "toggle"))
+			if (t is not ("linear" or "toggle" or "linf" or "logf" or "level"))
 				continue;
 
-			var hotkeys = new List<HotkeyAction>();
+			var actions = new List<ControlAction>();
 			foreach (int hj in r.hotkeyRows.Keys.OrderBy(j => j)) {
 				OscHotkeyLoadRow hk = r.hotkeyRows[hj];
 				if (!HotkeyUtil.tryParse(hk.keyText, out HotkeyGesture gesture))
@@ -408,51 +447,112 @@ public sealed class ConfigStore {
 				gesture = HotkeyUtil.normalize(gesture);
 				if (gesture.isNone)
 					continue;
-				HotkeyAction? action = tryBuildHotkeyActionFromFile(t, hk.action, hk.valueText);
+				ControlAction? action = tryBuildControlActionFromFile(t, hk.action, hk.valueText);
 				if (action == null)
 					continue;
 				action.hotkey = gesture;
 				action.longPress = hk.longPress;
-				hotkeys.Add(action);
+				actions.Add(action);
 			}
 
-			if (t == "fader") {
-				if (!float.IsFinite(r.minimum) || !float.IsFinite(r.maximum) || r.minimum > r.maximum)
-					continue;
-				float minR = FaderFloatUtil.RoundToBindingDecimals(r.minimum);
-				float maxR = FaderFloatUtil.RoundToBindingDecimals(r.maximum);
-				result.Add(new BindingFader {
-					name = r.name.Trim(),
-					address = r.address.Trim(),
-					minimum = minR,
-					maximum = maxR,
-					hotkeys = hotkeys,
-				});
-			} else {
-				result.Add(new BindingToggle {
-					name = r.name.Trim(),
-					address = r.address.Trim(),
-					hotkeys = hotkeys,
-				});
+			int minDigits = ContinuousFloatUtil.fractionalDigitsOfTypedString(r.minimumRaw);
+			int maxDigits = ContinuousFloatUtil.fractionalDigitsOfTypedString(r.maximumRaw);
+
+			switch (t) {
+				case "linear":
+					if (!float.IsFinite(r.minimum) || !float.IsFinite(r.maximum) || r.minimum > r.maximum)
+						continue;
+					result.Add(new BindingLinear {
+						name = r.name.Trim(),
+						address = r.address.Trim(),
+						minimum = ContinuousFloatUtil.RoundToBindingDecimals(r.minimum),
+						maximum = ContinuousFloatUtil.RoundToBindingDecimals(r.maximum),
+						minimumFractionalDigits = minDigits,
+						maximumFractionalDigits = maxDigits,
+						unit = string.IsNullOrWhiteSpace(r.unitRaw) ? null : r.unitRaw,
+						actions = actions,
+					});
+					break;
+				case "linf":
+					if (!float.IsFinite(r.minimum) || !float.IsFinite(r.maximum) || r.minimum > r.maximum)
+						continue;
+					result.Add(new BindingLinf {
+						name = r.name.Trim(),
+						address = r.address.Trim(),
+						minimum = ContinuousFloatUtil.RoundToBindingDecimals(r.minimum),
+						maximum = ContinuousFloatUtil.RoundToBindingDecimals(r.maximum),
+						minimumFractionalDigits = minDigits,
+						maximumFractionalDigits = maxDigits,
+						unit = string.IsNullOrWhiteSpace(r.unitRaw) ? null : r.unitRaw,
+						actions = actions,
+					});
+					break;
+				case "logf":
+					if (!float.IsFinite(r.minimum) || !float.IsFinite(r.maximum) || r.minimum > r.maximum || r.minimum <= 0f || r.maximum <= 0f)
+						continue;
+					result.Add(new BindingLogf {
+						name = r.name.Trim(),
+						address = r.address.Trim(),
+						minimum = ContinuousFloatUtil.RoundToBindingDecimals(r.minimum),
+						maximum = ContinuousFloatUtil.RoundToBindingDecimals(r.maximum),
+						minimumFractionalDigits = minDigits,
+						maximumFractionalDigits = maxDigits,
+						unit = string.IsNullOrWhiteSpace(r.unitRaw) ? null : r.unitRaw,
+						actions = actions,
+					});
+					break;
+				case "level":
+					if (!float.IsFinite(r.minimum) || !float.IsFinite(r.maximum) || r.minimum > r.maximum)
+						continue;
+					result.Add(new BindingLevel {
+						name = r.name.Trim(),
+						address = r.address.Trim(),
+						minimum = ContinuousFloatUtil.RoundToBindingDecimals(r.minimum),
+						maximum = ContinuousFloatUtil.RoundToBindingDecimals(r.maximum),
+						minimumFractionalDigits = minDigits,
+						maximumFractionalDigits = maxDigits,
+						actions = actions,
+					});
+					break;
+				case "toggle":
+					result.Add(new BindingToggle {
+						name = r.name.Trim(),
+						address = r.address.Trim(),
+						actions = actions,
+					});
+					break;
 			}
 		}
 		return result;
 	}
 
-	static HotkeyAction? tryBuildHotkeyActionFromFile(string bindingType, string actionToken, string valueText) {
+	static ControlAction? tryBuildControlActionFromFile(string bindingType, string actionToken, string valueText) {
 		string a = actionToken.Trim().ToLowerInvariant();
-		if (bindingType == "fader") {
+		int frac = ContinuousFloatUtil.fractionalDigitsOfTypedString(valueText);
+		bool isFloatBinding = bindingType is "linear" or "linf" or "logf" or "level";
+		if (isFloatBinding) {
 			if (a == "set" && float.TryParse(valueText, NumberStyles.Float, CultureInfo.InvariantCulture, out float sv) && float.IsFinite(sv))
-				return new HotkeyActionFaderSet { value = FaderFloatUtil.RoundToBindingDecimals(sv) };
+				return new ControlActionContinuousSet {
+					value = ContinuousFloatUtil.RoundToBindingDecimals(sv),
+					fractionalDigits = frac,
+				};
 			if (a == "delta" && float.TryParse(valueText, NumberStyles.Float, CultureInfo.InvariantCulture, out float dv) && float.IsFinite(dv))
-				return new HotkeyActionFaderDelta { delta = FaderFloatUtil.RoundToBindingDecimals(dv) };
+				return new ControlActionContinuousDelta {
+					delta = ContinuousFloatUtil.RoundToBindingDecimals(dv),
+					fractionalDigits = frac,
+				};
+			if (a == "raw_delta" && float.TryParse(valueText, NumberStyles.Float, CultureInfo.InvariantCulture, out float rv) && float.IsFinite(rv))
+				return new ControlActionContinuousRawDelta {
+					delta = ContinuousFloatUtil.RoundToBindingDecimals(rv),
+					fractionalDigits = frac,
+				};
 			return null;
 		}
 		if (bindingType == "toggle") {
 			if (a == "toggle")
-				return new HotkeyActionToggleFlip();
+				return new ControlActionToggleFlip();
 			if (a == "set" && tryParseBoolLoose(valueText, out bool on))
-				return new HotkeyActionToggleSet { on = on };
+				return new ControlActionToggleSet { on = on };
 		}
 		return null;
 	}

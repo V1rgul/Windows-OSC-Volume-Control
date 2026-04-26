@@ -1,4 +1,4 @@
-using System;
+using System.Collections.Generic;
 using SharpOSC;
 
 namespace WindowsOscVolumeControl;
@@ -36,23 +36,26 @@ abstract class MixerAddressState {
 	public abstract void clearPending();
 	protected abstract object? getCachedValue();
 
-	public sealed class Fader : MixerAddressState {
-		float? cachedValue;
-		float accumulatedDelta;
-		float min;
-		float max;
+	public sealed class Continuous : MixerAddressState {
+		float? cachedWire;
+		readonly Queue<ControlActionContinuousAbstract> _pending = new();
+		BindingFloatAbstract? _applier;
 
-		public override bool hasPending => accumulatedDelta != 0f;
-		public override void clearPending() => accumulatedDelta = 0f;
-		protected override object? getCachedValue() => cachedValue;
+		public override bool hasPending => _pending.Count > 0;
+		public override void clearPending() {
+			_pending.Clear();
+			_applier = null;
+		}
+
+		protected override object? getCachedValue() => cachedWire;
 
 		public float? tryGetCachedValueTyped(uint valueCacheTtlMs) =>
 			(float?)tryGetCachedValue(valueCacheTtlMs);
 
-		public float getCachedValueTyped() => (float)getCachedValue()!;
+		public float getCachedWireTyped() => (float)getCachedValue()!;
 
-		public void updateCache(float value) {
-			cachedValue = value;
+		public void updateCache(float wire) {
+			cachedWire = wire;
 			cachedValueUtc = DateTime.UtcNow;
 		}
 
@@ -63,37 +66,42 @@ abstract class MixerAddressState {
 			return true;
 		}
 
-		public bool tryApplyPending(uint timeoutMs, out float newVal, out bool requestedIncrease) {
-			newVal = 0f;
+		public void enqueue(ControlActionContinuousAbstract action, BindingFloatAbstract applier, DateTime nowUtc) {
+			_applier = applier;
+			_pending.Enqueue(action);
+			lastPendingUpdateUtc = nowUtc;
+		}
+
+		public void prepareImmediateSet(BindingFloatAbstract applier, DateTime nowUtc) {
+			clearPending();
+			_applier = applier;
+			lastPendingUpdateUtc = nowUtc;
+		}
+
+		public bool tryApplyPending(uint timeoutMs, out float newWire, out bool requestedIncrease) {
+			newWire = 0f;
 			requestedIncrease = true;
-			if (!hasPending)
+			if (!hasPending || _applier == null)
 				return false;
 			if (isPendingExpired(timeoutMs)) {
 				clearPending();
 				return false;
 			}
-			if (cachedValue == null)
+			if (cachedWire == null)
 				return false;
 
-			float current = cachedValue.Value;
-			requestedIncrease = accumulatedDelta > 0f;
-			newVal = clampAndRound(current + accumulatedDelta, min, max);
-			updateCache(newVal);
-			clearPending();
+			float start = cachedWire.Value;
+			float wire = start;
+			BindingFloatAbstract applier = _applier;
+			foreach (ControlActionContinuousAbstract a in _pending) {
+				wire = applier.applyContinuousAction(a, wire);
+			}
+			requestedIncrease = wire >= start;
+			newWire = wire;
+			_pending.Clear();
+			_applier = null;
+			updateCache(newWire);
 			return true;
-		}
-
-		public void addDelta(float delta, float minValue, float maxValue, DateTime nowUtc) {
-			accumulatedDelta += delta;
-			min = minValue;
-			max = maxValue;
-			lastPendingUpdateUtc = nowUtc;
-		}
-
-		static float clampAndRound(float value, float minValue, float maxValue) {
-			float newVal = Math.Clamp(value, minValue, maxValue);
-			newVal = FaderFloatUtil.RoundToBindingDecimals(newVal);
-			return Math.Clamp(newVal, minValue, maxValue);
 		}
 	}
 
