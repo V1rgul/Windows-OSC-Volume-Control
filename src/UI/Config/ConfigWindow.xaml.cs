@@ -345,9 +345,9 @@ public partial class ConfigWindow : Window {
 
 			applyLatencyStatsToUi(timeoutMs, pingStats.snapshot(), oscStats.snapshot());
 
-			BindingLinear? firstLinear = (newConfig.trayApp?.bindings ?? []).OfType<BindingLinear>().FirstOrDefault();
-			bool oscUsesBinding = firstLinear != null;
-			string oscAddress = oscUsesBinding ? firstLinear!.address : "/info";
+			BindingAbstract? firstBinding = (newConfig.trayApp?.bindings ?? []).FirstOrDefault();
+			bool oscUsesBinding = firstBinding != null;
+			string oscAddress = oscUsesBinding ? firstBinding!.address : "/info";
 			vm.oscHeaderText = oscUsesBinding ? "OSC Binding #1" : "OSC /info";
 			// TODO(split-to-resources): bind this via VM once latency panel is VM-driven.
 
@@ -356,9 +356,20 @@ public partial class ConfigWindow : Window {
 
 			async Task<int?> probeOscOnceAsync() {
 				if (oscUsesBinding) {
-					float? reply = await _mixer.QueryContinuousWireAsync(oscAddress);
-					if (reply == null)
-						return null;
+					switch (firstBinding) {
+						case BindingFloatAbstract:
+							float? reply = await _mixer.QueryContinuousWireAsync(oscAddress);
+							if (reply == null)
+								return null;
+							break;
+						case BindingToggle:
+							bool? reply2 = await _mixer.QueryToggleAsync(oscAddress);
+							if (reply2 == null)
+								return null;
+							break;
+						default:
+							return null;
+					}
 				} else {
 					(bool ok, string detail) = await _mixer.QueryInfoAsync();
 					lastInfoOk = ok;

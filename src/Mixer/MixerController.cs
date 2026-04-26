@@ -206,6 +206,35 @@ public sealed class MixerController {
 		}
 	}
 
+	public async Task<bool?> QueryToggleAsync(string address) {
+		TaskCompletionSource<OscMessage> reply = createPendingReply();
+		lock (_lock)
+			getOrAddToggleState(address).markQuerySent(DateTime.UtcNow);
+
+		void handler(OscMessage message) {
+			if (StringComparer.Ordinal.Equals(message.Address, address))
+				reply.TrySetResult(message);
+		}
+
+		_transport.messageReceived += handler;
+		try {
+			await _transport.sendAsync(address).ConfigureAwait(false);
+			OscMessage message = await reply.Task.WaitAsync(getTimeout()).ConfigureAwait(false);
+			if (message.Arguments.Count == 0 || message.Arguments[0] is not int i) {
+				errors.setError(new Error.MixerController.InvalidReply(), true);
+				return null;
+			}
+
+			clearMixerErrors();
+			return i != 0;
+		} catch (TimeoutException) {
+			errors.setError(new Error.MixerController.Network(), true);
+			return null;
+		} finally {
+			_transport.messageReceived -= handler;
+		}
+	}
+
 	public Task<(bool Ok, string Detail)> QueryInfoAsync() {
 		lock (_lock) {
 			if (_pendingInfoTask != null)
