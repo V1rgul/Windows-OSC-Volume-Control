@@ -229,6 +229,7 @@
 															VerticalAlignment="Center"
 															Command="{Binding DataContext.addHotkeyToBindingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
 															CommandParameter="{Binding}"
+															Style="{DynamicResource AccentButtonStyle}"
 															ToolTip="Add hotkey">
 															<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE710;" />
 														</Button>
@@ -456,7 +457,7 @@
 							</DataTemplate>
 						</ListBox.ItemTemplate>
 					</ListBox>
-					<Button Margin="0,8,0,0" Padding="14,8" HorizontalAlignment="Center" Command="{Binding addBindingCommand}" ToolTip="Add binding">
+					<Button Margin="0,8,0,0" Padding="14,8" HorizontalAlignment="Center" Command="{Binding addBindingCommand}" Style="{DynamicResource AccentButtonStyle}" ToolTip="Add binding">
 						<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE710;" />
 					</Button>
 				</StackPanel>

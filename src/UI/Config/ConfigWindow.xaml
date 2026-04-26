@@ -17,6 +17,7 @@
 					DockPanel.Dock="Right"
 					Padding="18,8"
 					FontWeight="SemiBold"
+					Style="{DynamicResource AccentButtonStyle}"
 					Click="buttonApplySaveAndTest_Click">
 					Apply, save and test
 				</Button>
