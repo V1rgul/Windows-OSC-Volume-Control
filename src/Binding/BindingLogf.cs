@@ -15,8 +15,8 @@ public sealed class BindingLogf : BindingFloatNormalizedAbstract {
 
 	public override float toReal(float wire) {
 		float w = Math.Clamp(wire, 0f, 1f);
-		double lo = minimum;
-		double hi = maximum;
+		double lo = rangeMinimum;
+		double hi = rangeMaximum;
 		if (!double.IsFinite(lo) || !double.IsFinite(hi) || lo <= 0 || hi <= 0 || hi < lo)
 			return (float)lo;
 		double ratio = hi / lo;
@@ -24,8 +24,8 @@ public sealed class BindingLogf : BindingFloatNormalizedAbstract {
 	}
 
 	public override float toWire(float real) {
-		double lo = minimum;
-		double hi = maximum;
+		double lo = rangeMinimum;
+		double hi = rangeMaximum;
 		if (!double.IsFinite(lo) || !double.IsFinite(hi) || lo <= 0 || hi <= 0 || hi < lo)
 			return 0f;
 		double r = real;

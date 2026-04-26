@@ -1,22 +1,45 @@
 namespace WindowsOscVolumeControl;
 
 public abstract class BindingFloatNormalizedAbstract : BindingFloatAbstract {
-	protected BindingFloatNormalizedAbstract(BindingFloatNormalizedAbstract other) : base(other) { }
+	protected BindingFloatNormalizedAbstract(BindingFloatNormalizedAbstract other) : base(other) {
+		rangeMinimum = ContinuousFloatUtil.RoundToBindingDecimals(other.rangeMinimum);
+		rangeMaximum = ContinuousFloatUtil.RoundToBindingDecimals(other.rangeMaximum);
+	}
 
 	protected BindingFloatNormalizedAbstract() { }
+
+	/// <summary>X32 curve domain (wire 0..1 maps linearly or logarithmically between these reals).</summary>
+	public float rangeMinimum { get; set; }
+
+	/// <summary>X32 curve domain upper bound.</summary>
+	public float rangeMaximum { get; set; } = 1f;
 
 	public abstract float toReal(float wire);
 	public abstract float toWire(float real);
 
 	public virtual float clampReal(float real) => Math.Clamp(real, minimum, maximum);
 
-	public override float applyValueRaw(float wireValue)
-		=> Math.Clamp(wireValue, 0f, 1f);
+	public override float applyValueRaw(float wireValue) {
+		float a = toWire(minimum);
+		float b = toWire(maximum);
+		float lo = Math.Min(a, b);
+		float hi = Math.Max(a, b);
+		return Math.Clamp(wireValue, lo, hi);
+	}
 
 	public override float applyDeltaRaw(float currentWire, float wireDelta)
-		=> Math.Clamp(currentWire + wireDelta, 0f, 1f);
+		=> applyValueRaw(currentWire + wireDelta);
 
-	public override float getNormalizedRatio(float wire) => wire;
+	public override float getNormalizedRatio(float wire) {
+		float a = toWire(minimum);
+		float b = toWire(maximum);
+		float lo = Math.Min(a, b);
+		float hi = Math.Max(a, b);
+		float span = hi - lo;
+		if (span < 1e-30f)
+			return 0f;
+		return Math.Clamp((wire - lo) / span, 0f, 1f);
+	}
 
 	public float applyValueReal(float realValue)
 		=> toWire(clampReal(realValue));

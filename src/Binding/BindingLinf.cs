@@ -15,13 +15,13 @@ public sealed class BindingLinf : BindingFloatNormalizedAbstract {
 
 	public override float toReal(float wire) {
 		float w = Math.Clamp(wire, 0f, 1f);
-		return minimum + w * (maximum - minimum);
+		return rangeMinimum + w * (rangeMaximum - rangeMinimum);
 	}
 
 	public override float toWire(float real) {
-		float span = maximum - minimum;
+		float span = rangeMaximum - rangeMinimum;
 		if (Math.Abs(span) < 1e-30f)
 			return 0f;
-		return Math.Clamp((real - minimum) / span, 0f, 1f);
+		return Math.Clamp((real - rangeMinimum) / span, 0f, 1f);
 	}
 }

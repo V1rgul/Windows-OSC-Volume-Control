@@ -129,20 +129,30 @@ public sealed class ConfigStore {
 					if (f.unit is { } lu)
 						lines.Add("osc." + p + ".unit=" + lu);
 					break;
-				case BindingLinf lf:
+				case BindingLinf lf: {
 					lines.Add("osc." + p + ".type=linf");
 					lines.Add("osc." + p + ".minimum=" + ContinuousFloatUtil.formatFloatForConfig(lf.minimum, lf.minimumFractionalDigits));
 					lines.Add("osc." + p + ".maximum=" + ContinuousFloatUtil.formatFloatForConfig(lf.maximum, lf.maximumFractionalDigits));
+					int rMinDig = ContinuousFloatUtil.fractionalDigitsForValue(lf.rangeMinimum);
+					int rMaxDig = ContinuousFloatUtil.fractionalDigitsForValue(lf.rangeMaximum);
+					lines.Add("osc." + p + ".rangeMinimum=" + ContinuousFloatUtil.formatFloatForConfig(lf.rangeMinimum, rMinDig));
+					lines.Add("osc." + p + ".rangeMaximum=" + ContinuousFloatUtil.formatFloatForConfig(lf.rangeMaximum, rMaxDig));
 					if (lf.unit is { } lu2)
 						lines.Add("osc." + p + ".unit=" + lu2);
 					break;
-				case BindingLogf lg:
+				}
+				case BindingLogf lg: {
 					lines.Add("osc." + p + ".type=logf");
 					lines.Add("osc." + p + ".minimum=" + ContinuousFloatUtil.formatFloatForConfig(lg.minimum, lg.minimumFractionalDigits));
 					lines.Add("osc." + p + ".maximum=" + ContinuousFloatUtil.formatFloatForConfig(lg.maximum, lg.maximumFractionalDigits));
+					int gRMinDig = ContinuousFloatUtil.fractionalDigitsForValue(lg.rangeMinimum);
+					int gRMaxDig = ContinuousFloatUtil.fractionalDigitsForValue(lg.rangeMaximum);
+					lines.Add("osc." + p + ".rangeMinimum=" + ContinuousFloatUtil.formatFloatForConfig(lg.rangeMinimum, gRMinDig));
+					lines.Add("osc." + p + ".rangeMaximum=" + ContinuousFloatUtil.formatFloatForConfig(lg.rangeMaximum, gRMaxDig));
 					if (lg.unit is { } lu3)
 						lines.Add("osc." + p + ".unit=" + lu3);
 					break;
+				}
 				case BindingLevel lv:
 					lines.Add("osc." + p + ".type=level");
 					lines.Add("osc." + p + ".minimum=" + ContinuousFloatUtil.formatFloatForConfig(lv.minimum, lv.minimumFractionalDigits));
@@ -217,7 +227,7 @@ public sealed class ConfigStore {
 	}
 
 	static BindingManager.Config buildBindingManagerConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
-		List<BindingAbstract> list = parseOscBindings(map);
+		List<BindingAbstract> list = parseOscBindings(map, repairNotes);
 		if (list.Count == 0) {
 			list = cloneDefaultBindings();
 			repairNotes.Add("No valid OSC bindings in file; using defaults.");
@@ -341,6 +351,8 @@ public sealed class ConfigStore {
 		public string maximumRaw = "";
 		public float minimum;
 		public float maximum;
+		public float rangeMinimum = float.NaN;
+		public float rangeMaximum = float.NaN;
 		public string? unitRaw;
 		public readonly Dictionary<int, OscHotkeyLoadRow> hotkeyRows = new();
 	}
@@ -368,7 +380,7 @@ public sealed class ConfigStore {
 		return true;
 	}
 
-	static List<BindingAbstract> parseOscBindings(IReadOnlyDictionary<string, string> map) {
+	static List<BindingAbstract> parseOscBindings(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
 		var rows = new Dictionary<int, OscBindingLoadRow>();
 		foreach ((string key, string value) in map) {
 			if (!tryParseOscBindingKey(key, out int bi, out string rem))
@@ -423,6 +435,14 @@ public sealed class ConfigStore {
 						if (float.TryParse(row.maximumRaw, NumberStyles.Float, CultureInfo.InvariantCulture, out float mx) && float.IsFinite(mx))
 							row.maximum = mx;
 						break;
+					case "rangeminimum":
+						if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float rmn) && float.IsFinite(rmn))
+							row.rangeMinimum = rmn;
+						break;
+					case "rangemaximum":
+						if (float.TryParse(value.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float rmx) && float.IsFinite(rmx))
+							row.rangeMaximum = rmx;
+						break;
 					case "unit":
 						row.unitRaw = value.Trim();
 						break;
@@ -476,11 +496,22 @@ public sealed class ConfigStore {
 				case "linf":
 					if (!float.IsFinite(r.minimum) || !float.IsFinite(r.maximum) || r.minimum > r.maximum)
 						continue;
+					float linfLimitMin = ContinuousFloatUtil.RoundToBindingDecimals(r.minimum);
+					float linfLimitMax = ContinuousFloatUtil.RoundToBindingDecimals(r.maximum);
+					float linfRangeMin = float.IsFinite(r.rangeMinimum) ? ContinuousFloatUtil.RoundToBindingDecimals(r.rangeMinimum) : linfLimitMin;
+					float linfRangeMax = float.IsFinite(r.rangeMaximum) ? ContinuousFloatUtil.RoundToBindingDecimals(r.rangeMaximum) : linfLimitMax;
+					if (linfRangeMin > linfRangeMax) {
+						repairNotes.Add($"Binding \"{r.name}\": invalid rangeMinimum/rangeMaximum; using minimum/maximum.");
+						linfRangeMin = linfLimitMin;
+						linfRangeMax = linfLimitMax;
+					}
 					result.Add(new BindingLinf {
 						name = r.name.Trim(),
 						address = r.address.Trim(),
-						minimum = ContinuousFloatUtil.RoundToBindingDecimals(r.minimum),
-						maximum = ContinuousFloatUtil.RoundToBindingDecimals(r.maximum),
+						minimum = linfLimitMin,
+						maximum = linfLimitMax,
+						rangeMinimum = linfRangeMin,
+						rangeMaximum = linfRangeMax,
 						minimumFractionalDigits = minDigits,
 						maximumFractionalDigits = maxDigits,
 						unit = string.IsNullOrWhiteSpace(r.unitRaw) ? null : r.unitRaw,
@@ -490,11 +521,22 @@ public sealed class ConfigStore {
 				case "logf":
 					if (!float.IsFinite(r.minimum) || !float.IsFinite(r.maximum) || r.minimum > r.maximum || r.minimum <= 0f || r.maximum <= 0f)
 						continue;
+					float logfLimitMin = ContinuousFloatUtil.RoundToBindingDecimals(r.minimum);
+					float logfLimitMax = ContinuousFloatUtil.RoundToBindingDecimals(r.maximum);
+					float logfRangeMin = float.IsFinite(r.rangeMinimum) ? ContinuousFloatUtil.RoundToBindingDecimals(r.rangeMinimum) : logfLimitMin;
+					float logfRangeMax = float.IsFinite(r.rangeMaximum) ? ContinuousFloatUtil.RoundToBindingDecimals(r.rangeMaximum) : logfLimitMax;
+					if (logfRangeMin > logfRangeMax || logfRangeMin <= 0f || logfRangeMax <= 0f) {
+						repairNotes.Add($"Binding \"{r.name}\": invalid rangeMinimum/rangeMaximum for logf; using minimum/maximum.");
+						logfRangeMin = logfLimitMin;
+						logfRangeMax = logfLimitMax;
+					}
 					result.Add(new BindingLogf {
 						name = r.name.Trim(),
 						address = r.address.Trim(),
-						minimum = ContinuousFloatUtil.RoundToBindingDecimals(r.minimum),
-						maximum = ContinuousFloatUtil.RoundToBindingDecimals(r.maximum),
+						minimum = logfLimitMin,
+						maximum = logfLimitMax,
+						rangeMinimum = logfRangeMin,
+						rangeMaximum = logfRangeMax,
 						minimumFractionalDigits = minDigits,
 						maximumFractionalDigits = maxDigits,
 						unit = string.IsNullOrWhiteSpace(r.unitRaw) ? null : r.unitRaw,

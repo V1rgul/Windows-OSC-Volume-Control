@@ -77,6 +77,8 @@ public sealed class BindingEditor : ObservableObject {
 	bool _suppressAddressSuggestionRebuild;
 	string _minimum = "0";
 	string _maximum = "1";
+	string _rangeMinimum = "";
+	string _rangeMaximum = "";
 	string _unit = "";
 	bool _hasX32CatalogMatch;
 	string _x32CatalogTooltip = "No X32 catalog match for this address.";
@@ -187,17 +189,25 @@ public sealed class BindingEditor : ObservableObject {
 	public BindingEditorType type {
 		get => _type;
 		set {
-			if (setProperty(ref _type, value)) {
-				rebuildActionChoices();
-				raisePropertyChanged(nameof(isLinear));
-				raisePropertyChanged(nameof(showsMinMax));
-				raisePropertyChanged(nameof(showsUnit));
-				raisePropertyChanged(nameof(typeDisplayLabel));
-				raisePropertyChanged(nameof(actionChoices));
-				pruneActionsForType();
-				foreach (ControlActionEditor h in actions)
-					h.refreshChoiceFromOwner();
+			if (!setProperty(ref _type, value))
+				return;
+			if (value is BindingEditorType.LINF or BindingEditorType.LOGF
+			    && string.IsNullOrWhiteSpace(_rangeMinimum) && string.IsNullOrWhiteSpace(_rangeMaximum)) {
+				_rangeMinimum = _minimum;
+				_rangeMaximum = _maximum;
+				raisePropertyChanged(nameof(rangeMinimum));
+				raisePropertyChanged(nameof(rangeMaximum));
 			}
+			rebuildActionChoices();
+			raisePropertyChanged(nameof(isLinear));
+			raisePropertyChanged(nameof(showsMinMax));
+			raisePropertyChanged(nameof(showsRange));
+			raisePropertyChanged(nameof(showsUnit));
+			raisePropertyChanged(nameof(typeDisplayLabel));
+			raisePropertyChanged(nameof(actionChoices));
+			pruneActionsForType();
+			foreach (ControlActionEditor h in actions)
+				h.refreshChoiceFromOwner();
 		}
 	}
 
@@ -209,6 +219,16 @@ public sealed class BindingEditor : ObservableObject {
 	public string maximum {
 		get => _maximum;
 		set => setProperty(ref _maximum, value ?? "");
+	}
+
+	public string rangeMinimum {
+		get => _rangeMinimum;
+		set => setProperty(ref _rangeMinimum, value ?? "");
+	}
+
+	public string rangeMaximum {
+		get => _rangeMaximum;
+		set => setProperty(ref _rangeMaximum, value ?? "");
 	}
 
 	public string unit {
@@ -245,6 +265,7 @@ public sealed class BindingEditor : ObservableObject {
 
 	public bool isLinear => type == BindingEditorType.LINEAR;
 	public bool showsMinMax => type is BindingEditorType.LINEAR or BindingEditorType.LINF or BindingEditorType.LOGF or BindingEditorType.LEVEL;
+	public bool showsRange => type is BindingEditorType.LINF or BindingEditorType.LOGF;
 	public bool showsUnit => type is BindingEditorType.LINF or BindingEditorType.LOGF;
 
 	public string typeDisplayLabel => type switch {
@@ -298,10 +319,13 @@ public sealed class BindingEditor : ObservableObject {
 			minimum = ContinuousFloatUtil.formatFloatForConfig(e.minimum, minDig);
 			maximum = ContinuousFloatUtil.formatFloatForConfig(e.maximum, maxDig);
 		}
-		if (type is BindingEditorType.LINF or BindingEditorType.LOGF)
+		if (type is BindingEditorType.LINF or BindingEditorType.LOGF) {
 			unit = e.unit ?? "";
-		else
+			rangeMinimum = minimum;
+			rangeMaximum = maximum;
+		} else {
 			unit = "";
+		}
 		return true;
 	}
 
@@ -309,12 +333,12 @@ public sealed class BindingEditor : ObservableObject {
 		var ed = new BindingEditor();
 		switch (binding) {
 			case BindingLinear f:
-				ed.type = BindingEditorType.LINEAR;
 				ed.name = f.name;
 				ed.address = f.address;
 				ed.minimum = ContinuousFloatUtil.formatFloatForConfig(f.minimum, f.minimumFractionalDigits);
 				ed.maximum = ContinuousFloatUtil.formatFloatForConfig(f.maximum, f.maximumFractionalDigits);
 				ed.unit = f.unit ?? "";
+				ed.type = BindingEditorType.LINEAR;
 				foreach (ControlAction ha in f.actions) {
 					var he = ControlActionEditor.fromAction(ha);
 					he.owner = ed;
@@ -323,12 +347,14 @@ public sealed class BindingEditor : ObservableObject {
 				}
 				break;
 			case BindingLinf lf:
-				ed.type = BindingEditorType.LINF;
 				ed.name = lf.name;
 				ed.address = lf.address;
 				ed.minimum = ContinuousFloatUtil.formatFloatForConfig(lf.minimum, lf.minimumFractionalDigits);
 				ed.maximum = ContinuousFloatUtil.formatFloatForConfig(lf.maximum, lf.maximumFractionalDigits);
+				ed.rangeMinimum = ContinuousFloatUtil.formatFloatForConfig(lf.rangeMinimum, ContinuousFloatUtil.fractionalDigitsForValue(lf.rangeMinimum));
+				ed.rangeMaximum = ContinuousFloatUtil.formatFloatForConfig(lf.rangeMaximum, ContinuousFloatUtil.fractionalDigitsForValue(lf.rangeMaximum));
 				ed.unit = lf.unit ?? "";
+				ed.type = BindingEditorType.LINF;
 				foreach (ControlAction ha in lf.actions) {
 					var he = ControlActionEditor.fromAction(ha);
 					he.owner = ed;
@@ -337,12 +363,14 @@ public sealed class BindingEditor : ObservableObject {
 				}
 				break;
 			case BindingLogf lg:
-				ed.type = BindingEditorType.LOGF;
 				ed.name = lg.name;
 				ed.address = lg.address;
 				ed.minimum = ContinuousFloatUtil.formatFloatForConfig(lg.minimum, lg.minimumFractionalDigits);
 				ed.maximum = ContinuousFloatUtil.formatFloatForConfig(lg.maximum, lg.maximumFractionalDigits);
+				ed.rangeMinimum = ContinuousFloatUtil.formatFloatForConfig(lg.rangeMinimum, ContinuousFloatUtil.fractionalDigitsForValue(lg.rangeMinimum));
+				ed.rangeMaximum = ContinuousFloatUtil.formatFloatForConfig(lg.rangeMaximum, ContinuousFloatUtil.fractionalDigitsForValue(lg.rangeMaximum));
 				ed.unit = lg.unit ?? "";
+				ed.type = BindingEditorType.LOGF;
 				foreach (ControlAction ha in lg.actions) {
 					var he = ControlActionEditor.fromAction(ha);
 					he.owner = ed;
@@ -351,11 +379,11 @@ public sealed class BindingEditor : ObservableObject {
 				}
 				break;
 			case BindingLevel lv:
-				ed.type = BindingEditorType.LEVEL;
 				ed.name = lv.name;
 				ed.address = lv.address;
 				ed.minimum = ContinuousFloatUtil.formatFloatForConfig(lv.minimum, lv.minimumFractionalDigits);
 				ed.maximum = ContinuousFloatUtil.formatFloatForConfig(lv.maximum, lv.maximumFractionalDigits);
+				ed.type = BindingEditorType.LEVEL;
 				foreach (ControlAction ha in lv.actions) {
 					var he = ControlActionEditor.fromAction(ha);
 					he.owner = ed;
@@ -364,9 +392,9 @@ public sealed class BindingEditor : ObservableObject {
 				}
 				break;
 			case BindingToggle t:
-				ed.type = BindingEditorType.TOGGLE;
 				ed.name = t.name;
 				ed.address = t.address;
+				ed.type = BindingEditorType.TOGGLE;
 				foreach (ControlAction ha in t.actions) {
 					var he = ControlActionEditor.fromAction(ha);
 					he.owner = ed;

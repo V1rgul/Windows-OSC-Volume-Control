@@ -73,11 +73,17 @@ static class SettingsFormDraft {
 						return (false, null, feedback(elmax));
 					if (lmin > lmax)
 						return (false, null, new UiTextFeedback($"Binding {i + 1}: minimum must be less than or equal to maximum.", UiTextFeedbackKind.ERROR));
+					if (!tryParseOptionalRange(editor.rangeMinimum, editor.rangeMaximum, lmin, lmax, i + 1, "linf", out float lrMin, out float lrMax, out string? rangeErr))
+						return (false, null, feedback(rangeErr));
+					if (lrMin > lrMax)
+						return (false, null, new UiTextFeedback($"Binding {i + 1}: range min must be less than or equal to range max.", UiTextFeedbackKind.ERROR));
 					var linf = new BindingLinf {
 						name = editor.name.Trim(),
 						address = editor.address.Trim(),
 						minimum = ContinuousFloatUtil.RoundToBindingDecimals(lmin),
 						maximum = ContinuousFloatUtil.RoundToBindingDecimals(lmax),
+						rangeMinimum = ContinuousFloatUtil.RoundToBindingDecimals(lrMin),
+						rangeMaximum = ContinuousFloatUtil.RoundToBindingDecimals(lrMax),
 						minimumFractionalDigits = lminDig,
 						maximumFractionalDigits = lmaxDig,
 						unit = string.IsNullOrWhiteSpace(editor.unit) ? null : editor.unit.Trim(),
@@ -93,11 +99,17 @@ static class SettingsFormDraft {
 						return (false, null, feedback(egmax));
 					if (gmin > gmax || gmin <= 0f || gmax <= 0f)
 						return (false, null, new UiTextFeedback($"Binding {i + 1}: logf requires positive minimum and maximum.", UiTextFeedbackKind.ERROR));
+					if (!tryParseOptionalRange(editor.rangeMinimum, editor.rangeMaximum, gmin, gmax, i + 1, "logf", out float grMin, out float grMax, out string? gRangeErr))
+						return (false, null, feedback(gRangeErr));
+					if (grMin > grMax || grMin <= 0f || grMax <= 0f)
+						return (false, null, new UiTextFeedback($"Binding {i + 1}: logf range requires positive range min and range max.", UiTextFeedbackKind.ERROR));
 					var logf = new BindingLogf {
 						name = editor.name.Trim(),
 						address = editor.address.Trim(),
 						minimum = ContinuousFloatUtil.RoundToBindingDecimals(gmin),
 						maximum = ContinuousFloatUtil.RoundToBindingDecimals(gmax),
+						rangeMinimum = ContinuousFloatUtil.RoundToBindingDecimals(grMin),
+						rangeMaximum = ContinuousFloatUtil.RoundToBindingDecimals(grMax),
 						minimumFractionalDigits = gminDig,
 						maximumFractionalDigits = gmaxDig,
 						unit = string.IsNullOrWhiteSpace(editor.unit) ? null : editor.unit.Trim(),
@@ -227,11 +239,42 @@ static class SettingsFormDraft {
 		return true;
 	}
 
+	/// <summary>Both range fields blank → use limit; otherwise both must be valid numbers.</summary>
+	static bool tryParseOptionalRange(
+		string rangeMinText,
+		string rangeMaxText,
+		float limitMin,
+		float limitMax,
+		int bindingNumberOneBased,
+		string kindLabel,
+		out float rangeMin,
+		out float rangeMax,
+		out string? error) {
+		rangeMin = limitMin;
+		rangeMax = limitMax;
+		error = null;
+		bool minBlank = string.IsNullOrWhiteSpace(rangeMinText);
+		bool maxBlank = string.IsNullOrWhiteSpace(rangeMaxText);
+		if (minBlank && maxBlank)
+			return true;
+		if (minBlank || maxBlank) {
+			error = $"Binding {bindingNumberOneBased}: {kindLabel} requires both range min and range max, or leave both empty to match minimum/maximum.";
+			return false;
+		}
+		if (!tryParseFloatWithDigits(rangeMinText, "Range min", out rangeMin, out _, out error))
+			return false;
+		if (!tryParseFloatWithDigits(rangeMaxText, "Range max", out rangeMax, out _, out error))
+			return false;
+		return true;
+	}
+
 	static bool isBindingBlank(BindingEditor editor) =>
 		string.IsNullOrWhiteSpace(editor.name)
 		&& string.IsNullOrWhiteSpace(editor.address)
 		&& string.IsNullOrWhiteSpace(editor.minimum)
 		&& string.IsNullOrWhiteSpace(editor.maximum)
+		&& string.IsNullOrWhiteSpace(editor.rangeMinimum)
+		&& string.IsNullOrWhiteSpace(editor.rangeMaximum)
 		&& string.IsNullOrWhiteSpace(editor.unit)
 		&& editor.actions.Count == 0;
 
