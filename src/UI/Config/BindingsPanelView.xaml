@@ -366,10 +366,10 @@
 																					<Grid.ColumnDefinitions>
 																						<ColumnDefinition Width="Auto" />
 																						<ColumnDefinition Width="Auto" />
-																						<ColumnDefinition Width="*" MinWidth="80" />
+																						<ColumnDefinition Width="*" MinWidth="120" />
 																						<ColumnDefinition Width="Auto" />
 																						<ColumnDefinition Width="Auto" />
-																						<ColumnDefinition Width="*" MinWidth="200" />
+																						<ColumnDefinition Width="Auto" />
 																					</Grid.ColumnDefinitions>
 																					<Thumb
 																						Grid.Column="0"
@@ -418,25 +418,34 @@
 																							</TextBlock.Style>
 																						</TextBlock>
 																					</Button>
-																					<CheckBox Grid.Column="3" MinWidth="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left" VerticalAlignment="Center" VerticalContentAlignment="Center" IsChecked="{Binding longPress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
-																						<TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="Long press" />
+																					<CheckBox
+																						Grid.Column="3"
+																						MinWidth="0"
+																						Padding="0"
+																						HorizontalAlignment="Left"
+																						VerticalAlignment="Center"
+																						VerticalContentAlignment="Center"
+																						IsChecked="{Binding longPress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+																						<TextBlock Margin="6,-2,0,0" VerticalAlignment="Center" Text="Long press" />
 																					</CheckBox>
-																					<TextBlock Grid.Column="4" Margin="32,0,8,0" VerticalAlignment="Center" Text="Action" />
-																					<Grid Grid.Column="5" MinWidth="200">
-																						<DockPanel VerticalAlignment="Center" LastChildFill="True">
-																							<StackPanel DockPanel.Dock="Right" Margin="4,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" Orientation="Horizontal">
-																								<TextBox MinWidth="100" Margin="0,0,8,0" HorizontalAlignment="Left" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding floatValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
-																								<TextBlock MinWidth="32" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="{Binding floatValueLabel}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
-																								<CheckBox MinWidth="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left" VerticalAlignment="Center" VerticalContentAlignment="Center" IsChecked="{Binding boolValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsBoolInput, Converter={StaticResource BoolToVisibility}}">
-																									<TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="On" />
-																								</CheckBox>
-																							</StackPanel>
-																							<ComboBox Margin="0,0,4,0" MinWidth="120" HorizontalAlignment="Stretch" DisplayMemberPath="displayName" ItemsSource="{Binding choiceList}" SelectedItem="{Binding selectedChoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-																						</DockPanel>
-																					</Grid>
+																					<TextBlock Grid.Column="4" Margin="16,0,8,0" VerticalAlignment="Center" Text="Action" />
+																					<StackPanel Grid.Column="5" VerticalAlignment="Center" Orientation="Horizontal">
+																						<ComboBox
+																							Width="160"
+																							Margin="0,0,4,0"
+																							VerticalAlignment="Center"
+																							DisplayMemberPath="displayName"
+																							ItemsSource="{Binding choiceList}"
+																							SelectedItem="{Binding selectedChoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+																						<TextBox Width="72" Margin="4,0,4,0" VerticalAlignment="Center" HorizontalAlignment="Left" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding floatValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
+																						<TextBlock Margin="0,0,4,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="{Binding floatValueLabel}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
+																						<CheckBox MinWidth="0" VerticalAlignment="Center" HorizontalAlignment="Left" HorizontalContentAlignment="Left" VerticalContentAlignment="Center" IsChecked="{Binding boolValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsBoolInput, Converter={StaticResource BoolToVisibility}}">
+																							<TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="On" />
+																						</CheckBox>
+																					</StackPanel>
 																				</Grid>
 																			</Border>
-																			<StackPanel Grid.Column="1" Margin="32,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
+																			<StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
 																				<Button Margin="0,0,8,0" Padding="10,6" Command="{Binding DataContext.restoreHotkeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{DynamicResource OscRestoreButtonStyle}" ToolTip="Restore">
 																					<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE7A7;" />
 																				</Button>
