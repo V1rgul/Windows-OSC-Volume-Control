@@ -4,10 +4,12 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows.Controls;
+using WindowsOscVolumeControl.UI.Osd;
+using WindowsOscVolumeControl.UI.Tray;
 using Brush = System.Windows.Media.Brush;
 using CommunityToolkit.Mvvm.Input;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.UI.Config.ViewModels;
 
 public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	string _oscIpText = "";

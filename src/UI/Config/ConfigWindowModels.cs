@@ -3,8 +3,9 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using WindowsOscVolumeControl.UI.Osd;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.UI.Config;
 
 public enum BindingEditorType {
 	FADER,

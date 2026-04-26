@@ -3,6 +3,9 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Windows;
 using System.Windows.Threading;
+using WindowsOscVolumeControl.UI.Config;
+using WindowsOscVolumeControl.UI.Osd;
+using WindowsOscVolumeControl.UI.Tray;
 
 namespace WindowsOscVolumeControl;
 

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
+using WindowsOscVolumeControl.UI.Osd;
 namespace WindowsOscVolumeControl;
 
 /// <summary>Result of the last config load or save; drives UI message and severity.</summary>

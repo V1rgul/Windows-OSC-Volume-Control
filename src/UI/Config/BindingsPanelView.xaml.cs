@@ -8,6 +8,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using WindowsOscVolumeControl.UI.Config.ViewModels;
+using WindowsOscVolumeControl.UI.Wpf.Behaviors;
 using Button = System.Windows.Controls.Button;
 using Border = System.Windows.Controls.Border;
 using ComboBox = System.Windows.Controls.ComboBox;
@@ -40,7 +42,7 @@ using MouseButton = System.Windows.Input.MouseButton;
 using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using TraversalRequest = System.Windows.Input.TraversalRequest;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.UI.Config;
 
 public partial class BindingsPanelView : UserControl {
 	public BindingsPanelView() {
@@ -319,7 +321,7 @@ public partial class BindingsPanelView : UserControl {
 		_ = fe.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
 	}
 
-	const string REORDER_DRAG_FORMAT = "WindowsOscVolumeControl.ReorderItem";
+	// Drag/drop payload format: keep stable across all reorder lists.
 
 	void beginDragGhost(ItemsControl list, FrameworkElement? draggedContainer, object draggedItem, Point dragStartPointInList) {
 		endDragGhost();
@@ -514,7 +516,7 @@ public partial class BindingsPanelView : UserControl {
 		try {
 			hideInsertionLine(list);
 			var data = new DataObject();
-			data.SetData(REORDER_DRAG_FORMAT, item);
+			data.SetData(ReorderDragDrop.reorderDragFormat, item);
 			_ = DragDrop.DoDragDrop(thumb, data, DragDropEffects.Move);
 		} finally {
 			endDragGhost();
@@ -549,7 +551,7 @@ public partial class BindingsPanelView : UserControl {
 			return;
 		}
 
-		if (!e.Data.GetDataPresent(REORDER_DRAG_FORMAT) || m.dragItem == null) {
+		if (!e.Data.GetDataPresent(ReorderDragDrop.reorderDragFormat) || m.dragItem == null) {
 			hideInsertionLine(list);
 			e.Effects = DragDropEffects.None;
 			e.Handled = true;
@@ -558,7 +560,7 @@ public partial class BindingsPanelView : UserControl {
 
 		Point p = e.GetPosition(list);
 		updateDragGhost(list, p);
-		_ = computeDropIndex(list, p, m.dragItem, out double lineY);
+		_ = ReorderDragDrop.computeDropIndex(list, p, m.dragItem, out double lineY);
 		showInsertionLine(list, lineY);
 
 		e.Effects = DragDropEffects.Move;
@@ -572,7 +574,7 @@ public partial class BindingsPanelView : UserControl {
 		}
 		ItemsControl list = m.dragOwnerList;
 
-		if (!e.Data.GetDataPresent(REORDER_DRAG_FORMAT) || m.dragItem == null) {
+		if (!e.Data.GetDataPresent(ReorderDragDrop.reorderDragFormat) || m.dragItem == null) {
 			e.Effects = DragDropEffects.None;
 			e.Handled = true;
 			return;
@@ -580,7 +582,7 @@ public partial class BindingsPanelView : UserControl {
 
 		Point p = e.GetPosition(list);
 		updateDragGhost(list, p);
-		_ = computeDropIndex(list, p, m.dragItem, out double lineY);
+		_ = ReorderDragDrop.computeDropIndex(list, p, m.dragItem, out double lineY);
 		showInsertionLine(list, lineY);
 
 		e.Effects = DragDropEffects.Move;
@@ -593,14 +595,14 @@ public partial class BindingsPanelView : UserControl {
 			return;
 		}
 		ItemsControl list = m.dragOwnerList;
-		if (!e.Data.GetDataPresent(REORDER_DRAG_FORMAT)) {
+		if (!e.Data.GetDataPresent(ReorderDragDrop.reorderDragFormat)) {
 			e.Effects = DragDropEffects.None;
 			e.Handled = true;
 			return;
 		}
 
 		Point p = e.GetPosition(list);
-		int dropIndex = computeDropIndex(list, p, m.dragItem, out _);
+		int dropIndex = ReorderDragDrop.computeDropIndex(list, p, m.dragItem, out _);
 		tryMoveDraggedItem(m, list, m.dragItem, dropIndex);
 		hideInsertionLine(list);
 		e.Effects = DragDropEffects.Move;
@@ -620,13 +622,13 @@ public partial class BindingsPanelView : UserControl {
 				e.Effects = DragDropEffects.None;
 				return;
 			}
-			if (!e.Data.GetDataPresent(REORDER_DRAG_FORMAT)) {
+			if (!e.Data.GetDataPresent(ReorderDragDrop.reorderDragFormat)) {
 				e.Effects = DragDropEffects.None;
 				return;
 			}
 
 			Point p = e.GetPosition(list);
-			int dropIndex = computeDropIndex(list, p, m.dragItem, out _);
+			int dropIndex = ReorderDragDrop.computeDropIndex(list, p, m.dragItem, out _);
 			tryMoveDraggedItem(m, list, m.dragItem, dropIndex);
 			e.Effects = DragDropEffects.Move;
 		} finally {
@@ -635,18 +637,12 @@ public partial class BindingsPanelView : UserControl {
 		}
 	}
 
-	static int dropIndexToMoveIndex(int oldIndex, int dropIndex, int count) {
-		int idx = Math.Clamp(dropIndex, 0, count);
-		int moveIdx = idx > oldIndex ? idx - 1 : idx;
-		return Math.Clamp(moveIdx, 0, Math.Max(0, count - 1));
-	}
-
 	static void tryMoveDraggedItem(ConfigWindowViewModel m, ItemsControl list, object dragged, int dropIndex) {
 		if (dragged is BindingEditor bed) {
 			int oldIndex = m.bindings.IndexOf(bed);
 			if (oldIndex < 0)
 				return;
-			int newIndex = dropIndexToMoveIndex(oldIndex, dropIndex, m.bindings.Count);
+			int newIndex = ReorderDragDrop.dropIndexToMoveIndex(oldIndex, dropIndex, m.bindings.Count);
 			if (oldIndex == newIndex)
 				return;
 			m.bindings.Move(oldIndex, newIndex);
@@ -658,60 +654,11 @@ public partial class BindingsPanelView : UserControl {
 			int oldIndex = hotkeys.IndexOf(hed);
 			if (oldIndex < 0)
 				return;
-			int newIndex = dropIndexToMoveIndex(oldIndex, dropIndex, hotkeys.Count);
+			int newIndex = ReorderDragDrop.dropIndexToMoveIndex(oldIndex, dropIndex, hotkeys.Count);
 			if (oldIndex == newIndex)
 				return;
 			hotkeys.Move(oldIndex, newIndex);
 		}
-	}
-
-	int computeDropIndex(ItemsControl list, Point p, object dragged, out double insertionLineY) {
-		insertionLineY = 0d;
-		int n = list.Items.Count;
-		if (n <= 0)
-			return 0;
-
-		int draggedIndex = list.Items.IndexOf(dragged);
-
-		for (int i = 0; i < n; i++) {
-			if (list.ItemContainerGenerator.ContainerFromIndex(i) is not FrameworkElement container)
-				continue;
-			Point topLeft = container.TranslatePoint(new Point(0, 0), list);
-			double height = container.ActualHeight;
-			double midY = topLeft.Y + height / 2d;
-
-			// Treat the dragged item's placeholder like any other item:
-			// - hover top half  => line at top (insert before)
-			// - hover bottom half => line at bottom (insert after)
-			if (i == draggedIndex) {
-				double bottomY = topLeft.Y + height;
-				if (p.Y >= topLeft.Y && p.Y <= bottomY) {
-					if (p.Y < midY) {
-						insertionLineY = topLeft.Y;
-						return i;
-					}
-					insertionLineY = bottomY;
-					return Math.Min(n, i + 1);
-				}
-			}
-
-			if (p.Y < midY) {
-				insertionLineY = topLeft.Y;
-				return i;
-			}
-		}
-
-		// drop at end
-		int lastIndex = n - 1;
-		if (lastIndex == draggedIndex)
-			lastIndex = n - 2;
-		double endY = list.ActualHeight;
-		if (lastIndex >= 0 && list.ItemContainerGenerator.ContainerFromIndex(lastIndex) is FrameworkElement lastContainer) {
-			Point lastTopLeft = lastContainer.TranslatePoint(new Point(0, 0), list);
-			endY = lastTopLeft.Y + lastContainer.ActualHeight;
-		}
-		insertionLineY = endY;
-		return n;
 	}
 
 	void showInsertionLine(ItemsControl list, double y) {
@@ -742,67 +689,3 @@ public partial class BindingsPanelView : UserControl {
 		layer.Remove(ad);
 	}
 }
-
-sealed class DragGhostAdorner : Adorner {
-	readonly ImageSource? _snapshot;
-	readonly System.Windows.Size _size;
-	readonly Point _cursorOffset;
-	Point _mousePoint;
-	readonly double _opacity;
-	readonly double _cornerRadius;
-
-	public DragGhostAdorner(
-		UIElement adornedElement,
-		ImageSource? snapshot,
-		Point mousePointInAdornedElement,
-		Point cursorOffset,
-		System.Windows.Size size,
-		double opacity,
-		double cornerRadius)
-		: base(adornedElement) {
-		IsHitTestVisible = false;
-		_snapshot = snapshot;
-		_cornerRadius = Math.Max(0d, cornerRadius);
-		_size = size;
-		_mousePoint = mousePointInAdornedElement;
-		_opacity = Math.Clamp(opacity, 0d, 1d);
-		_cursorOffset = cursorOffset;
-	}
-
-	public void setMousePoint(Point p) {
-		_mousePoint = p;
-		InvalidateVisual();
-	}
-
-	protected override void OnRender(DrawingContext drawingContext) {
-		Point topLeft = new Point(_mousePoint.X - _cursorOffset.X, _mousePoint.Y - _cursorOffset.Y);
-		var rect = new Rect(topLeft, _size);
-		if (rect.Width <= 0d || rect.Height <= 0d)
-			return;
-		drawingContext.PushOpacity(_opacity);
-		if (_cornerRadius > 0d) {
-			drawingContext.PushClip(new RectangleGeometry(rect, _cornerRadius, _cornerRadius));
-		}
-		if (_snapshot != null)
-			drawingContext.DrawImage(_snapshot, rect);
-		if (_cornerRadius > 0d) {
-			drawingContext.Pop();
-		}
-		drawingContext.Pop();
-	}
-}
-
-sealed class InsertionLineAdorner : Adorner {
-	public double lineY;
-
-	public InsertionLineAdorner(UIElement adornedElement) : base(adornedElement) {
-		IsHitTestVisible = false;
-	}
-
-	protected override void OnRender(DrawingContext drawingContext) {
-		var pen = new Pen(Brushes.White, 2);
-		Rect r = new Rect(AdornedElement.RenderSize);
-		drawingContext.DrawLine(pen, new Point(r.Left, lineY), new Point(r.Right, lineY));
-	}
-}
-

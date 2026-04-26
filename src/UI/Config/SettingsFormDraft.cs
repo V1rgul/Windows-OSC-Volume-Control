@@ -1,8 +1,9 @@
 using System.Globalization;
 using System.Linq;
 using System.Net;
+using WindowsOscVolumeControl.UI.Osd;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.UI.Config;
 
 /// <summary>Builds <see cref="AppConfig"/> from settings-window field values; owns validation copy as <see cref="UiTextFeedback"/>.</summary>
 static class SettingsFormDraft {

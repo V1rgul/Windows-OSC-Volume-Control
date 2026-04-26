@@ -1,10 +1,11 @@
 using System.ComponentModel;
 using System.Windows;
+using WindowsOscVolumeControl.UI.Config.ViewModels;
 using Button = System.Windows.Controls.Button;
 using UserControl = System.Windows.Controls.UserControl;
 using PlacementMode = System.Windows.Controls.Primitives.PlacementMode;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.UI.Config;
 
 public partial class SettingsPanelView : UserControl {
 	public SettingsPanelView() {

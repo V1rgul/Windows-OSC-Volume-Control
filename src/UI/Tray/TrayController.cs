@@ -2,8 +2,9 @@ using System.Drawing;
 using System.Net;
 using System.Windows.Forms;
 using System.Windows.Media;
+using WindowsOscVolumeControl;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.UI.Tray;
 
 public enum AppTrayIconState {
 	STARTING_OR_INVALID_CONFIG,

@@ -3,7 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.UI.Wpf.Controls;
 
 public sealed class OverflowMarquee : ContentControl {
 	public enum ScrollMode {

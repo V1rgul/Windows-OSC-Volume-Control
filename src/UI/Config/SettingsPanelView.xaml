@@ -1,10 +1,11 @@
 <UserControl
-	x:Class="WindowsOscVolumeControl.SettingsPanelView"
+	x:Class="WindowsOscVolumeControl.UI.Config.SettingsPanelView"
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-	xmlns:local="clr-namespace:WindowsOscVolumeControl">
+	xmlns:local="clr-namespace:WindowsOscVolumeControl.UI.Config"
+	xmlns:wpf="clr-namespace:WindowsOscVolumeControl.UI.Wpf.Controls">
 	<Border Padding="0">
-		<local:SmoothScrollViewer VerticalScrollBarVisibility="Auto">
+		<wpf:SmoothScrollViewer VerticalScrollBarVisibility="Auto">
 			<StackPanel Margin="0,0,8,8" Grid.IsSharedSizeScope="True">
 				<GroupBox Header="Autostart" Margin="0,0,0,8" Padding="0">
 					<StackPanel Margin="8,4,8,8" Orientation="Vertical">
@@ -214,9 +215,9 @@
 
 								<TextBlock FontWeight="SemiBold" Margin="0,0,10,0" Text="Latency" TextAlignment="Left" HorizontalAlignment="Left" />
 								<TextBlock Grid.Column="1" FontWeight="SemiBold" Margin="0,0,10,0" Text="Ping" TextAlignment="Center" HorizontalAlignment="Stretch" />
-								<local:OverflowMarquee Grid.Column="2" Margin="0,0,10,0" HorizontalContentAlignment="Stretch" scrollMode="ONLY_ON_HOVER">
+								<wpf:OverflowMarquee Grid.Column="2" Margin="0,0,10,0" HorizontalContentAlignment="Stretch" scrollMode="ONLY_ON_HOVER">
 									<TextBlock x:Name="OscHeaderTextBlock" FontWeight="SemiBold" Text="{Binding oscHeaderText}" TextAlignment="Center" HorizontalAlignment="Stretch" />
-								</local:OverflowMarquee>
+								</wpf:OverflowMarquee>
 								<TextBlock Grid.Column="3" FontWeight="SemiBold" Text="" TextAlignment="Center" HorizontalAlignment="Stretch" />
 
 								<TextBlock Grid.Row="1" Margin="0,2,10,0" Text="Min" />
@@ -321,7 +322,7 @@
 					</Grid>
 				</GroupBox>
 			</StackPanel>
-		</local:SmoothScrollViewer>
+		</wpf:SmoothScrollViewer>
 	</Border>
 </UserControl>
 

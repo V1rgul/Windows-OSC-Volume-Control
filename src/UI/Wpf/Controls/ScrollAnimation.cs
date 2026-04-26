@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.UI.Wpf.Controls;
 
 static class ScrollAnimation {
 	public static readonly DependencyProperty horizontalOffsetProperty =

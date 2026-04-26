@@ -1,8 +1,9 @@
 <UserControl
-	x:Class="WindowsOscVolumeControl.BindingsPanelView"
+	x:Class="WindowsOscVolumeControl.UI.Config.BindingsPanelView"
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-	xmlns:local="clr-namespace:WindowsOscVolumeControl">
+	xmlns:local="clr-namespace:WindowsOscVolumeControl.UI.Config"
+	xmlns:wpf="clr-namespace:WindowsOscVolumeControl.UI.Wpf.Controls">
 	<UserControl.Resources>
 		<Thickness x:Key="ReorderCardOuterMargin">0,2,0,2</Thickness>
 	</UserControl.Resources>
@@ -10,7 +11,7 @@
 		<Grid.RowDefinitions>
 			<RowDefinition Height="*" />
 		</Grid.RowDefinitions>
-		<local:SmoothScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+		<wpf:SmoothScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
 			<GroupBox Header="Bindings" Margin="0,0,8,0" Padding="0">
 				<StackPanel Margin="8,4,8,8">
 					<ListBox
@@ -460,7 +461,7 @@
 					</Button>
 				</StackPanel>
 			</GroupBox>
-		</local:SmoothScrollViewer>
+		</wpf:SmoothScrollViewer>
 	</Grid>
 </UserControl>
 

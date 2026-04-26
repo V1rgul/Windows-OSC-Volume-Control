@@ -8,11 +8,11 @@
 		<ResourceDictionary>
 			<ResourceDictionary.MergedDictionaries>
 				<ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml" />
-				<ResourceDictionary Source="pack://application:,,,/src/UI/Controls/Controls.xaml" />
+					<ResourceDictionary Source="pack://application:,,,/src/UI/Wpf/Controls/Controls.xaml" />
 				<!-- Needed for extracted ConfigWindow UserControls (StaticResource resolution happens before Window.Resources). -->
-				<ResourceDictionary Source="pack://application:,,,/src/UI/Resources/ConfigWindow.Converters.xaml" />
-				<ResourceDictionary Source="pack://application:,,,/src/UI/Resources/ConfigWindow.Templates.xaml" />
-				<ResourceDictionary Source="pack://application:,,,/src/UI/Resources/ConfigWindow.Styles.xaml" />
+					<ResourceDictionary Source="pack://application:,,,/src/UI/Wpf/Resources/Converters.xaml" />
+					<ResourceDictionary Source="pack://application:,,,/src/UI/Wpf/Resources/Templates.xaml" />
+					<ResourceDictionary Source="pack://application:,,,/src/UI/Wpf/Resources/Styles.xaml" />
 			</ResourceDictionary.MergedDictionaries>
 		</ResourceDictionary>
 	</Application.Resources>

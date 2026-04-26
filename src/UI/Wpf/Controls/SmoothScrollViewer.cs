@@ -4,7 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using WpfScrollBar = System.Windows.Controls.Primitives.ScrollBar;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.UI.Wpf.Controls;
 
 /// <summary>
 /// Pure delta → vertical pixel offset for wheel handling (testable).

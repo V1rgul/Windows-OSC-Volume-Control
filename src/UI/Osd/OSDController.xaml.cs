@@ -10,7 +10,7 @@ using Brushes = System.Windows.Media.Brushes;
 using Color = System.Windows.Media.Color;
 using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.UI.Osd;
 
 public partial class OSDController : Window {
 	enum LayoutMode {
