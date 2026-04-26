@@ -6,6 +6,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Button = System.Windows.Controls.Button;
 using Border = System.Windows.Controls.Border;
@@ -44,9 +45,16 @@ namespace WindowsOscVolumeControl;
 public partial class BindingsPanelView : UserControl {
 	public BindingsPanelView() {
 		InitializeComponent();
+		AddHandler(DragDrop.PreviewDragEnterEvent, new System.Windows.DragEventHandler(onReorderPreviewDragOver), handledEventsToo: true);
+		AddHandler(DragDrop.PreviewDragOverEvent, new System.Windows.DragEventHandler(onReorderPreviewDragOver), handledEventsToo: true);
+		AddHandler(DragDrop.PreviewDropEvent, new System.Windows.DragEventHandler(onReorderPreviewDrop), handledEventsToo: true);
 	}
 
 	ConfigWindowViewModel? vm => DataContext as ConfigWindowViewModel;
+
+	AdornerLayer? _dragGhostLayer;
+	DragGhostAdorner? _dragGhostAdorner;
+	ItemsControl? _dragGhostOwnerList;
 
 	HotkeyActionEditor? _hotkeyCaptureItem;
 	DateTime? _hotkeyCaptureDownUtc;
@@ -313,6 +321,160 @@ public partial class BindingsPanelView : UserControl {
 
 	const string REORDER_DRAG_FORMAT = "WindowsOscVolumeControl.ReorderItem";
 
+	void beginDragGhost(ItemsControl list, FrameworkElement? draggedContainer, object draggedItem, Point dragStartPointInList) {
+		endDragGhost();
+		if (draggedContainer == null)
+			return;
+		AdornerLayer? layer = AdornerLayer.GetAdornerLayer(list)
+		                      ?? AdornerLayer.GetAdornerLayer(draggedContainer)
+		                      ?? AdornerLayer.GetAdornerLayer(this);
+		if (layer == null)
+			return;
+
+		var outerMargin = (Thickness)(TryFindResource("ReorderCardOuterMargin") ?? new Thickness(0));
+
+		draggedContainer.UpdateLayout();
+		ImageSource? snapshot = tryRenderGhostSnapshot(list, draggedContainer, outerMargin);
+		if (snapshot == null)
+			return;
+
+		double radius = resolveCardCornerRadiusFromTemplate(draggedContainer, draggedItem);
+		double rawW = draggedContainer.ActualWidth;
+		double rawH = draggedContainer.ActualHeight;
+		System.Windows.Size size = new System.Windows.Size(
+			Math.Max(0d, rawW - (outerMargin.Left + outerMargin.Right)),
+			Math.Max(0d, rawH - (outerMargin.Top + outerMargin.Bottom)));
+		Point containerTopLeftInList = draggedContainer.TranslatePoint(new Point(0, 0), list);
+		Point ghostTopLeftInList = new Point(containerTopLeftInList.X + outerMargin.Left, containerTopLeftInList.Y + outerMargin.Top);
+		Point cursorOffset = new Point(
+			dragStartPointInList.X - ghostTopLeftInList.X,
+			dragStartPointInList.Y - ghostTopLeftInList.Y);
+
+		_dragGhostOwnerList = list;
+		_dragGhostLayer = layer;
+		_dragGhostAdorner = new DragGhostAdorner(
+			list,
+			snapshot,
+			dragStartPointInList,
+			cursorOffset,
+			size,
+			opacity: 0.90,
+			cornerRadius: radius);
+		layer.Add(_dragGhostAdorner);
+		_dragGhostAdorner.InvalidateVisual();
+	}
+
+	void updateDragGhost(ItemsControl list, Point mousePointInList) {
+		if (_dragGhostAdorner == null)
+			return;
+		if (!ReferenceEquals(_dragGhostOwnerList, list))
+			return;
+		_dragGhostAdorner.setMousePoint(mousePointInList);
+	}
+
+	void endDragGhost() {
+		if (_dragGhostLayer != null && _dragGhostAdorner != null)
+			_dragGhostLayer.Remove(_dragGhostAdorner);
+		_dragGhostLayer = null;
+		_dragGhostAdorner = null;
+		_dragGhostOwnerList = null;
+	}
+
+	static ImageSource? tryRenderGhostSnapshot(FrameworkElement list, FrameworkElement draggedContainer, Thickness outerMargin) {
+		// Single reliable method: render the *owning window* (true composited surface),
+		// then crop the dragged row rectangle in that coordinate space.
+		Window? window = Window.GetWindow(list);
+		if (window == null)
+			return null;
+		window.UpdateLayout();
+		draggedContainer.UpdateLayout();
+
+		double w = window.ActualWidth;
+		double h = window.ActualHeight;
+		if (w <= 0d || h <= 0d)
+			return null;
+
+		PresentationSource? ps = PresentationSource.FromVisual(window);
+		Matrix toDevice = ps?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
+		double dpiScaleX = toDevice.M11;
+		double dpiScaleY = toDevice.M22;
+
+		int winPxW = Math.Max(1, (int)Math.Ceiling(w * dpiScaleX));
+		int winPxH = Math.Max(1, (int)Math.Ceiling(h * dpiScaleY));
+
+		var rtb = new RenderTargetBitmap(winPxW, winPxH, 96d * dpiScaleX, 96d * dpiScaleY, PixelFormats.Pbgra32);
+		rtb.Render(window);
+		rtb.Freeze();
+
+		Point topLeft = draggedContainer.TranslatePoint(new Point(0, 0), window);
+		double cw = draggedContainer.ActualWidth;
+		double ch = draggedContainer.ActualHeight;
+		if (cw <= 0d || ch <= 0d)
+			return null;
+
+		// Exclude the per-row outer margin so the ghost doesn't carry the darker bars.
+		double cropX = topLeft.X + outerMargin.Left;
+		double cropY = topLeft.Y + outerMargin.Top;
+		double cropW = Math.Max(0d, cw - (outerMargin.Left + outerMargin.Right));
+		double cropH = Math.Max(0d, ch - (outerMargin.Top + outerMargin.Bottom));
+
+		int x = (int)Math.Round(cropX * dpiScaleX);
+		int y = (int)Math.Round(cropY * dpiScaleY);
+		int cwPx = Math.Max(1, (int)Math.Round(cropW * dpiScaleX));
+		int chPx = Math.Max(1, (int)Math.Round(cropH * dpiScaleY));
+
+		x = Math.Clamp(x, 0, Math.Max(0, winPxW - 1));
+		y = Math.Clamp(y, 0, Math.Max(0, winPxH - 1));
+		cwPx = Math.Clamp(cwPx, 1, winPxW - x);
+		chPx = Math.Clamp(chPx, 1, winPxH - y);
+
+		var crop = new CroppedBitmap(rtb, new Int32Rect(x, y, cwPx, chPx));
+		crop.Freeze();
+		return crop;
+	}
+
+	static double resolveCardCornerRadiusFromTemplate(FrameworkElement container, object draggedItem) {
+		string? borderName = draggedItem switch {
+			BindingEditor => "BindingOscCardBorder",
+			HotkeyActionEditor => "HotkeyRowBorder",
+			_ => null,
+		};
+		if (borderName == null)
+			return 0d;
+		if (tryFindNamedDescendant(container, borderName) is not Border b)
+			return 0d;
+		return Math.Max(Math.Max(b.CornerRadius.TopLeft, b.CornerRadius.TopRight),
+			Math.Max(b.CornerRadius.BottomLeft, b.CornerRadius.BottomRight));
+	}
+
+	static Border? tryFindNamedDescendant(DependencyObject root, string name) {
+		int n = VisualTreeHelper.GetChildrenCount(root);
+		for (int i = 0; i < n; i++) {
+			DependencyObject child = VisualTreeHelper.GetChild(root, i);
+			if (child is FrameworkElement fe && string.Equals(fe.Name, name, StringComparison.Ordinal))
+				return fe as Border;
+			Border? nested = tryFindNamedDescendant(child, name);
+			if (nested != null)
+				return nested;
+		}
+		return null;
+	}
+
+	static T? tryFindVisualDescendant<T>(DependencyObject root) where T : DependencyObject {
+		int n = VisualTreeHelper.GetChildrenCount(root);
+		for (int i = 0; i < n; i++) {
+			DependencyObject child = VisualTreeHelper.GetChild(root, i);
+			if (child is T match)
+				return match;
+			T? nested = tryFindVisualDescendant<T>(child);
+			if (nested != null)
+				return nested;
+		}
+		return null;
+	}
+
+	// (drag ghost uses cropped list snapshot; no brush derivation helpers needed)
+
 	void reorderThumb_DragStarted(object sender, DragStartedEventArgs e) {
 		ConfigWindowViewModel? m = vm;
 		if (m == null)
@@ -337,6 +499,9 @@ public partial class BindingsPanelView : UserControl {
 			_ => null,
 		};
 
+		// Create the drag ghost before toggling drag state, because the row will be collapsed to show the placeholder.
+		beginDragGhost(list, container, item, Mouse.GetPosition(list));
+
 		m.dragOwnerList = list;
 		m.dragItem = item;
 		m.isDragInProgress = true;
@@ -352,6 +517,7 @@ public partial class BindingsPanelView : UserControl {
 			data.SetData(REORDER_DRAG_FORMAT, item);
 			_ = DragDrop.DoDragDrop(thumb, data, DragDropEffects.Move);
 		} finally {
+			endDragGhost();
 			hideInsertionLine(list);
 			m.isDragInProgress = false;
 			m.dragItem = null;
@@ -391,9 +557,52 @@ public partial class BindingsPanelView : UserControl {
 		}
 
 		Point p = e.GetPosition(list);
+		updateDragGhost(list, p);
 		_ = computeDropIndex(list, p, m.dragItem, out double lineY);
 		showInsertionLine(list, lineY);
 
+		e.Effects = DragDropEffects.Move;
+		e.Handled = true;
+	}
+
+	void onReorderPreviewDragOver(object sender, DragEventArgs e) {
+		ConfigWindowViewModel? m = vm;
+		if (m == null || !m.isDragInProgress || m.dragOwnerList == null) {
+			return;
+		}
+		ItemsControl list = m.dragOwnerList;
+
+		if (!e.Data.GetDataPresent(REORDER_DRAG_FORMAT) || m.dragItem == null) {
+			e.Effects = DragDropEffects.None;
+			e.Handled = true;
+			return;
+		}
+
+		Point p = e.GetPosition(list);
+		updateDragGhost(list, p);
+		_ = computeDropIndex(list, p, m.dragItem, out double lineY);
+		showInsertionLine(list, lineY);
+
+		e.Effects = DragDropEffects.Move;
+		e.Handled = true;
+	}
+
+	void onReorderPreviewDrop(object sender, DragEventArgs e) {
+		ConfigWindowViewModel? m = vm;
+		if (m == null || !m.isDragInProgress || m.dragOwnerList == null || m.dragItem == null) {
+			return;
+		}
+		ItemsControl list = m.dragOwnerList;
+		if (!e.Data.GetDataPresent(REORDER_DRAG_FORMAT)) {
+			e.Effects = DragDropEffects.None;
+			e.Handled = true;
+			return;
+		}
+
+		Point p = e.GetPosition(list);
+		int dropIndex = computeDropIndex(list, p, m.dragItem, out _);
+		tryMoveDraggedItem(m, list, m.dragItem, dropIndex);
+		hideInsertionLine(list);
 		e.Effects = DragDropEffects.Move;
 		e.Handled = true;
 	}
@@ -516,6 +725,12 @@ public partial class BindingsPanelView : UserControl {
 		}
 		ad.lineY = y;
 		ad.InvalidateVisual();
+
+		// Keep drag ghost above insertion line (insertion line is added lazily during dragover).
+		if (_dragGhostLayer != null && _dragGhostAdorner != null && AdornerLayer.GetAdornerLayer(list) == _dragGhostLayer) {
+			_dragGhostLayer.Remove(_dragGhostAdorner);
+			_dragGhostLayer.Add(_dragGhostAdorner);
+		}
 	}
 
 	void hideInsertionLine(ItemsControl list) {
@@ -525,6 +740,55 @@ public partial class BindingsPanelView : UserControl {
 		if (layer == null)
 			return;
 		layer.Remove(ad);
+	}
+}
+
+sealed class DragGhostAdorner : Adorner {
+	readonly ImageSource? _snapshot;
+	readonly System.Windows.Size _size;
+	readonly Point _cursorOffset;
+	Point _mousePoint;
+	readonly double _opacity;
+	readonly double _cornerRadius;
+
+	public DragGhostAdorner(
+		UIElement adornedElement,
+		ImageSource? snapshot,
+		Point mousePointInAdornedElement,
+		Point cursorOffset,
+		System.Windows.Size size,
+		double opacity,
+		double cornerRadius)
+		: base(adornedElement) {
+		IsHitTestVisible = false;
+		_snapshot = snapshot;
+		_cornerRadius = Math.Max(0d, cornerRadius);
+		_size = size;
+		_mousePoint = mousePointInAdornedElement;
+		_opacity = Math.Clamp(opacity, 0d, 1d);
+		_cursorOffset = cursorOffset;
+	}
+
+	public void setMousePoint(Point p) {
+		_mousePoint = p;
+		InvalidateVisual();
+	}
+
+	protected override void OnRender(DrawingContext drawingContext) {
+		Point topLeft = new Point(_mousePoint.X - _cursorOffset.X, _mousePoint.Y - _cursorOffset.Y);
+		var rect = new Rect(topLeft, _size);
+		if (rect.Width <= 0d || rect.Height <= 0d)
+			return;
+		drawingContext.PushOpacity(_opacity);
+		if (_cornerRadius > 0d) {
+			drawingContext.PushClip(new RectangleGeometry(rect, _cornerRadius, _cornerRadius));
+		}
+		if (_snapshot != null)
+			drawingContext.DrawImage(_snapshot, rect);
+		if (_cornerRadius > 0d) {
+			drawingContext.Pop();
+		}
+		drawingContext.Pop();
 	}
 }
 
