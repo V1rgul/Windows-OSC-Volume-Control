@@ -9,6 +9,10 @@
 			<ResourceDictionary.MergedDictionaries>
 				<ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml" />
 				<ResourceDictionary Source="pack://application:,,,/src/UI/Controls/Controls.xaml" />
+				<!-- Needed for extracted ConfigWindow UserControls (StaticResource resolution happens before Window.Resources). -->
+				<ResourceDictionary Source="pack://application:,,,/src/UI/Resources/ConfigWindow.Converters.xaml" />
+				<ResourceDictionary Source="pack://application:,,,/src/UI/Resources/ConfigWindow.Templates.xaml" />
+				<ResourceDictionary Source="pack://application:,,,/src/UI/Resources/ConfigWindow.Styles.xaml" />
 			</ResourceDictionary.MergedDictionaries>
 		</ResourceDictionary>
 	</Application.Resources>

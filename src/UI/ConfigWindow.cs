@@ -29,38 +29,6 @@ public partial class ConfigWindow : Window {
 	public const string HotkeyAssignmentCaptureTag = "HotkeyAssignmentCapture";
 	public const string BindingCardRestoreTag = "BindingCardRestore";
 
-	public static readonly DependencyProperty isDragInProgressProperty =
-		DependencyProperty.Register(nameof(isDragInProgress), typeof(bool), typeof(ConfigWindow), new PropertyMetadata(false));
-
-	public static readonly DependencyProperty dragItemProperty =
-		DependencyProperty.Register(nameof(dragItem), typeof(object), typeof(ConfigWindow), new PropertyMetadata(null));
-
-	public static readonly DependencyProperty dragOwnerListProperty =
-		DependencyProperty.Register(nameof(dragOwnerList), typeof(ItemsControl), typeof(ConfigWindow), new PropertyMetadata(null));
-
-	public static readonly DependencyProperty dragPlaceholderHeightProperty =
-		DependencyProperty.Register(nameof(dragPlaceholderHeight), typeof(double), typeof(ConfigWindow), new PropertyMetadata(0d));
-
-	public bool isDragInProgress {
-		get => (bool)GetValue(isDragInProgressProperty);
-		set => SetValue(isDragInProgressProperty, value);
-	}
-
-	public object? dragItem {
-		get => (object?)GetValue(dragItemProperty);
-		set => SetValue(dragItemProperty, value);
-	}
-
-	public ItemsControl? dragOwnerList {
-		get => (ItemsControl?)GetValue(dragOwnerListProperty);
-		set => SetValue(dragOwnerListProperty, value);
-	}
-
-	public double dragPlaceholderHeight {
-		get => (double)GetValue(dragPlaceholderHeightProperty);
-		set => SetValue(dragPlaceholderHeightProperty, value);
-	}
-
 	HotkeyActionEditor? _hotkeyCaptureItem;
 	DateTime? _hotkeyCaptureDownUtc;
 	HotkeyGesture _hotkeyCaptureGesture;
@@ -70,13 +38,14 @@ public partial class ConfigWindow : Window {
 	readonly TrayController _trayController;
 	readonly AppCoordinator _appCoordinator;
 	readonly ConfigStore _configStore;
+	public ConfigWindowViewModel vm { get; }
 
 	/// <summary>Fluent Expander template: <see cref="Expander"/> → HeaderSite → ChevronGrid.</summary>
 	readonly Dictionary<Expander, (BindingEditor bed, PropertyChangedEventHandler handler)> _bindingCardChevronDimHooks = [];
 
 	readonly Dictionary<ItemsControl, InsertionLineAdorner> _insertionLineAdorners = [];
 
-	public ObservableCollection<BindingEditor> Bindings { get; } = [];
+	// Binding editor collection moved to the view model (`ConfigWindowViewModel.bindings`).
 
 	public ConfigWindow(MixerController mixer, TrayController trayController, AppCoordinator appCoordinator, ConfigStore configStore) {
 		InitializeComponent();
@@ -85,12 +54,19 @@ public partial class ConfigWindow : Window {
 		_trayController = trayController;
 		_appCoordinator = appCoordinator;
 		_configStore = configStore;
+		vm = new ConfigWindowViewModel(_mixer, _trayController, _appCoordinator, _configStore);
+		vm.PropertyChanged += vm_PropertyChanged;
 		loadFromConfigStore();
 		syncTitlebarIconFromTray();
-		applyAutostartFeedback(WindowsAutostart.getCurrentUiFeedback());
 	}
 
 	public void syncTitlebarIconFromTray() => Icon = _trayController.windowIconSourceSnapshot;
+
+	void vm_PropertyChanged(object? sender, PropertyChangedEventArgs e) {
+		// Window owns the bottom status bar only; per-panel feedback is handled inside the UserControls.
+		if (e.PropertyName is nameof(ConfigWindowViewModel.statusFeedback))
+			UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
+	}
 
 	static T? findDataContextAncestor<T>(DependencyObject start) where T : class {
 		DependencyObject? cur = start;
@@ -208,28 +184,8 @@ public partial class ConfigWindow : Window {
 	}
 
 	void loadFromConfigStore() {
-		AppConfig cfg = _configStore.appConfig;
-		IpTextBox.Text = cfg.oscTransport.endPoint.Address.ToString();
-		PortTextBox.Text = cfg.oscTransport.endPoint.Port.ToString(CultureInfo.InvariantCulture);
-		TimeoutTextBox.Text = cfg.mixer.timeoutMs.ToString(CultureInfo.InvariantCulture);
-		CacheTtlTextBox.Text = cfg.mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture);
-		OsdHeightTextBox.Text = cfg.osd.heightDip.ToString(CultureInfo.InvariantCulture);
-		OsdDurationTextBox.Text = cfg.osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture);
-		OsdPositionComboBox.SelectedValue = cfg.osd.screenAnchor;
-		if (OsdPositionComboBox.SelectedValue == null)
-			OsdPositionComboBox.SelectedValue = OSDController.Config.OsdScreenAnchor.BOTTOM_RIGHT;
-		KeyboardHook.Config hk = cfg.keyboardHook;
-		HotkeyLongPressMsTextBox.Text = hk.longPressDurationMs.ToString(CultureInfo.InvariantCulture);
-		HotkeyOptimizeNonLongPressCheckBox.IsChecked = hk.optimizeNonLongPressKeyDown;
-		HotkeySuppressLongPressOnlyCheckBox.IsChecked = hk.suppressKeyForLongPressOnlyGestures;
-		HotkeyAcceptMacroChordKeyOrderCheckBox.IsChecked = hk.acceptMacroChordKeyOrder;
-		ConfigPathTextBox.Text = _configStore.configPathForUi;
-		UiTextFeedbackPresenter.apply(ConfigFeedbackTextBlock, _configStore.lastDiskUiFeedback);
-		UiTextFeedbackPresenter.apply(InfoResultTextBox, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
-		UiTextFeedbackPresenter.apply(StatusTextBlock, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
-		Bindings.Clear();
-		foreach (BindingAbstract binding in cfg.trayApp?.bindings ?? [])
-			Bindings.Add(BindingEditor.fromBinding(binding));
+		vm.loadFromConfigStore();
+		UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
 	}
 
 	static string formatLatencyCellText(int? rttMs) {
@@ -282,58 +238,58 @@ public partial class ConfigWindow : Window {
 	}
 
 	void applyLatencyStatsToUi(int timeoutMs, RttStatsSnapshot ping, RttStatsSnapshot osc) {
-		PingMinTextBlock.Text = formatLatencyCellText(ping.minMs);
-		PingMedianTextBlock.Text = formatLatencyCellText(ping.medianMs);
-		PingMaxTextBlock.Text = formatLatencyCellText(ping.maxMs);
-		PingLossTextBlock.Text = ping.completedCount == 0 ? "—" : ping.receivedCount.ToString(CultureInfo.InvariantCulture);
+		vm.pingMinText = formatLatencyCellText(ping.minMs);
+		vm.pingMedianText = formatLatencyCellText(ping.medianMs);
+		vm.pingMaxText = formatLatencyCellText(ping.maxMs);
+		vm.pingLossText = ping.completedCount == 0 ? "—" : ping.receivedCount.ToString(CultureInfo.InvariantCulture);
 
-		OscMinTextBlock.Text = formatLatencyCellText(osc.minMs);
-		OscMedianTextBlock.Text = formatLatencyCellText(osc.medianMs);
-		OscMaxTextBlock.Text = formatLatencyCellText(osc.maxMs);
-		OscLossTextBlock.Text = osc.completedCount == 0 ? "—" : osc.receivedCount.ToString(CultureInfo.InvariantCulture);
+		vm.oscMinText = formatLatencyCellText(osc.minMs);
+		vm.oscMedianText = formatLatencyCellText(osc.medianMs);
+		vm.oscMaxText = formatLatencyCellText(osc.maxMs);
+		vm.oscLossText = osc.completedCount == 0 ? "—" : osc.receivedCount.ToString(CultureInfo.InvariantCulture);
 
 		int completed = ping.completedCount;
-		LossUnitTextBlock.Text = "/" + completed.ToString(CultureInfo.InvariantCulture);
+		vm.lossUnitText = "/" + completed.ToString(CultureInfo.InvariantCulture);
 
-		PingLossTextBlock.Foreground = brushForStatus(responseStatus(ping.completedCount, ping.receivedCount));
-		OscLossTextBlock.Foreground = brushForStatus(responseStatus(osc.completedCount, osc.receivedCount));
+		vm.pingLossForeground = brushForStatus(responseStatus(ping.completedCount, ping.receivedCount));
+		vm.oscLossForeground = brushForStatus(responseStatus(osc.completedCount, osc.receivedCount));
 
-		PingMinTextBlock.Foreground = brushForStatus(latencyStatus(timeoutMs, ping.minMs));
-		PingMedianTextBlock.Foreground = brushForStatus(latencyStatus(timeoutMs, ping.medianMs));
-		PingMaxTextBlock.Foreground = brushForStatus(latencyStatus(timeoutMs, ping.maxMs));
+		vm.pingMinForeground = brushForStatus(latencyStatus(timeoutMs, ping.minMs));
+		vm.pingMedianForeground = brushForStatus(latencyStatus(timeoutMs, ping.medianMs));
+		vm.pingMaxForeground = brushForStatus(latencyStatus(timeoutMs, ping.maxMs));
 
-		OscMinTextBlock.Foreground = brushForStatus(latencyStatus(timeoutMs, osc.minMs));
-		OscMedianTextBlock.Foreground = brushForStatus(latencyStatus(timeoutMs, osc.medianMs));
-		OscMaxTextBlock.Foreground = brushForStatus(latencyStatus(timeoutMs, osc.maxMs));
+		vm.oscMinForeground = brushForStatus(latencyStatus(timeoutMs, osc.minMs));
+		vm.oscMedianForeground = brushForStatus(latencyStatus(timeoutMs, osc.medianMs));
+		vm.oscMaxForeground = brushForStatus(latencyStatus(timeoutMs, osc.maxMs));
 	}
 
 	async void buttonApplySaveAndTest_Click(object sender, RoutedEventArgs e) {
-		UiTextFeedbackPresenter.apply(StatusTextBlock, new UiTextFeedback("", UiTextFeedbackKind.WARNING));
-		OSDController.Config.OsdScreenAnchor osdAnchor = OsdPositionComboBox.SelectedValue is OSDController.Config.OsdScreenAnchor a
-			? a
-			: OSDController.Config.OsdScreenAnchor.BOTTOM_RIGHT;
+		// Don't rely on PropertyChanged for repeating equal feedback values.
+		vm.statusFeedback = new UiTextFeedback("", UiTextFeedbackKind.WARNING);
+		UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
 		(bool okBuild, AppConfig? newConfig, UiTextFeedback? buildErr) = SettingsFormDraft.tryBuild(
-			IpTextBox.Text,
-			PortTextBox.Text,
-			TimeoutTextBox.Text,
-			CacheTtlTextBox.Text,
-			osdAnchor,
-			OsdHeightTextBox.Text,
-			OsdDurationTextBox.Text,
-			HotkeyLongPressMsTextBox.Text,
-			HotkeyOptimizeNonLongPressCheckBox.IsChecked == true,
-			HotkeySuppressLongPressOnlyCheckBox.IsChecked == true,
-			HotkeyAcceptMacroChordKeyOrderCheckBox.IsChecked == true,
-			Bindings);
+			vm.oscIpText,
+			vm.oscPortText,
+			vm.queryTimeoutText,
+			vm.valueCacheTtlText,
+			vm.osdPosition,
+			vm.osdHeightText,
+			vm.osdDurationText,
+			vm.hotkeyLongPressMsText,
+			vm.hotkeyOptimizeNonLongPress,
+			vm.hotkeySuppressLongPressOnly,
+			vm.hotkeyAcceptMacroChordKeyOrder,
+			vm.bindings);
 		if (!okBuild) {
-			UiTextFeedbackPresenter.apply(StatusTextBlock, buildErr!.Value);
+			vm.statusFeedback = buildErr!.Value;
+			UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
 			return;
 		}
 
 		_appCoordinator.beginConfigValidation();
 		try {
 			_appCoordinator.commitConfigFromSettingsForm(newConfig!);
-			UiTextFeedbackPresenter.apply(ConfigFeedbackTextBlock, _configStore.lastDiskUiFeedback);
+			vm.configFeedback = _configStore.lastDiskUiFeedback;
 
 			int timeoutMs = Math.Max(1, (int)newConfig!.mixer.timeoutMs);
 			const int probes = 10;
@@ -346,7 +302,8 @@ public partial class ConfigWindow : Window {
 			BindingFader? firstFader = (newConfig.trayApp?.bindings ?? []).OfType<BindingFader>().FirstOrDefault();
 			bool oscUsesBinding = firstFader != null;
 			string oscAddress = oscUsesBinding ? firstFader!.address : "/info";
-			OscHeaderTextBlock.Text = oscUsesBinding ? "OSC Binding #1" : "OSC /info";
+			vm.oscHeaderText = oscUsesBinding ? "OSC Binding #1" : "OSC /info";
+			// TODO(split-to-resources): bind this via VM once latency panel is VM-driven.
 
 			bool lastInfoOk = false;
 			string lastInfoDetail = "";
@@ -389,86 +346,20 @@ public partial class ConfigWindow : Window {
 				(lastInfoOk, lastInfoDetail) = await _mixer.QueryInfoAsync();
 			}
 
-			UiTextFeedbackPresenter.apply(InfoResultTextBox, MixerController.infoQueryDetailFeedback(lastInfoOk, lastInfoDetail));
-			UiTextFeedbackPresenter.apply(StatusTextBlock, MixerController.settingsApplyMixerSummaryFeedback(lastInfoOk));
+			vm.infoFeedback = MixerController.infoQueryDetailFeedback(lastInfoOk, lastInfoDetail);
+			vm.statusFeedback = MixerController.settingsApplyMixerSummaryFeedback(lastInfoOk);
+			UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
 		} catch (Exception ex) {
-			UiTextFeedbackPresenter.apply(StatusTextBlock, MixerController.exceptionMessageFeedback(ex));
+			vm.statusFeedback = MixerController.exceptionMessageFeedback(ex);
+			UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
 		} finally {
 			_appCoordinator.finishConfigValidation();
 		}
 	}
 
-	void buttonOpenConfigFolder_Click(object sender, RoutedEventArgs e) {
-		string? dir = Path.GetDirectoryName(_configStore.configPath);
-		if (string.IsNullOrEmpty(dir))
-			return;
-		try {
-			Process.Start(new ProcessStartInfo {
-				FileName = "explorer.exe",
-				Arguments = "\"" + dir + "\"",
-				UseShellExecute = true,
-			});
-		} catch (Exception ex) {
-			UiTextFeedbackPresenter.apply(StatusTextBlock, ConfigStore.explorerLaunchFailedFeedback(ex));
-		}
-	}
+	// Autostart/config-path panel moved to SettingsPanelView.
 
-	void buttonRegisterAutostart_Click(object sender, RoutedEventArgs e) {
-		applyAutostartFeedback(WindowsAutostart.tryRegister());
-	}
-
-	void buttonDeregisterAutostart_Click(object sender, RoutedEventArgs e) {
-		applyAutostartFeedback(WindowsAutostart.tryDeregister());
-	}
-
-	void buttonDeregisterAutostartSplitMenu_Click(object sender, RoutedEventArgs e) {
-		if (sender is not System.Windows.Controls.Button b || b.ContextMenu == null)
-			return;
-		b.ContextMenu.PlacementTarget = b;
-		b.ContextMenu.Placement = PlacementMode.Bottom;
-		b.ContextMenu.IsOpen = true;
-		e.Handled = true;
-	}
-
-	void menuItemDeregisterAllAutostart_Click(object sender, RoutedEventArgs e) {
-		applyAutostartFeedback(WindowsAutostart.uiFeedbackForDeregisterAll(WindowsAutostart.tryDeregisterAllCopiesFromRun()));
-	}
-
-	void applyAutostartFeedback(WindowsAutostart.UiFeedbackDetail detail) {
-		UiTextFeedbackPresenter.apply(AutostartFeedbackTextBlock, detail.feedback);
-		if (string.IsNullOrEmpty(detail.pathOrNull)) {
-			AutostartFeedbackPathTextBox.Text = "";
-			AutostartFeedbackPathTextBox.Visibility = Visibility.Collapsed;
-			return;
-		}
-		AutostartFeedbackPathTextBox.Text = detail.pathOrNull;
-		AutostartFeedbackPathTextBox.Visibility = Visibility.Visible;
-	}
-
-	void applyAutostartFeedback(UiTextFeedback feedback) =>
-		applyAutostartFeedback(new WindowsAutostart.UiFeedbackDetail(feedback, null));
-
-	void buttonAddBinding_Click(object sender, RoutedEventArgs e) {
-		var ed = new BindingEditor {
-			type = BindingEditorType.FADER,
-			name = "",
-			address = "",
-			minimum = "0",
-			maximum = "1",
-		};
-		ed.hotkeys.Add(ed.createHotkeyEditor());
-		Bindings.Add(ed);
-	}
-
-	void buttonBindingDelete_Click(object sender, RoutedEventArgs e) {
-		if (sender is FrameworkElement { DataContext: BindingEditor item })
-			item.isDeleted = true;
-	}
-
-	void buttonBindingRestore_Click(object sender, RoutedEventArgs e) {
-		if (sender is FrameworkElement { DataContext: BindingEditor item })
-			item.isDeleted = false;
-	}
+	// Binding editor actions moved to VM commands.
 
 	void bindingCard_Expander_Expanded(object sender, RoutedEventArgs e) {
 		if (sender is not Expander exp)
@@ -498,44 +389,9 @@ public partial class ConfigWindow : Window {
 		e.Handled = true;
 	}
 
-	void buttonAddHotkeyToBinding_Click(object sender, RoutedEventArgs e) {
-		if (sender is not DependencyObject d)
-			return;
-		BindingEditor? bed = findDataContextAncestor<BindingEditor>(d);
-		if (bed == null)
-			return;
-		bed.hotkeys.Add(bed.createHotkeyEditor());
-	}
+	// Hotkey editor row actions moved to VM commands.
 
-	void buttonHotkeyDelete_Click(object sender, RoutedEventArgs e) {
-		if (sender is FrameworkElement { DataContext: HotkeyActionEditor item })
-			item.isDeleted = true;
-	}
-
-	void buttonHotkeyRestore_Click(object sender, RoutedEventArgs e) {
-		if (sender is FrameworkElement { DataContext: HotkeyActionEditor item })
-			item.isDeleted = false;
-	}
-
-	void hotkeyControl_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) {
-		_appCoordinator.setConfiguredHotkeysEnabled(false);
-		if (sender is FrameworkElement { DataContext: HotkeyActionEditor item }) {
-			item.isHotkeyCaptureActive = true;
-			item.hotkey = HotkeyGesture.None;
-			UiTextFeedbackPresenter.apply(StatusTextBlock, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
-			clearHotkeyCaptureTracking();
-			_hotkeyCaptureItem = item;
-		}
-	}
-
-	void hotkeyControl_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) {
-		if (sender is FrameworkElement { DataContext: HotkeyActionEditor item }) {
-			item.isHotkeyCaptureActive = false;
-			if (ReferenceEquals(_hotkeyCaptureItem, item))
-				clearHotkeyCaptureTracking();
-		}
-		_appCoordinator.setConfiguredHotkeysEnabled(true);
-	}
+	// Hotkey capture moved to BindingsPanelView.
 
 	void clearHotkeyCaptureTracking() {
 		_hotkeyCaptureItem = null;
@@ -544,13 +400,7 @@ public partial class ConfigWindow : Window {
 		_hotkeyCaptureAwaitingRelease = false;
 	}
 
-	bool tryParseHotkeyLongPressMsForCapture(out uint ms) {
-		ms = KeyboardHook.Config.DEFAULT_LONG_PRESS_MS;
-		if (!uint.TryParse(HotkeyLongPressMsTextBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsed))
-			return false;
-		ms = KeyboardHook.Config.Clamped(new KeyboardHook.Config { longPressDurationMs = parsed }).longPressDurationMs;
-		return true;
-	}
+	// Hotkey capture moved to BindingsPanelView.
 
 	void finalizeHotkeyCapture(HotkeyActionEditor item, FrameworkElement focusMoveAnchor) {
 		if (!_hotkeyCaptureDownUtc.HasValue)
@@ -564,78 +414,10 @@ public partial class ConfigWindow : Window {
 			return;
 		}
 		item.hotkey = g;
-		uint thresholdMs = tryParseHotkeyLongPressMsForCapture(out uint lp) ? lp : KeyboardHook.Config.DEFAULT_LONG_PRESS_MS;
-		double heldMs = (DateTime.UtcNow - _hotkeyCaptureDownUtc.Value).TotalMilliseconds;
-		item.longPress = heldMs >= thresholdMs;
-		UiTextFeedbackPresenter.apply(StatusTextBlock, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
-		clearHotkeyCaptureTracking();
-		focusMoveAnchor.Dispatcher.BeginInvoke(DispatcherPriority.Background, moveFocusAwayAfterAssign, focusMoveAnchor);
+		// Hotkey capture moved to BindingsPanelView.
 	}
 
-	void configWindow_PreviewKeyDown(object sender, KeyEventArgs e) {
-		if (e.Key is not Key.Tab)
-			return;
-		if (Keyboard.FocusedElement is not System.Windows.Controls.Button focusedBtn)
-			return;
-		if (focusedBtn.Tag is not string tag || tag != HotkeyAssignmentCaptureTag)
-			return;
-		if (focusedBtn.DataContext is not HotkeyActionEditor item)
-			return;
-		if (!item.isHotkeyCaptureActive)
-			return;
-		beginHotkeyCaptureKeyDown(e, item);
-	}
-
-	void configWindow_PreviewKeyUp(object sender, KeyEventArgs e) {
-		if (e.Key is not Key.Tab)
-			return;
-		if (Keyboard.FocusedElement is not System.Windows.Controls.Button focusedBtn)
-			return;
-		if (focusedBtn.Tag is not string tag || tag != HotkeyAssignmentCaptureTag)
-			return;
-		if (focusedBtn.DataContext is not HotkeyActionEditor item)
-			return;
-		if (!item.isHotkeyCaptureActive || !_hotkeyCaptureAwaitingRelease || !ReferenceEquals(_hotkeyCaptureItem, item))
-			return;
-		HotkeyGesture up = HotkeyUtil.fromKeyEventArgs(e);
-		HotkeyGesture normUp = HotkeyUtil.normalize(up);
-		HotkeyGesture normDown = HotkeyUtil.normalize(_hotkeyCaptureGesture);
-		bool acceptMacroKeyUpOrder = HotkeyAcceptMacroChordKeyOrderCheckBox.IsChecked == true;
-		if (acceptMacroKeyUpOrder) {
-			if (normUp.keyCode != normDown.keyCode)
-				return;
-		} else {
-			if (normUp != normDown)
-				return;
-		}
-		e.Handled = true;
-		finalizeHotkeyCapture(item, focusedBtn);
-	}
-
-	void hotkeyRow_PreviewKeyDown(object sender, KeyEventArgs e) {
-		if (sender is FrameworkElement fe && fe.DataContext is HotkeyActionEditor item && item.isHotkeyCaptureActive)
-			beginHotkeyCaptureKeyDown(e, item);
-	}
-
-	void hotkeyRow_PreviewKeyUp(object sender, KeyEventArgs e) {
-		if (sender is not FrameworkElement fe || fe.DataContext is not HotkeyActionEditor item)
-			return;
-		if (!item.isHotkeyCaptureActive || !_hotkeyCaptureAwaitingRelease || !ReferenceEquals(_hotkeyCaptureItem, item))
-			return;
-		HotkeyGesture up = HotkeyUtil.fromKeyEventArgs(e);
-		HotkeyGesture normUp = HotkeyUtil.normalize(up);
-		HotkeyGesture normDown = HotkeyUtil.normalize(_hotkeyCaptureGesture);
-		bool acceptMacroKeyUpOrder = HotkeyAcceptMacroChordKeyOrderCheckBox.IsChecked == true;
-		if (acceptMacroKeyUpOrder) {
-			if (normUp.keyCode != normDown.keyCode)
-				return;
-		} else {
-			if (normUp != normDown)
-				return;
-		}
-		e.Handled = true;
-		finalizeHotkeyCapture(item, fe);
-	}
+	// Hotkey capture moved to BindingsPanelView.
 
 	void beginHotkeyCaptureKeyDown(KeyEventArgs e, HotkeyActionEditor item) {
 		HotkeyGesture hotkey = HotkeyUtil.fromKeyEventArgs(e);
@@ -708,10 +490,10 @@ partial class ConfigWindow {
 			_ => null,
 		};
 
-		dragOwnerList = list;
-		dragItem = item;
-		isDragInProgress = true;
-		dragPlaceholderHeight = container?.ActualHeight ?? 0d;
+		vm.dragOwnerList = list;
+		vm.dragItem = item;
+		vm.isDragInProgress = true;
+		vm.dragPlaceholderHeight = container?.ActualHeight ?? 0d;
 
 		try {
 			hideInsertionLine(list);
@@ -720,10 +502,10 @@ partial class ConfigWindow {
 			_ = System.Windows.DragDrop.DoDragDrop(thumb, data, System.Windows.DragDropEffects.Move);
 		} finally {
 			hideInsertionLine(list);
-			isDragInProgress = false;
-			dragItem = null;
-			dragOwnerList = null;
-			dragPlaceholderHeight = 0d;
+			vm.isDragInProgress = false;
+			vm.dragItem = null;
+			vm.dragOwnerList = null;
+			vm.dragPlaceholderHeight = 0d;
 		}
 	}
 
@@ -743,14 +525,14 @@ partial class ConfigWindow {
 			return;
 		}
 
-		if (!isDragInProgress || dragOwnerList == null || !ReferenceEquals(list, dragOwnerList)) {
+		if (!vm.isDragInProgress || vm.dragOwnerList == null || !ReferenceEquals(list, vm.dragOwnerList)) {
 			hideInsertionLine(list);
 			e.Effects = System.Windows.DragDropEffects.None;
 			e.Handled = true;
 			return;
 		}
 
-		if (!e.Data.GetDataPresent(REORDER_DRAG_FORMAT) || dragItem == null) {
+		if (!e.Data.GetDataPresent(REORDER_DRAG_FORMAT) || vm.dragItem == null) {
 			hideInsertionLine(list);
 			e.Effects = System.Windows.DragDropEffects.None;
 			e.Handled = true;
@@ -758,7 +540,7 @@ partial class ConfigWindow {
 		}
 
 		System.Windows.Point p = e.GetPosition(list);
-		int dropIndex = computeDropIndex(list, p, dragItem, out double lineY);
+		int dropIndex = computeDropIndex(list, p, vm.dragItem, out double lineY);
 		showInsertionLine(list, lineY);
 
 		e.Effects = System.Windows.DragDropEffects.Move;
@@ -773,7 +555,7 @@ partial class ConfigWindow {
 		}
 
 		try {
-			if (!isDragInProgress || dragOwnerList == null || !ReferenceEquals(list, dragOwnerList) || dragItem == null) {
+			if (!vm.isDragInProgress || vm.dragOwnerList == null || !ReferenceEquals(list, vm.dragOwnerList) || vm.dragItem == null) {
 				e.Effects = System.Windows.DragDropEffects.None;
 				return;
 			}
@@ -783,8 +565,8 @@ partial class ConfigWindow {
 			}
 
 			System.Windows.Point p = e.GetPosition(list);
-			int dropIndex = computeDropIndex(list, p, dragItem, out _);
-			tryMoveDraggedItem(list, dragItem, dropIndex);
+			int dropIndex = computeDropIndex(list, p, vm.dragItem, out _);
+			tryMoveDraggedItem(list, vm.dragItem, dropIndex);
 			e.Effects = System.Windows.DragDropEffects.Move;
 		} finally {
 			hideInsertionLine(list);
@@ -794,13 +576,13 @@ partial class ConfigWindow {
 
 	void tryMoveDraggedItem(ItemsControl list, object dragged, int dropIndex) {
 		if (dragged is BindingEditor bed) {
-			int oldIndex = Bindings.IndexOf(bed);
+			int oldIndex = vm.bindings.IndexOf(bed);
 			if (oldIndex < 0)
 				return;
-			int newIndex = dropIndexToMoveIndex(oldIndex, dropIndex, Bindings.Count);
+			int newIndex = dropIndexToMoveIndex(oldIndex, dropIndex, vm.bindings.Count);
 			if (oldIndex == newIndex)
 				return;
-			Bindings.Move(oldIndex, newIndex);
+			vm.bindings.Move(oldIndex, newIndex);
 			return;
 		}
 

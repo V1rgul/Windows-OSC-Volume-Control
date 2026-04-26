@@ -33,6 +33,12 @@
     <Page Include="src\UI\Controls\*.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="src\UI\Config\*.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="src\UI\Resources\*.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
   </ItemGroup>
 
   <ItemGroup>
@@ -47,6 +53,12 @@
 
   <ItemGroup>
     <Folder Include="src\Osc\SharpOSC\Properties\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm">
+      <Version>8.4.2</Version>
+    </PackageReference>
   </ItemGroup>
 
   <!-- Release: framework-dependent publish → small zip; target PC needs .NET 10 Desktop runtime. -->

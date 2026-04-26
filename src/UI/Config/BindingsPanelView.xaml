@@ -1,0 +1,413 @@
+<UserControl
+	x:Class="WindowsOscVolumeControl.BindingsPanelView"
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:local="clr-namespace:WindowsOscVolumeControl">
+	<Grid Margin="8,0,0,0">
+		<Grid.RowDefinitions>
+			<RowDefinition Height="*" />
+		</Grid.RowDefinitions>
+		<local:SmoothScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+			<GroupBox Header="Bindings" Margin="0,0,8,0" Padding="0">
+				<StackPanel Margin="8,4,8,8">
+					<ListBox
+						ItemsSource="{Binding bindings}"
+						BorderThickness="0"
+						Background="Transparent"
+						HorizontalContentAlignment="Stretch"
+						ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+						AllowDrop="True"
+						DragOver="reorderList_DragOver"
+						Drop="reorderList_Drop"
+						DragLeave="reorderList_DragLeave">
+						<ListBox.ItemContainerStyle>
+							<Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+								<Setter Property="HorizontalContentAlignment" Value="Stretch" />
+								<Setter Property="VerticalContentAlignment" Value="Stretch" />
+								<Setter Property="Padding" Value="0" />
+								<Setter Property="Margin" Value="0" />
+								<Setter Property="BorderThickness" Value="0" />
+								<Setter Property="Background" Value="Transparent" />
+								<Setter Property="FocusVisualStyle" Value="{x:Null}" />
+							</Style>
+						</ListBox.ItemContainerStyle>
+						<ListBox.ItemTemplate>
+							<DataTemplate DataType="{x:Type local:BindingEditor}">
+								<Grid>
+									<Border
+										x:Name="BindingOscCardBorder"
+										Margin="0,2,0,2"
+										Padding="0"
+										BorderThickness="1"
+										BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+										CornerRadius="10"
+										Background="{DynamicResource ExpanderHeaderBackground}">
+										<Expander
+											Padding="8"
+											Background="{DynamicResource ExpanderHeaderBackground}"
+											BorderBrush="Transparent"
+											BorderThickness="0"
+											HorizontalContentAlignment="Stretch"
+											DataContextChanged="bindingCard_Expander_DataContextChanged"
+											Expanded="bindingCard_Expander_Expanded"
+											Loaded="bindingCard_Expander_Loaded"
+											PreviewKeyDown="bindingCard_Expander_PreviewKeyDown"
+											PreviewMouseDown="bindingCard_Expander_PreviewMouseDown"
+											Unloaded="bindingCard_Expander_Unloaded"
+											IsExpanded="{Binding bindingExpanded, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+											<Expander.Header>
+												<Grid MinHeight="32" HorizontalAlignment="Stretch" Margin="-8,0,8,0">
+													<Grid.ColumnDefinitions>
+														<ColumnDefinition Width="Auto" />
+														<ColumnDefinition Width="*" />
+														<ColumnDefinition Width="Auto" />
+														<ColumnDefinition Width="Auto" />
+													</Grid.ColumnDefinitions>
+													<Thumb
+														Grid.Column="0"
+														Margin="8,0,0,0"
+														Width="32"
+														MinWidth="32"
+														MinHeight="24"
+														VerticalAlignment="Center"
+														HorizontalAlignment="Left"
+														IsEnabled="{Binding isNotDeleted}"
+														Cursor="SizeAll"
+														DragStarted="reorderThumb_DragStarted">
+														<Thumb.Template>
+															<ControlTemplate TargetType="Thumb">
+																<Border Background="Transparent" Padding="6,4">
+																	<Grid Width="10" Height="10" VerticalAlignment="Center" HorizontalAlignment="Center">
+																		<Border Height="1" VerticalAlignment="Top" Margin="0,3,0,0" Background="{DynamicResource TextFillColorSecondaryBrush}" />
+																		<Border Height="1" VerticalAlignment="Top" Margin="0,6,0,0" Background="{DynamicResource TextFillColorSecondaryBrush}" />
+																	</Grid>
+																</Border>
+															</ControlTemplate>
+														</Thumb.Template>
+													</Thumb>
+													<TextBox Grid.Column="1" Margin="8,0,8,0" VerticalAlignment="Center" Text="{Binding name, UpdateSourceTrigger=PropertyChanged}">
+														<TextBox.Style>
+															<Style BasedOn="{StaticResource {x:Type TextBox}}" TargetType="TextBox">
+																<Style.Triggers>
+																	<DataTrigger Binding="{Binding isDeleted}" Value="True">
+																		<Setter Property="IsEnabled" Value="False" />
+																		<Setter Property="Opacity" Value="0.45" />
+																	</DataTrigger>
+																</Style.Triggers>
+															</Style>
+														</TextBox.Style>
+													</TextBox>
+													<Grid Grid.Column="2" MinWidth="120" Margin="0,0,8,0" VerticalAlignment="Center">
+														<Grid.Style>
+															<Style TargetType="Grid">
+																<Style.Triggers>
+																	<DataTrigger Binding="{Binding isDeleted}" Value="True">
+																		<Setter Property="IsEnabled" Value="False" />
+																		<Setter Property="Opacity" Value="0.45" />
+																	</DataTrigger>
+																</Style.Triggers>
+															</Style>
+														</Grid.Style>
+														<TextBlock VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}" Text="{Binding typeDisplayLabel}">
+															<TextBlock.Style>
+																<Style TargetType="TextBlock">
+																	<Setter Property="Visibility" Value="Collapsed" />
+																	<Style.Triggers>
+																		<DataTrigger Binding="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=Expander}}" Value="False">
+																			<Setter Property="Visibility" Value="Visible" />
+																		</DataTrigger>
+																	</Style.Triggers>
+																</Style>
+															</TextBlock.Style>
+														</TextBlock>
+														<ComboBox
+															DisplayMemberPath="label"
+															ItemsSource="{Binding typeChoices}"
+															SelectedValue="{Binding type, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+															SelectedValuePath="value"
+															VerticalAlignment="Center">
+															<ComboBox.Style>
+																<Style BasedOn="{StaticResource {x:Type ComboBox}}" TargetType="ComboBox">
+																	<Setter Property="Visibility" Value="Visible" />
+																	<Style.Triggers>
+																		<DataTrigger Binding="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=Expander}}" Value="False">
+																			<Setter Property="Visibility" Value="Collapsed" />
+																		</DataTrigger>
+																	</Style.Triggers>
+																</Style>
+															</ComboBox.Style>
+														</ComboBox>
+													</Grid>
+											<StackPanel Grid.Column="3" Margin="0,0,8,0" VerticalAlignment="Center" Orientation="Horizontal">
+														<Button
+															Margin="0,0,8,0"
+															Padding="10,6"
+															Command="{Binding DataContext.softDeleteBindingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+															CommandParameter="{Binding}"
+															Style="{StaticResource OscBindingSoftDeleteButtonStyle}"
+															ToolTip="Delete">
+															<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE74D;" />
+														</Button>
+														<Button
+															Padding="10,6"
+															Command="{Binding DataContext.restoreBindingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+															CommandParameter="{Binding}"
+															Style="{StaticResource OscRestoreButtonStyle}"
+													Tag="{x:Static local:ConfigWindow.BindingCardRestoreTag}"
+															ToolTip="Restore">
+															<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE7A7;" />
+														</Button>
+													</StackPanel>
+												</Grid>
+											</Expander.Header>
+											<Grid>
+												<Grid.Style>
+													<Style TargetType="Grid">
+														<Style.Triggers>
+															<DataTrigger Binding="{Binding isDeleted}" Value="True">
+																<Setter Property="IsEnabled" Value="False" />
+																<Setter Property="Opacity" Value="0.45" />
+															</DataTrigger>
+														</Style.Triggers>
+													</Style>
+												</Grid.Style>
+												<StackPanel TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+													<Grid>
+														<Grid.ColumnDefinitions>
+															<ColumnDefinition Width="180" />
+															<ColumnDefinition Width="*" />
+															<ColumnDefinition Width="180" />
+															<ColumnDefinition Width="*" />
+														</Grid.ColumnDefinitions>
+														<Grid.RowDefinitions>
+															<RowDefinition Height="Auto" />
+															<RowDefinition Height="Auto" />
+														</Grid.RowDefinitions>
+														<TextBlock Margin="0,0,8,4" VerticalAlignment="Center" Text="OSC address" />
+														<TextBox Grid.Column="1" Grid.ColumnSpan="3" Margin="0,0,0,4" Text="{Binding address, UpdateSourceTrigger=PropertyChanged}" />
+														<TextBlock Grid.Row="1" Margin="0,8,8,4" VerticalAlignment="Center" Text="Minimum" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
+														<TextBox Grid.Row="1" Grid.Column="1" Margin="0,8,8,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding minimum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
+														<TextBlock Grid.Row="1" Grid.Column="2" Margin="0,8,8,4" VerticalAlignment="Center" Text="Maximum" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
+														<TextBox Grid.Row="1" Grid.Column="3" Margin="0,8,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding maximum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding isFader, Converter={StaticResource BoolToVisibility}}" />
+													</Grid>
+													<Border Height="1" Margin="0,10,0,10" Background="{DynamicResource ControlStrokeColorDefaultBrush}" />
+													<DockPanel Margin="0,0,0,8" LastChildFill="True">
+														<Button
+															DockPanel.Dock="Right"
+															Margin="8,0,0,0"
+															Padding="12,6"
+															VerticalAlignment="Center"
+															Command="{Binding DataContext.addHotkeyToBindingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+															CommandParameter="{Binding}"
+															ToolTip="Add hotkey">
+															<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE710;" />
+														</Button>
+														<TextBlock FontWeight="SemiBold" VerticalAlignment="Center" Text="Hotkeys" />
+													</DockPanel>
+													<ListBox
+														ItemsSource="{Binding hotkeys}"
+														BorderThickness="0"
+														Background="Transparent"
+														HorizontalContentAlignment="Stretch"
+														ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+														AllowDrop="True"
+														DragOver="reorderList_DragOver"
+														Drop="reorderList_Drop"
+														DragLeave="reorderList_DragLeave">
+														<ListBox.ItemContainerStyle>
+															<Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+																<Setter Property="HorizontalContentAlignment" Value="Stretch" />
+																<Setter Property="VerticalContentAlignment" Value="Stretch" />
+																<Setter Property="Padding" Value="0" />
+																<Setter Property="Margin" Value="0" />
+																<Setter Property="BorderThickness" Value="0" />
+																<Setter Property="Background" Value="Transparent" />
+																<Setter Property="FocusVisualStyle" Value="{x:Null}" />
+															</Style>
+														</ListBox.ItemContainerStyle>
+														<ListBox.ItemTemplate>
+															<DataTemplate DataType="{x:Type local:HotkeyActionEditor}">
+																<Grid>
+																	<Border
+																		x:Name="HotkeyRowBorder"
+																		Margin="0,2,0,2"
+																		Padding="8"
+																		BorderThickness="1"
+																		BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+																		Background="{DynamicResource ControlFillColorSecondaryBrush}"
+																		CornerRadius="6">
+																		<Grid>
+																			<Grid.ColumnDefinitions>
+																				<ColumnDefinition Width="*" />
+																				<ColumnDefinition Width="Auto" />
+																			</Grid.ColumnDefinitions>
+																			<Border Grid.Column="0" Background="Transparent" IsEnabled="{Binding isNotDeleted}">
+																				<Border.Style>
+																					<Style TargetType="Border">
+																						<Setter Property="Opacity" Value="1" />
+																						<Style.Triggers>
+																							<DataTrigger Binding="{Binding isDeleted}" Value="True">
+																								<Setter Property="Opacity" Value="0.45" />
+																							</DataTrigger>
+																						</Style.Triggers>
+																					</Style>
+																				</Border.Style>
+																				<Grid VerticalAlignment="Center">
+																					<Grid.ColumnDefinitions>
+																						<ColumnDefinition Width="Auto" />
+																						<ColumnDefinition Width="Auto" />
+																						<ColumnDefinition Width="*" MinWidth="80" />
+																						<ColumnDefinition Width="Auto" />
+																						<ColumnDefinition Width="Auto" />
+																						<ColumnDefinition Width="*" MinWidth="200" />
+																					</Grid.ColumnDefinitions>
+																					<Thumb
+																						Grid.Column="0"
+																						Margin="0,0,8,0"
+																						Width="32"
+																						MinWidth="32"
+																						MinHeight="24"
+																						VerticalAlignment="Center"
+																						HorizontalAlignment="Left"
+																						IsEnabled="{Binding isNotDeleted}"
+																						Cursor="SizeAll"
+																						DragStarted="reorderThumb_DragStarted">
+																						<Thumb.Template>
+																							<ControlTemplate TargetType="Thumb">
+																								<Border Background="Transparent" Padding="6,4">
+																									<Grid Width="10" Height="10" VerticalAlignment="Center" HorizontalAlignment="Center">
+																										<Border Height="1" VerticalAlignment="Top" Margin="0,3,0,0" Background="{DynamicResource TextFillColorSecondaryBrush}" />
+																										<Border Height="1" VerticalAlignment="Top" Margin="0,6,0,0" Background="{DynamicResource TextFillColorSecondaryBrush}" />
+																									</Grid>
+																								</Border>
+																							</ControlTemplate>
+																						</Thumb.Template>
+																					</Thumb>
+																					<TextBlock Grid.Column="1" Margin="0,0,8,0" VerticalAlignment="Center" Text="Hotkey" />
+																					<Button
+																						Grid.Column="2"
+																						Margin="0,0,4,0"
+																						Padding="12,6"
+																						HorizontalAlignment="Stretch"
+																						HorizontalContentAlignment="Center"
+																						Tag="{x:Static local:ConfigWindow.HotkeyAssignmentCaptureTag}"
+																						Style="{DynamicResource OscHotkeyAssignmentButtonStyle}"
+																						PreviewKeyDown="hotkeyRow_PreviewKeyDown"
+																						PreviewKeyUp="hotkeyRow_PreviewKeyUp"
+																						GotKeyboardFocus="hotkeyControl_GotKeyboardFocus"
+																						LostKeyboardFocus="hotkeyControl_LostKeyboardFocus">
+																						<TextBlock Text="{Binding hotkeyText}" TextAlignment="Center">
+																							<TextBlock.Style>
+																								<Style TargetType="TextBlock">
+																									<Style.Triggers>
+																										<DataTrigger Binding="{Binding isHotkeyIdlePlaceholder}" Value="True">
+																											<Setter Property="FontStyle" Value="Italic" />
+																										</DataTrigger>
+																									</Style.Triggers>
+																								</Style>
+																							</TextBlock.Style>
+																						</TextBlock>
+																					</Button>
+																					<CheckBox Grid.Column="3" MinWidth="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left" VerticalAlignment="Center" VerticalContentAlignment="Center" IsChecked="{Binding longPress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+																						<TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="Long press" />
+																					</CheckBox>
+																					<TextBlock Grid.Column="4" Margin="32,0,8,0" VerticalAlignment="Center" Text="Action" />
+																					<Grid Grid.Column="5" MinWidth="200">
+																						<DockPanel VerticalAlignment="Center" LastChildFill="True">
+																							<StackPanel DockPanel.Dock="Right" Margin="4,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" Orientation="Horizontal">
+																								<TextBox MinWidth="100" Margin="0,0,8,0" HorizontalAlignment="Left" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding floatValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
+																								<CheckBox MinWidth="0" HorizontalAlignment="Left" HorizontalContentAlignment="Left" VerticalAlignment="Center" VerticalContentAlignment="Center" IsChecked="{Binding boolValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsBoolInput, Converter={StaticResource BoolToVisibility}}">
+																									<TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="On" />
+																								</CheckBox>
+																							</StackPanel>
+																							<ComboBox Margin="0,0,4,0" MinWidth="120" HorizontalAlignment="Stretch" DisplayMemberPath="displayName" ItemsSource="{Binding choiceList}" SelectedItem="{Binding selectedChoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+																						</DockPanel>
+																					</Grid>
+																				</Grid>
+																			</Border>
+																			<StackPanel Grid.Column="1" Margin="32,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
+																				<Button Margin="0,0,8,0" Padding="10,6" Command="{Binding DataContext.restoreHotkeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{DynamicResource OscRestoreButtonStyle}" ToolTip="Restore">
+																					<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE7A7;" />
+																				</Button>
+																				<Button Margin="0" Padding="10,6" Command="{Binding DataContext.softDeleteHotkeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{DynamicResource OscSoftDeleteButtonStyle}" ToolTip="Delete">
+																					<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE74D;" />
+																				</Button>
+																			</StackPanel>
+																		</Grid>
+																	</Border>
+																	<Border
+																		x:Name="HotkeyDragPlaceholder"
+																		Margin="0,2,0,2"
+																		Padding="8"
+																		BorderThickness="1"
+																		BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+																		CornerRadius="6"
+																		Background="{DynamicResource ControlFillColorSecondaryBrush}"
+																		Opacity="0.35"
+																		Height="{Binding DragPlaceholderHeight}"
+																		Visibility="Collapsed"
+																		IsHitTestVisible="False" />
+																</Grid>
+																<DataTemplate.Triggers>
+																	<DataTrigger Value="True">
+																		<DataTrigger.Binding>
+																			<MultiBinding Converter="{StaticResource DragActivePlaceholderMultiConverter}">
+																				<Binding />
+																				<Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="DataContext.DragItem" />
+																				<Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="DataContext.IsDragInProgress" />
+																				<Binding RelativeSource="{RelativeSource AncestorType=ListBox}" />
+																				<Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="DataContext.DragOwnerList" />
+																			</MultiBinding>
+																		</DataTrigger.Binding>
+																		<Setter TargetName="HotkeyRowBorder" Property="Visibility" Value="Collapsed" />
+																		<Setter TargetName="HotkeyDragPlaceholder" Property="Visibility" Value="Visible" />
+																	</DataTrigger>
+																</DataTemplate.Triggers>
+															</DataTemplate>
+														</ListBox.ItemTemplate>
+													</ListBox>
+												</StackPanel>
+												<Border Background="#66000000" Visibility="{Binding isDeleted, Converter={StaticResource BoolToVisibility}}" IsHitTestVisible="False" />
+											</Grid>
+										</Expander>
+									</Border>
+									<Border
+										x:Name="BindingDragPlaceholder"
+										Margin="0,2,0,2"
+										Padding="0"
+										BorderThickness="1"
+										BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+										CornerRadius="10"
+										Background="{DynamicResource ControlFillColorSecondaryBrush}"
+										Opacity="0.35"
+										Height="{Binding DragPlaceholderHeight}"
+										Visibility="Collapsed"
+										IsHitTestVisible="False" />
+								</Grid>
+								<DataTemplate.Triggers>
+									<DataTrigger Value="True">
+										<DataTrigger.Binding>
+											<MultiBinding Converter="{StaticResource DragActivePlaceholderMultiConverter}">
+												<Binding />
+												<Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="DataContext.DragItem" />
+												<Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="DataContext.IsDragInProgress" />
+												<Binding RelativeSource="{RelativeSource AncestorType=ListBox}" />
+												<Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="DataContext.DragOwnerList" />
+											</MultiBinding>
+										</DataTrigger.Binding>
+										<Setter TargetName="BindingOscCardBorder" Property="Visibility" Value="Collapsed" />
+										<Setter TargetName="BindingDragPlaceholder" Property="Visibility" Value="Visible" />
+									</DataTrigger>
+								</DataTemplate.Triggers>
+							</DataTemplate>
+						</ListBox.ItemTemplate>
+					</ListBox>
+					<Button Margin="0,8,0,0" Padding="14,8" HorizontalAlignment="Center" Command="{Binding addBindingCommand}" ToolTip="Add binding">
+						<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE710;" />
+					</Button>
+				</StackPanel>
+			</GroupBox>
+		</local:SmoothScrollViewer>
+	</Grid>
+</UserControl>
+
