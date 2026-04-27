@@ -45,10 +45,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Assets\Icon\buttons\*.png" Link="Assets\Icon\buttons\%(Filename)%(Extension)" />
-  </ItemGroup>
-
-  <ItemGroup>
     <None Include="Assets\Icon\app\*.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
