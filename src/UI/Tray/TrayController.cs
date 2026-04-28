@@ -1,8 +1,5 @@
-using System.Drawing;
 using System.Net;
-using System.Windows.Forms;
 using System.Windows.Media;
-using WindowsOscVolumeControl;
 
 namespace WindowsOscVolumeControl.UI.Tray;
 
@@ -15,20 +12,25 @@ public enum AppTrayIconState {
 public sealed class TrayController : IDisposable {
 	const string DEFAULT_TEXT = "Windows OSC Volume Control";
 	readonly NotifyIcon _trayIcon;
-	readonly ToolStripMenuItem _endPointItem;
+	readonly TrayMenuWindow _menuWindow;
+	volatile bool _menuOpen;
+	string _endPointText = "0.0.0.0:0";
 
 	public TrayController(Action onConfigure, Action onExit) {
-		_trayIcon = new NotifyIcon {
-			ContextMenuStrip = new ContextMenuStrip(),
-			Visible = true,
-			Text = DEFAULT_TEXT,
-		};
+		_menuWindow = new TrayMenuWindow(
+			onConfigure: () => onConfigure(),
+			onExit: () => onExit(),
+			onClosed: () => _menuOpen = false);
+
+		_trayIcon = new NotifyIcon { Visible = true, Text = DEFAULT_TEXT };
 		ApplyState(AppTrayIconState.STARTING_OR_INVALID_CONFIG);
-		ContextMenuStrip menu = _trayIcon.ContextMenuStrip!;
-		_endPointItem = new ToolStripMenuItem("0.0.0.0:0") { Enabled = false };
-		menu.Items.Add(_endPointItem);
-		menu.Items.Add("Configure…", null, (_, _) => onConfigure());
-		menu.Items.Add("Exit", null, (_, _) => onExit());
+
+		_trayIcon.MouseUp += (_, e) => {
+			if (e.Button != MouseButtons.Right)
+				return;
+			showTrayMenu();
+		};
+
 		_trayIcon.DoubleClick += (_, _) => onConfigure();
 		_trayIcon.MouseDoubleClick += (_, e) => {
 			if (e.Button == MouseButtons.Left)
@@ -38,7 +40,8 @@ public sealed class TrayController : IDisposable {
 
 	public void setOscEndPoint(IPEndPoint endPoint) {
 		ArgumentNullException.ThrowIfNull(endPoint);
-		_endPointItem.Text = $"{endPoint.Address}:{endPoint.Port}";
+		_endPointText = $"{endPoint.Address}:{endPoint.Port}";
+		_menuWindow.setEndPointText(_endPointText);
 	}
 
 	public void setStatusText(string? detail) {
@@ -71,9 +74,18 @@ public sealed class TrayController : IDisposable {
 		return icon;
 	}
 
+	void showTrayMenu() {
+		if (_menuOpen)
+			return;
+
+		_menuOpen = true;
+		_menuWindow.setEndPointText(_endPointText);
+		_menuWindow.showAtCursor();
+	}
+
 	public void Dispose() {
 		_trayIcon.Visible = false;
-		_trayIcon.ContextMenuStrip?.Dispose();
 		_trayIcon.Dispose();
+		_menuWindow.Dispose();
 	}
 }
