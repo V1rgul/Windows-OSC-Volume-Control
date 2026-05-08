@@ -1,4 +1,4 @@
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Binding;
 
 public abstract class BindingAbstract {
 	private string _name = "";

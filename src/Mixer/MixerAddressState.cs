@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using SharpOSC;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Mixer;
 
 abstract class MixerAddressState {
 	protected DateTime cachedValueUtc;

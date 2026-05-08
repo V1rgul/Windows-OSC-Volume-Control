@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Mixer;
 
 /// <summary>
 /// Rounds continuous binding min/max/values for UI and config. Grid decimals follow

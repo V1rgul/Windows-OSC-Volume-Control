@@ -1,9 +1,8 @@
 <Application
-	x:Class="WindowsOscVolumeControl.App"
+	x:Class="WindowsOscVolumeControl.App.AppApplication"
 	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-	ShutdownMode="OnExplicitShutdown"
-	ThemeMode="System">
+	ShutdownMode="OnExplicitShutdown">
 	<Application.Resources>
 		<ResourceDictionary>
 			<ResourceDictionary.MergedDictionaries>

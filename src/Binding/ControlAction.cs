@@ -1,4 +1,4 @@
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Binding;
 
 public enum ControlActionValueKind {
 	NONE,

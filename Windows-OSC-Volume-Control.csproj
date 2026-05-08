@@ -64,6 +64,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm">
       <Version>8.4.2</Version>
     </PackageReference>
+    <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" PrivateAssets="all" />
     <ProjectReference Include="src\Osc\SharpOSC.csproj" />
   </ItemGroup>
 

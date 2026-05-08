@@ -1,4 +1,4 @@
-using WindowsOscVolumeControl;
+using WindowsOscVolumeControl.UI.Wpf.Controls;
 
 namespace WindowsOscVolumeControl.Tests;
 

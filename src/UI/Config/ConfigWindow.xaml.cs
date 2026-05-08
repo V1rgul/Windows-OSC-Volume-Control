@@ -5,6 +5,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using WindowsOscVolumeControl.UI.Config.ViewModels;
 using WindowsOscVolumeControl.UI.Tray;
+using AppCoordinator = WindowsOscVolumeControl.App.AppCoordinator;
 using Media = System.Windows.Media;
 
 namespace WindowsOscVolumeControl.UI.Config;

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Windows;
@@ -7,13 +6,15 @@ using WindowsOscVolumeControl.UI.Config;
 using WindowsOscVolumeControl.UI.Osd;
 using WindowsOscVolumeControl.UI.Tray;
 
-namespace WindowsOscVolumeControl;
-
-public abstract partial record Error {
-	public abstract partial record Application : Error {
-		public sealed record StartupHealthFault : Application;
+namespace WindowsOscVolumeControl.Diagnostics {
+	public abstract partial record Error {
+		public abstract record Application : Error {
+			public sealed record StartupHealthFault : Application;
+		}
 	}
 }
+
+namespace WindowsOscVolumeControl.App {
 
 public sealed class AppCoordinator : IDisposable {
 	readonly ConfigStore _configStore = new();
@@ -50,7 +51,7 @@ public sealed class AppCoordinator : IDisposable {
 		_mixer.eventReceived += onMixerEvent;
 
 		_applicationErrors.setError(new Error.Generic.Starting(), true);
-		rebuildHotkeysFromConfig(_configStore.appConfig.trayApp?.bindings ?? []);
+		rebuildHotkeysFromConfig(_configStore.appConfig.trayApp.bindings);
 		syncStatusUi();
 
 		Task startupTask = runStartupHealthAsync();
@@ -92,7 +93,7 @@ public sealed class AppCoordinator : IDisposable {
 		_tray.setOscEndPoint(cfg.oscTransport.endPoint);
 		_mixer.ApplyConfig(cfg.mixer);
 		_osd.ApplyConfig(cfg.osd);
-		rebuildHotkeysFromConfig(cfg.trayApp?.bindings ?? []);
+		rebuildHotkeysFromConfig(cfg.trayApp.bindings);
 	}
 
 	public void commitConfigFromSettingsForm(AppConfig newConfig) {
@@ -157,7 +158,7 @@ public sealed class AppCoordinator : IDisposable {
 				case MixerController.Event.FaderChanged f when tryGetFloatBinding(f.address, out BindingFloatAbstract? bf):
 					float ratio = bf.getNormalizedRatio(f.newLevel);
 					string display = formatContinuousDisplay(f.newLevel, bf);
-					_osd.ShowLevel(bf.displayName, ratio, display, f.volumeIncreased, bf.osdFractionalDigits);
+					_osd.ShowLevel(bf.displayName, ratio, display, f.volumeIncreased);
 					break;
 				case MixerController.Event.ToggleChanged t when tryGetToggleBinding(t.address, out BindingToggle? toggleBinding):
 					_osd.ShowToggle(toggleBinding.displayName, t.nowOn);
@@ -170,13 +171,13 @@ public sealed class AppCoordinator : IDisposable {
 	}
 
 	bool tryGetFloatBinding(string address, [NotNullWhen(true)] out BindingFloatAbstract? binding) {
-		binding = _configStore.appConfig.trayApp?.bindings.OfType<BindingFloatAbstract>()
+		binding = _configStore.appConfig.trayApp.bindings.OfType<BindingFloatAbstract>()
 			.FirstOrDefault(f => string.Equals(f.address, address, StringComparison.Ordinal));
 		return binding != null;
 	}
 
 	bool tryGetToggleBinding(string address, [NotNullWhen(true)] out BindingToggle? binding) {
-		binding = _configStore.appConfig.trayApp?.bindings.OfType<BindingToggle>()
+		binding = _configStore.appConfig.trayApp.bindings.OfType<BindingToggle>()
 			.FirstOrDefault(t => string.Equals(t.address, address, StringComparison.Ordinal));
 		return binding != null;
 	}
@@ -244,7 +245,7 @@ public sealed class AppCoordinator : IDisposable {
 		switch (action) {
 			case ControlActionContinuousAbstract ca when binding is BindingFloatAbstract bf:
 				if (ca.needsCurrentWire && !_mixer.HasFreshContinuousSample(bf.address))
-					ui(() => _osd.ShowPending(display, bf.osdFractionalDigits));
+					ui(() => _osd.ShowPending(display));
 				_mixer.enqueueContinuousAction(bf.address, ca, bf);
 				break;
 			case ControlActionToggleSet ts when binding is BindingToggle toggle:
@@ -272,4 +273,5 @@ public sealed class AppCoordinator : IDisposable {
 	}
 
 	public void Dispose() => closeApp();
+}
 }

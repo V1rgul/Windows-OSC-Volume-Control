@@ -1,9 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
-using System.Windows.Media;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.UI;
 
 /// <summary>Maps <see cref="UiTextFeedback"/> to WPF text controls.</summary>
 static class UiTextFeedbackPresenter {

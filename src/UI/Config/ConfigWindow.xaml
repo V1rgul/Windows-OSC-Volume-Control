@@ -7,8 +7,7 @@
 	Width="1180"
 	Height="820"
 	MinWidth="1180"
-	MinHeight="700"
-	ThemeMode="System">
+	MinHeight="700">
 	<DockPanel>
 		<Border DockPanel.Dock="Bottom" Padding="8" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}">
 			<DockPanel LastChildFill="False">

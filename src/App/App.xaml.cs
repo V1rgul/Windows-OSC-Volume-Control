@@ -1,6 +1,6 @@
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.App;
 
-public partial class App : System.Windows.Application {
+public partial class AppApplication {
 	AppCoordinator? _coordinator;
 
 	protected override void OnStartup(System.Windows.StartupEventArgs e) {

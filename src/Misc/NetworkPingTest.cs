@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Misc;
 
 internal static class NetworkPingTest {
 	internal static async Task<int?> PingOnceAsync(IPAddress address, int timeoutMs) {

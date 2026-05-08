@@ -3,9 +3,9 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Runtime.CompilerServices;
 using System.Windows.Controls;
 using WindowsOscVolumeControl.UI.Osd;
+using AppCoordinator = WindowsOscVolumeControl.App.AppCoordinator;
 using Brush = System.Windows.Media.Brush;
 using CommunityToolkit.Mvvm.Input;
 
@@ -154,9 +154,6 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 			return "";
 		}
 	}
-
-	bool setTextProperty(ref string field, string? value, [CallerMemberName] string? propertyName = null) =>
-		setProperty(ref field, value ?? "", propertyName);
 
 	static string tryValidateUInt(string? text, uint min, uint max, string label) {
 		if (!uint.TryParse((text ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsed))

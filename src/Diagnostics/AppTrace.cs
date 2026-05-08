@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Diagnostics;
 
 static class AppTrace {
 	public static readonly TraceSource Application = new(nameof(Application));

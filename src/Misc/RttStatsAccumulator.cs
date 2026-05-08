@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Misc;
 
 public readonly record struct RttStatsSnapshot(
 	int completedCount,

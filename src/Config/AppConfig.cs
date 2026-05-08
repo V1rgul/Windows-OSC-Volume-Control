@@ -1,6 +1,6 @@
 using WindowsOscVolumeControl.UI.Osd;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Config;
 
 /// <summary>Aggregate settings owned by <see cref="ConfigStore"/>; composed from per-component DTOs.</summary>
 public sealed class AppConfig {

@@ -23,6 +23,15 @@ dotnet_diagnostic.IDE1006.severity = none
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1715.severity = none
 
+[*.xaml]
+dotnet_diagnostic.WPF0001.severity = none
+resharper_wpf0001_highlighting = none
+
+[src/UI/Wpf/Resources/Styles.xaml]
+# Runtime-provided Fluent resources and template DataContext bindings are valid here.
+resharper_xaml_static_resource_not_resolved_highlighting = none
+resharper_xaml_binding_with_context_not_resolved_highlighting = none
+
 [src/Osc/SharpOSC/**/*.cs]
 # Vendor subtree: keep source untouched and suppress IDE inspections in Problems.
 generated_code = true

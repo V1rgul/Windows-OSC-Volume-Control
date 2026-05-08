@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows.Data;
+using JetBrains.Annotations;
 using WindowsOscVolumeControl.UI.Osd;
 
 namespace WindowsOscVolumeControl.UI.Config;
@@ -17,13 +18,17 @@ public enum BindingEditorType {
 }
 
 public sealed class BindingTypeUiChoice(BindingEditorType value, string label, string category) {
+	[UsedImplicitly]
 	public BindingEditorType value { get; } = value;
+	[UsedImplicitly]
 	public string label { get; } = label;
 	public string category { get; } = category;
 }
 
 public sealed class OsdAnchorUiChoice(OSDController.Config.OsdScreenAnchor value, string label) {
+	[UsedImplicitly]
 	public OSDController.Config.OsdScreenAnchor value { get; } = value;
+	[UsedImplicitly]
 	public string label { get; } = label;
 }
 
@@ -42,6 +47,7 @@ public static class OsdAnchorUiChoices {
 
 public sealed class ControlActionChoice(Type actionType, string displayName) {
 	public Type actionType { get; } = actionType;
+	[UsedImplicitly]
 	public string displayName { get; } = displayName;
 }
 
@@ -56,6 +62,9 @@ public abstract class ObservableObject : INotifyPropertyChanged {
 		PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 		return true;
 	}
+
+	protected bool setTextProperty(ref string field, string? value, [CallerMemberName] string? propertyName = null) =>
+		setProperty(ref field, value ?? "", propertyName);
 
 	protected void raisePropertyChanged([CallerMemberName] string? propertyName = null) =>
 		PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -86,31 +95,30 @@ public sealed class BindingEditor : ObservableObject {
 	bool _bindingExpanded;
 	IReadOnlyList<ControlActionChoice>? _actionChoices;
 
-	readonly ICollectionView _groupedTypeChoices;
 	readonly ObservableCollection<string> _addressSuggestions = [];
 
 	public BindingEditor() {
 		// Per-row view instance: avoids WPF "currency" leaking across multiple ComboBoxes.
 		var cvs = new CollectionViewSource { Source = _typeChoiceList };
 		cvs.GroupDescriptions.Add(new PropertyGroupDescription(nameof(BindingTypeUiChoice.category)));
-		_groupedTypeChoices = cvs.View;
+		groupedTypeChoices = cvs.View;
 
 		X32Catalog.ensureLoaded();
 		rebuildAddressSuggestions();
 		refreshX32CatalogMatch();
 	}
 
-	public ICollectionView groupedTypeChoices => _groupedTypeChoices;
+	public ICollectionView groupedTypeChoices { get; }
 
 	public string name {
 		get => _name;
-		set => setProperty(ref _name, value ?? "");
+		set => setTextProperty(ref _name, value);
 	}
 
 	public string address {
 		get => _address;
 		set {
-			if (setProperty(ref _address, value ?? "")) {
+			if (setTextProperty(ref _address, value)) {
 				// User-typed edits should not keep a stale selection.
 				if (_selectedAddressSuggestion != null && !string.Equals(_selectedAddressSuggestion, _address, StringComparison.Ordinal)) {
 					_selectedAddressSuggestion = null;
@@ -143,7 +151,7 @@ public sealed class BindingEditor : ObservableObject {
 
 	void rebuildAddressSuggestions() {
 		_addressSuggestions.Clear();
-		string needle = (_address ?? "").Trim();
+		string needle = _address.Trim();
 		const int limit = 200;
 		int count = 0;
 		foreach (string s in X32Catalog.addressPatterns) {
@@ -161,7 +169,7 @@ public sealed class BindingEditor : ObservableObject {
 	public string x32CatalogTooltip => _x32CatalogTooltip;
 
 	void refreshX32CatalogMatch() {
-		string a = (_address ?? "").Trim();
+		string a = _address.Trim();
 		if (a.Length == 0) {
 			_hasX32CatalogMatch = false;
 			_x32CatalogTooltip = "Enter an OSC address to check the X32 catalog.";
@@ -174,10 +182,10 @@ public sealed class BindingEditor : ObservableObject {
 				X32CatalogKind.Toggle => "toggle",
 				_ => "x32",
 			};
-			string unit = e.unit ?? (e.kind == X32CatalogKind.Level ? "dB" : "");
-			_x32CatalogTooltip = string.IsNullOrWhiteSpace(unit)
+			string catalogUnit = e.unit ?? (e.kind == X32CatalogKind.Level ? "dB" : "");
+			_x32CatalogTooltip = string.IsNullOrWhiteSpace(catalogUnit)
 				? ("Detected: " + kind)
-				: ("Detected: " + kind + " · " + unit);
+				: ("Detected: " + kind + " · " + catalogUnit);
 		} else {
 			_hasX32CatalogMatch = false;
 			_x32CatalogTooltip = "No X32 catalog match for this address.";
@@ -213,28 +221,28 @@ public sealed class BindingEditor : ObservableObject {
 
 	public string minimum {
 		get => _minimum;
-		set => setProperty(ref _minimum, value ?? "");
+		set => setTextProperty(ref _minimum, value);
 	}
 
 	public string maximum {
 		get => _maximum;
-		set => setProperty(ref _maximum, value ?? "");
+		set => setTextProperty(ref _maximum, value);
 	}
 
 	public string rangeMinimum {
 		get => _rangeMinimum;
-		set => setProperty(ref _rangeMinimum, value ?? "");
+		set => setTextProperty(ref _rangeMinimum, value);
 	}
 
 	public string rangeMaximum {
 		get => _rangeMaximum;
-		set => setProperty(ref _rangeMaximum, value ?? "");
+		set => setTextProperty(ref _rangeMaximum, value);
 	}
 
 	public string unit {
 		get => _unit;
 		set {
-			if (!setProperty(ref _unit, value ?? ""))
+			if (!setTextProperty(ref _unit, value))
 				return;
 			foreach (ControlActionEditor h in actions)
 				h.raiseFloatValueLabelChanged();
@@ -247,10 +255,7 @@ public sealed class BindingEditor : ObservableObject {
 			if (!setProperty(ref _isDeleted, value))
 				return;
 			raisePropertyChanged(nameof(isNotDeleted));
-			if (value)
-				bindingExpanded = false;
-			else
-				bindingExpanded = true;
+			bindingExpanded = !value;
 		}
 	}
 
@@ -417,7 +422,7 @@ public sealed class BindingEditor : ObservableObject {
 	}
 }
 
-static file class BindingEditorStatics {
+file static class BindingEditorStatics {
 	internal static readonly IReadOnlyList<ControlAction> linearPrototypes = new BindingLinear().availableActionPrototypes;
 	internal static readonly IReadOnlyList<ControlAction> x32FloatPrototypes = new BindingLinf().availableActionPrototypes;
 	internal static readonly IReadOnlyList<ControlAction> togglePrototypes = new BindingToggle().availableActionPrototypes;
@@ -495,7 +500,7 @@ public sealed class ControlActionEditor : ObservableObject {
 	public string floatValue {
 		get => _floatValue;
 		set {
-			if (setProperty(ref _floatValue, value ?? ""))
+			if (setTextProperty(ref _floatValue, value))
 				raisePropertyChanged(nameof(floatValueLabel));
 		}
 	}
@@ -508,7 +513,7 @@ public sealed class ControlActionEditor : ObservableObject {
 				return "";
 			if (selectedActionType == typeof(ControlActionContinuousRawDelta))
 				return "";
-			string? u = owner.unit;
+			string u = owner.unit;
 			if (string.IsNullOrWhiteSpace(u))
 				return "";
 			return u.Trim();

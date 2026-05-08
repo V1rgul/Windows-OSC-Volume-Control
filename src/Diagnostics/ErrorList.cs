@@ -1,4 +1,4 @@
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Diagnostics;
 
 public interface IErrorList {
 	public event Action? changed;

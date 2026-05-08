@@ -1,7 +1,7 @@
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Diagnostics;
 
 public abstract partial record Error {
-	public abstract partial record Generic : Error {
+	public abstract record Generic : Error {
 		public sealed record Starting : Generic;
 	}
 }

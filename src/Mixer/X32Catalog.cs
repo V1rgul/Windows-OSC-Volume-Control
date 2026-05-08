@@ -3,7 +3,7 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Mixer;
 
 public enum X32CatalogKind {
 	Linf,
@@ -21,9 +21,9 @@ public sealed class X32CatalogEntry {
 
 /// <summary>Loads <c>Assets/x32-catalog.config</c> next to the executable; bracket patterns become regex matchers.</summary>
 public static class X32Catalog {
-	static readonly object _initLock = new();
-	static IReadOnlyList<(Regex pattern, string addressPattern, X32CatalogEntry entry)> _compiled = Array.Empty<(Regex, string, X32CatalogEntry)>();
-	static IReadOnlyList<string> _addressPatterns = Array.Empty<string>();
+	static readonly Lock _initLock = new();
+	static IReadOnlyList<(Regex pattern, string addressPattern, X32CatalogEntry entry)> _compiled = [];
+	static IReadOnlyList<string> _addressPatterns = [];
 
 	public static void ensureLoaded() {
 		lock (_initLock) {
@@ -36,8 +36,8 @@ public static class X32Catalog {
 			}
 			try {
 				string text = File.ReadAllText(path);
-				_compiled = parseAndCompile(text, out IReadOnlyList<string> addressPatterns);
-				_addressPatterns = addressPatterns;
+				_compiled = parseAndCompile(text, out IReadOnlyList<string> loadedAddressPatterns);
+				_addressPatterns = loadedAddressPatterns;
 			} catch (Exception ex) {
 				AppTrace.Application.TraceEvent(System.Diagnostics.TraceEventType.Error, 0, "X32 catalog load failed: " + ex.Message);
 			}
@@ -59,11 +59,11 @@ public static class X32Catalog {
 				return true;
 			}
 		}
-		entry = default!;
+		entry = null!;
 		return false;
 	}
 
-	static IReadOnlyList<(Regex, string, X32CatalogEntry)> parseAndCompile(string text, out IReadOnlyList<string> addressPatterns) {
+	static IReadOnlyList<(Regex, string, X32CatalogEntry)> parseAndCompile(string text, out IReadOnlyList<string> compiledAddressPatterns) {
 		// Preferred format: one record per line, semicolon-delimited key=value fields:
 		// address=/ch/[01..32]/mix/fader;   kind=level; min=-90; max=10
 		// Spaces are allowed only after ';' for visual alignment; delimiter terminates values.
@@ -134,7 +134,7 @@ public static class X32Catalog {
 				// skip bad pattern
 			}
 		}
-		addressPatterns = patterns;
+		compiledAddressPatterns = patterns;
 		return list;
 	}
 
@@ -262,10 +262,9 @@ public static class X32Catalog {
 				}
 				string inner = pattern.AsSpan(i + 1, close - i - 1).ToString();
 				i = close;
-				if (!tryParseBracketRange(inner, out string regexFragment))
-					sb.Append(Regex.Escape("[" + inner + "]"));
-				else
-					sb.Append(regexFragment);
+				sb.Append(tryParseBracketRange(inner, out string regexFragment)
+					? regexFragment
+					: Regex.Escape("[" + inner + "]"));
 			} else if (c == '.' || c == '^' || c == '$' || c == '(' || c == ')' || c == '[' || c == ']' || c == '{' || c == '}' || c == '|' || c == '\\' || c == '*' || c == '+' || c == '?')
 				sb.Append('\\').Append(c);
 			else

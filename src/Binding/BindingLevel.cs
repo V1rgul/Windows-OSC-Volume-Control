@@ -1,4 +1,4 @@
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Binding;
 
 /// <summary>X32 <c>level</c> curve: piecewise linear dB vs normalized wire; <c>wire == 0</c> is mute (−∞ dB).</summary>
 public sealed class BindingLevel : BindingFloatNormalizedAbstract {

@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Linq;
 using System.Net;
 using WindowsOscVolumeControl.UI.Osd;
 
@@ -187,7 +186,7 @@ static class SettingsFormDraft {
 				error = new UiTextFeedback($"Binding {bindingIndex + 1}, hotkey {h + 1}: {hkErr}", UiTextFeedbackKind.ERROR);
 				return false;
 			}
-			target.Add(action!);
+			target.Add(action);
 		}
 		error = null;
 		return true;

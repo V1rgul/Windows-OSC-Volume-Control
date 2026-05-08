@@ -1,13 +1,9 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
 using SharpOSC;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Osc;
 
 public sealed class OscTransport : IDisposable {
 	public sealed class Config {
@@ -21,7 +17,7 @@ public sealed class OscTransport : IDisposable {
 		}
 	}
 
-	readonly object _lock = new();
+	readonly Lock _lock = new();
 	UdpClient? _udp;
 	IPEndPoint? _remote;
 	CancellationTokenSource? _loopCts;
@@ -57,12 +53,7 @@ public sealed class OscTransport : IDisposable {
 
 		oldCts?.Cancel();
 		wakeReceiveLoop(oldUdp);
-		if (oldLoop != null) {
-			try {
-				oldLoop.Wait();
-			} catch (AggregateException ex) when (ex.InnerExceptions.Count == 1 && ex.InnerException is OperationCanceledException) {
-			}
-		}
+		waitForReceiveLoop(oldLoop);
 		oldCts?.Dispose();
 		oldUdp?.Dispose();
 
@@ -75,7 +66,7 @@ public sealed class OscTransport : IDisposable {
 			_udp = nextUdp;
 			_remote = nextRemote;
 			_loopCts = nextCts;
-			_receiveLoop = Task.Run(() => receiveLoopAsync(nextUdp, nextCts.Token));
+			_receiveLoop = Task.Run(() => receiveLoopAsync(nextUdp, nextCts.Token), nextCts.Token);
 		}
 
 		AppTrace.OscTransport.TraceEvent(
@@ -99,18 +90,16 @@ public sealed class OscTransport : IDisposable {
 		byte[] bytes = message.GetBytes();
 		string argText = args.Length == 0
 			? ""
-			: " args=[" + string.Join(", ", args.Select(static a => a == null ? "null" : (a.GetType().Name + ":" + a))) + "]";
+			: " args=[" + string.Join(", ", args.Select(static a => a.GetType().Name + ":" + a)) + "]";
 		string line = $"Sending {address}, {bytes.Length} B{argText}";
 		AppTrace.OscTransport.TraceEvent(TraceEventType.Information, 0, line);
-		await udp.SendAsync(bytes, bytes.Length, remote).ConfigureAwait(false);
+		await udp.SendAsync(bytes, remote, CancellationToken.None).ConfigureAwait(false);
 	}
 
 	async Task receiveLoopAsync(UdpClient udp, CancellationToken cancellationToken) {
 		while (!cancellationToken.IsCancellationRequested) {
 			try {
-				UdpReceiveResult result = await udp.ReceiveAsync().ConfigureAwait(false);
-				if (cancellationToken.IsCancellationRequested)
-					break;
+				UdpReceiveResult result = await udp.ReceiveAsync(cancellationToken).ConfigureAwait(false);
 
 				OscPacket packet;
 				try {
@@ -144,6 +133,15 @@ public sealed class OscTransport : IDisposable {
 					break;
 				AppTrace.OscTransport.TraceEvent(TraceEventType.Error, 0, ex.ToString());
 			}
+		}
+	}
+
+	static void waitForReceiveLoop(Task? loop) {
+		if (loop == null)
+			return;
+		try {
+			loop.GetAwaiter().GetResult();
+		} catch (OperationCanceledException) {
 		}
 	}
 
@@ -209,12 +207,7 @@ public sealed class OscTransport : IDisposable {
 
 		cts?.Cancel();
 		wakeReceiveLoop(udp);
-		if (loop != null) {
-			try {
-				loop.Wait();
-			} catch (AggregateException ex) when (ex.InnerExceptions.Count == 1 && ex.InnerException is OperationCanceledException) {
-			}
-		}
+		waitForReceiveLoop(loop);
 		cts?.Dispose();
 		udp?.Dispose();
 	}

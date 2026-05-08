@@ -1,8 +1,8 @@
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -12,23 +12,15 @@ using WindowsOscVolumeControl.UI.Config.ViewModels;
 using WindowsOscVolumeControl.UI.Wpf.Behaviors;
 using Button = System.Windows.Controls.Button;
 using Border = System.Windows.Controls.Border;
-using ComboBox = System.Windows.Controls.ComboBox;
 using ContentPresenter = System.Windows.Controls.ContentPresenter;
-using ControlTemplate = System.Windows.Controls.ControlTemplate;
 using Expander = System.Windows.Controls.Expander;
 using FrameworkElement = System.Windows.FrameworkElement;
-using Grid = System.Windows.Controls.Grid;
 using ItemsControl = System.Windows.Controls.ItemsControl;
 using ListBox = System.Windows.Controls.ListBox;
-using TextBox = System.Windows.Controls.TextBox;
-using TextBlock = System.Windows.Controls.TextBlock;
 using Thumb = System.Windows.Controls.Primitives.Thumb;
 using ToggleButton = System.Windows.Controls.Primitives.ToggleButton;
-using UserControl = System.Windows.Controls.UserControl;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
-using DrawingContext = System.Windows.Media.DrawingContext;
-using Pen = System.Windows.Media.Pen;
 using Point = System.Windows.Point;
 using DragEventArgs = System.Windows.DragEventArgs;
 using DragDrop = System.Windows.DragDrop;
@@ -44,7 +36,7 @@ using TraversalRequest = System.Windows.Input.TraversalRequest;
 
 namespace WindowsOscVolumeControl.UI.Config;
 
-public partial class BindingsPanelView : UserControl {
+public partial class BindingsPanelView {
 	public BindingsPanelView() {
 		InitializeComponent();
 		AddHandler(DragDrop.PreviewDragEnterEvent, new System.Windows.DragEventHandler(onReorderPreviewDragOver), handledEventsToo: true);
@@ -62,16 +54,6 @@ public partial class BindingsPanelView : UserControl {
 	DateTime? _hotkeyCaptureDownUtc;
 	HotkeyGesture _hotkeyCaptureGesture;
 	bool _hotkeyCaptureAwaitingRelease;
-
-	static T? findDataContextAncestor<T>(DependencyObject start) where T : class {
-		DependencyObject? cur = start;
-		while (cur != null) {
-			if (cur is FrameworkElement { DataContext: T match })
-				return match;
-			cur = VisualTreeHelper.GetParent(cur);
-		}
-		return null;
-	}
 
 	static T? findVisualAncestor<T>(DependencyObject start) where T : DependencyObject {
 		DependencyObject? cur = start;
@@ -267,7 +249,7 @@ public partial class BindingsPanelView : UserControl {
 
 	bool tryParseHotkeyLongPressMsForCapture(ConfigWindowViewModel m, out uint ms) {
 		ms = KeyboardHook.Config.DEFAULT_LONG_PRESS_MS;
-		if (!uint.TryParse((m.hotkeyLongPressMsText ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsed))
+		if (!uint.TryParse(m.hotkeyLongPressMsText.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsed))
 			return false;
 		ms = KeyboardHook.Config.Clamped(new KeyboardHook.Config { longPressDurationMs = parsed }).longPressDurationMs;
 		return true;
@@ -343,7 +325,7 @@ public partial class BindingsPanelView : UserControl {
 		double radius = resolveCardCornerRadiusFromTemplate(draggedContainer, draggedItem);
 		double rawW = draggedContainer.ActualWidth;
 		double rawH = draggedContainer.ActualHeight;
-		System.Windows.Size size = new System.Windows.Size(
+		System.Windows.Size size = new(
 			Math.Max(0d, rawW - (outerMargin.Left + outerMargin.Right)),
 			Math.Max(0d, rawH - (outerMargin.Top + outerMargin.Bottom)));
 		Point containerTopLeftInList = draggedContainer.TranslatePoint(new Point(0, 0), list);
@@ -443,7 +425,8 @@ public partial class BindingsPanelView : UserControl {
 		};
 		if (borderName == null)
 			return 0d;
-		if (tryFindNamedDescendant(container, borderName) is not Border b)
+		Border? b = tryFindNamedDescendant(container, borderName);
+		if (b == null)
 			return 0d;
 		return Math.Max(Math.Max(b.CornerRadius.TopLeft, b.CornerRadius.TopRight),
 			Math.Max(b.CornerRadius.BottomLeft, b.CornerRadius.BottomRight));
@@ -456,19 +439,6 @@ public partial class BindingsPanelView : UserControl {
 			if (child is FrameworkElement fe && string.Equals(fe.Name, name, StringComparison.Ordinal))
 				return fe as Border;
 			Border? nested = tryFindNamedDescendant(child, name);
-			if (nested != null)
-				return nested;
-		}
-		return null;
-	}
-
-	static T? tryFindVisualDescendant<T>(DependencyObject root) where T : DependencyObject {
-		int n = VisualTreeHelper.GetChildrenCount(root);
-		for (int i = 0; i < n; i++) {
-			DependencyObject child = VisualTreeHelper.GetChild(root, i);
-			if (child is T match)
-				return match;
-			T? nested = tryFindVisualDescendant<T>(child);
 			if (nested != null)
 				return nested;
 		}
@@ -688,4 +658,12 @@ public partial class BindingsPanelView : UserControl {
 			return;
 		layer.Remove(ad);
 	}
+}
+
+public sealed class CollectionViewGroupNameConverter : IValueConverter {
+	public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+		value is CollectionViewGroup group ? group.Name?.ToString() ?? "" : "";
+
+	public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+		throw new NotSupportedException();
 }

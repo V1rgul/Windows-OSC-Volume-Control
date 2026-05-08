@@ -1,4 +1,4 @@
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Binding;
 
 public sealed class BindingToggle : BindingAbstract {
 	static readonly ControlAction[] _prototypes = [

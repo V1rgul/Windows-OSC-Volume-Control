@@ -4,7 +4,7 @@ using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using KeyInterop = System.Windows.Input.KeyInterop;
 using Keyboard = System.Windows.Input.Keyboard;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Input;
 
 [Flags]
 public enum HotkeyModifiers {

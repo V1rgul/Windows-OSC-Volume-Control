@@ -1,6 +1,6 @@
 using System.Collections.Frozen;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Binding;
 
 /// <summary>Short- vs long-press slot lists for one <see cref="HotkeyGesture"/>.</summary>
 public readonly struct HotkeyDispatchTargets {

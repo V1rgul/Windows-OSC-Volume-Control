@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Net;
 using WindowsOscVolumeControl.UI.Osd;
-namespace WindowsOscVolumeControl;
+
+namespace WindowsOscVolumeControl.Config;
 
 /// <summary>Result of the last config load or save; drives UI message and severity.</summary>
 public enum AppConfigDiskOutcome {
@@ -100,11 +100,11 @@ public sealed class ConfigStore {
 		var osc = cfg.oscTransport;
 		var mixer = cfg.mixer;
 		OSDController.Config osd = OSDController.Config.Clamped(cfg.osd);
-		BindingManager.Config tray = cfg.trayApp ?? new BindingManager.Config();
+		BindingManager.Config tray = cfg.trayApp;
 		List<BindingAbstract> bindings = tray.bindings;
 		KeyboardHook.Config hk = KeyboardHook.Config.Clamped(cfg.keyboardHook);
 		var lines = new List<string> {
-			"ip=" + osc.endPoint.Address.ToString(),
+			"ip=" + osc.endPoint.Address,
 			"port=" + osc.endPoint.Port.ToString(CultureInfo.InvariantCulture),
 			"timeoutMs=" + mixer.timeoutMs.ToString(CultureInfo.InvariantCulture),
 			"valueCacheTtlMs=" + mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture),

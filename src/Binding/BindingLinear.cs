@@ -1,4 +1,4 @@
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Binding;
 
 public sealed class BindingLinear : BindingFloatAbstract {
 	static readonly ControlAction[] _prototypes = [

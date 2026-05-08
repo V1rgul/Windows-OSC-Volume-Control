@@ -1,11 +1,9 @@
-using System.Drawing;
 using System.IO;
-using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
 using BitmapSizeOptions = System.Windows.Media.Imaging.BitmapSizeOptions;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.UI;
 
 public static class ResourceLoader {
 	static readonly Lazy<Icon> _trayIconErrorGlobal = new(() => loadTrayIcon("error_global.ico"));
@@ -41,7 +39,7 @@ public static class ResourceLoader {
 	static BitmapSource frozenWindowBitmapFromIcon(Icon icon) {
 		BitmapSource source = Imaging.CreateBitmapSourceFromHIcon(
 			icon.Handle,
-			Int32Rect.Empty,
+			System.Windows.Int32Rect.Empty,
 			BitmapSizeOptions.FromWidthAndHeight(32, 32));
 		source.Freeze();
 		return source;

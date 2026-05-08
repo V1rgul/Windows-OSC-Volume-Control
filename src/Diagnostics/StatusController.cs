@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Diagnostics;
 
 public sealed class StatusController {
 	public enum MergedState {

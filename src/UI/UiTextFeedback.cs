@@ -1,4 +1,4 @@
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.UI;
 
 /// <summary>Visual role for a line of config-window feedback text.</summary>
 public enum UiTextFeedbackKind {

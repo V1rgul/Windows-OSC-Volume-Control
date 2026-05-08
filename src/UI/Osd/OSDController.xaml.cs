@@ -12,7 +12,7 @@ using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 
 namespace WindowsOscVolumeControl.UI.Osd;
 
-public partial class OSDController : Window {
+public partial class OSDController {
 	enum LayoutMode {
 		NONE,
 		BAR,
@@ -21,7 +21,7 @@ public partial class OSDController : Window {
 	}
 
 	readonly record struct LayoutKey(LayoutMode mode, string labelText);
-	readonly record struct PendingLevelUpdate(string rowLabel, double normalizedRatio, string displayText, bool volumeIncreased, int layoutFractionalDigits);
+	readonly record struct PendingLevelUpdate(string rowLabel, double normalizedRatio, string displayText, bool volumeIncreased);
 
 	const int WS_EX_TOOLWINDOW = 0x00000080;
 	const int WS_EX_NOACTIVATE = 0x08000000;
@@ -115,7 +115,6 @@ public partial class OSDController : Window {
 	double _statusWidth;
 	double _valueWidth;
 	double _barHeight;
-	int _levelFracDigits = 2;
 	LayoutKey _layoutKey = new(LayoutMode.NONE, "");
 	bool _layoutMeasureDirty = true;
 	bool _windowPlacementDirty = true;
@@ -149,7 +148,7 @@ public partial class OSDController : Window {
 		base.OnSourceInitialized(e);
 		IntPtr hwnd = new WindowInteropHelper(this).Handle;
 		int style = GetWindowLong(hwnd, GWL_EXSTYLE);
-		SetWindowLong(hwnd, GWL_EXSTYLE, style | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
+		_ = SetWindowLong(hwnd, GWL_EXSTYLE, style | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
 	}
 
 	public void ApplyConfig(Config? cfg) {
@@ -172,7 +171,7 @@ public partial class OSDController : Window {
 		var barRowTypeface = new Typeface(LabelTextBlock.FontFamily, LabelTextBlock.FontStyle, LabelTextBlock.FontWeight, LabelTextBlock.FontStretch);
 		double pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 		const string stemProbe = "Wy";
-		FormattedText probeLine(double sz) => new FormattedText(stemProbe, CultureInfo.CurrentCulture, System.Windows.FlowDirection.LeftToRight, barRowTypeface, sz, Brushes.White, pixelsPerDip);
+		FormattedText probeLine(double sz) => new(stemProbe, CultureInfo.CurrentCulture, System.Windows.FlowDirection.LeftToRight, barRowTypeface, sz, Brushes.White, pixelsPerDip);
 		double loFont = H * RATIO_FONT_SIZE_SEARCH_LOWER_BOUND;
 		double hiFont = H * RATIO_FONT_SIZE_SEARCH_UPPER_BOUND;
 		if (Math.Ceiling(probeLine(hiFont).Height) <= stemH) {
@@ -327,13 +326,13 @@ public partial class OSDController : Window {
 		_levelUpdateQueued = false;
 		if (pending == null)
 			return;
-		showLevelNow(pending.Value.rowLabel, pending.Value.normalizedRatio, pending.Value.displayText, pending.Value.volumeIncreased, pending.Value.layoutFractionalDigits);
+		showLevelNow(pending.Value.rowLabel, pending.Value.normalizedRatio, pending.Value.displayText, pending.Value.volumeIncreased);
 	}
 
 	void placeWindow(IntPtr hwnd, double width) =>
 		applyOverlayPlacement(width, hwnd, callSetWindowPos: true);
 
-	/// <summary>Pixel work-area placement, then <see cref="Left"/>/<see cref="Top"/> from those pixels; optionally calls Win32 <c>SetWindowPos</c>.</summary>
+	/// <summary>Pixel work-area placement, then <see cref="Window.Left"/>/<see cref="Window.Top"/> from those pixels; optionally calls Win32 <c>SetWindowPos</c>.</summary>
 	void applyOverlayPlacement(double widthDip, IntPtr hwnd, bool callSetWindowPos) {
 		DpiScale dpi = VisualTreeHelper.GetDpi(this);
 		double insetDip = _targetHeight * RATIO_EDGE_MARGIN;
@@ -348,7 +347,7 @@ public partial class OSDController : Window {
 		Left = xPx / dpi.DpiScaleX;
 		Top = yPx / dpi.DpiScaleY;
 		if (callSetWindowPos)
-			SetWindowPos(hwnd, HWND_TOPMOST, xPx, yPx, widthPx, heightPx, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+			_ = SetWindowPos(hwnd, HWND_TOPMOST, xPx, yPx, widthPx, heightPx, SWP_NOACTIVATE | SWP_SHOWWINDOW);
 	}
 
 	double measureWindowWidth() {
@@ -379,7 +378,7 @@ public partial class OSDController : Window {
 		applyOverlayPlacement(width, hwnd, callSetWindowPos: false);
 	}
 
-	static RECT dipWorkAreaToPixelRect(Rect wa, DpiScale dpi) => new RECT {
+	static RECT dipWorkAreaToPixelRect(Rect wa, DpiScale dpi) => new() {
 		left = (int)Math.Round(wa.Left * dpi.DpiScaleX),
 		top = (int)Math.Round(wa.Top * dpi.DpiScaleY),
 		right = (int)Math.Round(wa.Right * dpi.DpiScaleX),
@@ -468,13 +467,8 @@ public partial class OSDController : Window {
 		LabelTextBlock.Visibility = Visibility.Visible;
 	}
 
-	public void ShowPending() => ShowPending("", 2);
-
-	public void ShowPending(string rowLabel) => ShowPending(rowLabel, 2);
-
-	public void ShowPending(string rowLabel, int layoutFractionalDigits) {
+	public void ShowPending(string rowLabel) {
 		cancelPendingLevelUpdate();
-		_levelFracDigits = Math.Clamp(layoutFractionalDigits, 0, ContinuousFloatUtil.BindingFractionalDigits);
 		bool layoutChanged = updateLayoutKey(LayoutMode.BAR, rowLabel);
 		hideExtraVisuals();
 		applyLabel(rowLabel);
@@ -500,12 +494,11 @@ public partial class OSDController : Window {
 		showNoActivate(layoutChanged);
 	}
 
-	public void ShowLevel(string rowLabel, double normalizedRatio, string displayText, bool volumeIncreased, int layoutFractionalDigits) {
-		queueLevelUpdate(new PendingLevelUpdate(rowLabel, normalizedRatio, displayText, volumeIncreased, layoutFractionalDigits));
+	public void ShowLevel(string rowLabel, double normalizedRatio, string displayText, bool volumeIncreased) {
+		queueLevelUpdate(new PendingLevelUpdate(rowLabel, normalizedRatio, displayText, volumeIncreased));
 	}
 
-	void showLevelNow(string rowLabel, double normalizedRatio, string displayText, bool volumeIncreased, int layoutFractionalDigits) {
-		_levelFracDigits = Math.Clamp(layoutFractionalDigits, 0, ContinuousFloatUtil.BindingFractionalDigits);
+	void showLevelNow(string rowLabel, double normalizedRatio, string displayText, bool volumeIncreased) {
 		bool layoutChanged = updateLayoutKey(LayoutMode.BAR, rowLabel);
 		hideExtraVisuals();
 		applyLabel(rowLabel);

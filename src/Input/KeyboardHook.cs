@@ -1,15 +1,16 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Windows.Input;
 
-namespace WindowsOscVolumeControl;
-
-public abstract partial record Error {
-	public abstract partial record KeyboardHook : Error {
-		public sealed record InstallFailed : KeyboardHook;
+namespace WindowsOscVolumeControl.Diagnostics {
+	public abstract partial record Error {
+		public abstract record KeyboardHook : Error {
+			public sealed record InstallFailed : KeyboardHook;
+		}
 	}
 }
+
+namespace WindowsOscVolumeControl.Input {
 
 public partial class KeyboardHook : IDisposable {
 	/// <summary>Low-level hotkey timing and key-delivery policy; persisted on <see cref="AppConfig.keyboardHook"/>.</summary>
@@ -70,7 +71,6 @@ public partial class KeyboardHook : IDisposable {
 	delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
 	sealed class ActiveHotkeyPress {
-		public required HotkeyGesture gesture;
 		public required HotkeyDispatchTargets targets;
 		public required bool swallowKeyEvents;
 		public DateTime keyDownUtc;
@@ -88,6 +88,7 @@ public partial class KeyboardHook : IDisposable {
 	}
 
 	readonly IntPtr _hookId;
+	// ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
 	readonly LowLevelKeyboardProc _proc;
 	readonly object _configuredHotkeysSync = new();
 	volatile Func<HotkeyGesture, HotkeyDispatchTargets?> _getTargets = static _ => null;
@@ -122,8 +123,15 @@ public partial class KeyboardHook : IDisposable {
 		ThreadPool.QueueUserWorkItem(_ => dispatch());
 	}
 
-	static bool IsKeyDown(IntPtr wParam) => wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN;
-	static bool IsKeyUp(IntPtr wParam) => wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP;
+	static bool IsKeyDown(IntPtr wParam) {
+		int message = wParam.ToInt32();
+		return message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
+	}
+
+	static bool IsKeyUp(IntPtr wParam) {
+		int message = wParam.ToInt32();
+		return message == WM_KEYUP || message == WM_SYSKEYUP;
+	}
 
 	/// <summary>Replaces hotkey resolution delegates. Invoked from the hook thread.</summary>
 	public void setHotkeyDispatch(
@@ -188,9 +196,6 @@ public partial class KeyboardHook : IDisposable {
 
 	static bool gestureMainKeyHeld(HotkeyGesture g) => IsVirtualKeyDown(g.keyCode);
 
-	static bool gestureModifiersMatch(HotkeyGesture g) =>
-		HotkeyUtil.activeSidesMatchGesture(g.modifiers, GetActiveModifierSides());
-
 	internal static bool deadlineGestureStillHeld(
 		bool mainKeyHeld,
 		HotkeyModifiers requiredModifiers,
@@ -216,9 +221,10 @@ public partial class KeyboardHook : IDisposable {
 		IEnumerable<HotkeyGesture> activePressKeys,
 		bool acceptMacroChordKeyOrder) {
 		ArgumentNullException.ThrowIfNull(activePressKeys);
+		IReadOnlyList<HotkeyGesture> activePressKeysList = activePressKeys as IReadOnlyList<HotkeyGesture> ?? activePressKeys.ToArray();
 		var strictCandidate = HotkeyUtil.normalize(new HotkeyGesture { keyCode = vkCode, modifiers = modifierSidesAtKeyUp });
 		if (!strictCandidate.isNone) {
-			foreach (HotkeyGesture k in activePressKeys) {
+			foreach (HotkeyGesture k in activePressKeysList) {
 				if (k == strictCandidate)
 					return new[] { strictCandidate };
 			}
@@ -228,7 +234,7 @@ public partial class KeyboardHook : IDisposable {
 
 		// Fallback: collect all active presses whose main key matches this vkCode.
 		var list = new List<HotkeyGesture>();
-		foreach (HotkeyGesture k in activePressKeys) {
+		foreach (HotkeyGesture k in activePressKeysList) {
 			if (k.keyCode == vkCode)
 				list.Add(k);
 		}
@@ -304,7 +310,6 @@ public partial class KeyboardHook : IDisposable {
 		bool swallowKeyEvents = !longOnly || _suppressKeyForLongPressOnlyGestures;
 
 		var press = new ActiveHotkeyPress {
-			gesture = candidate,
 			targets = targets,
 			swallowKeyEvents = swallowKeyEvents,
 			keyDownUtc = DateTime.UtcNow,
@@ -333,18 +338,19 @@ public partial class KeyboardHook : IDisposable {
 	}
 
 	void onLongTimerFired(ActiveHotkeyPress expected) {
-		IReadOnlyList<BindingManager.Slot>? longList = null;
+		IReadOnlyList<BindingManager.Slot>? longList;
+		bool tookLong;
 		lock (_configuredHotkeysSync) {
 			if (!_activePresses.Values.Contains(expected))
 				return;
-			_ = tryTakeLongPressIfDueLocked(expected, DateTime.UtcNow, out longList);
+			tookLong = tryTakeLongPressIfDueLocked(expected, DateTime.UtcNow, out longList);
 		}
-		if (longList != null && longList.Count > 0)
+		if (tookLong && longList != null && longList.Count > 0)
 			queueDispatch(() => _dispatchSlots(longList));
 	}
 
 	void onShortDeadlineFired(HotkeyGesture g) {
-		IReadOnlyList<BindingManager.Slot>? shortList = null;
+		IReadOnlyList<BindingManager.Slot> shortList;
 		lock (_configuredHotkeysSync) {
 			if (!_activePresses.TryGetValue(g, out ActiveHotkeyPress? press))
 				return;
@@ -357,7 +363,7 @@ public partial class KeyboardHook : IDisposable {
 			press.shortDeadlineTimer = null;
 			shortList = press.targets.shortPressSlots;
 		}
-		if (shortList != null && shortList.Count > 0)
+		if (shortList.Count > 0)
 			queueDispatch(() => _dispatchSlots(shortList));
 	}
 
@@ -419,7 +425,7 @@ public partial class KeyboardHook : IDisposable {
 		if (nCode >= 0) {
 			int vkCode = Marshal.ReadInt32(lParam);
 			if (tryHandleConfiguredHotkey(wParam, vkCode))
-				return (IntPtr)1;
+				return new IntPtr(1);
 		}
 		return CallNextHookEx(_hookId, nCode, wParam, lParam);
 	}
@@ -432,7 +438,7 @@ public partial class KeyboardHook : IDisposable {
 			cancelAllActivePressesLocked();
 
 		if (_hookId != IntPtr.Zero)
-			UnhookWindowsHookEx(_hookId);
+			_ = UnhookWindowsHookEx(_hookId);
 		_disposed = true;
 	}
 
@@ -451,4 +457,5 @@ public partial class KeyboardHook : IDisposable {
 
 	[LibraryImport("kernel32.dll", EntryPoint = "GetModuleHandleW", StringMarshalling = StringMarshalling.Utf16)]
 	private static partial IntPtr GetModuleHandle(string lpModuleName);
+}
 }

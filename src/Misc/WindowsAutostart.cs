@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Win32;
 
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Misc;
 
 static class WindowsAutostart {
 	public readonly record struct UiFeedbackDetail(

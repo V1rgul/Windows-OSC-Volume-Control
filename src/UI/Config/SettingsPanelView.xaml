@@ -70,7 +70,7 @@
 											VerticalAlignment="Stretch"
 											Background="{DynamicResource ControlStrokeColorDefaultBrush}" />
 										<Button
-											x:Name="buttonDeregisterAutostartSplitMenu"
+											x:Name="ButtonDeregisterAutostartSplitMenu"
 											Grid.Column="1"
 											MinWidth="30"
 											Padding="8,6"
@@ -148,7 +148,7 @@
 							ToolTip="Open config folder">
 							<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE838;" />
 						</Button>
-						<TextBlock x:Name="ConfigFeedbackTextBlock" Grid.Row="1" Grid.ColumnSpan="2" TextWrapping="Wrap" />
+						<TextBlock x:Name="ConfigFeedbackTextBlock" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" TextWrapping="Wrap" />
 					</Grid>
 				</GroupBox>
 
@@ -166,9 +166,9 @@
 							<RowDefinition Height="Auto" />
 							<RowDefinition Height="Auto" />
 						</Grid.RowDefinitions>
-						<TextBlock Margin="0,0,4,4" VerticalAlignment="Center" Text="OSC IP" />
-						<TextBox x:Name="IpTextBox" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,4" Style="{DynamicResource ConfigTextBoxValidationStyle}" Text="{Binding oscIpText, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
-						<TextBlock Grid.Row="1" Margin="0,0,4,4" VerticalAlignment="Center" Text="OSC port" />
+						<TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="OSC IP" />
+						<TextBox x:Name="IpTextBox" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,4" Style="{DynamicResource ConfigTextBoxValidationStyle}" Text="{Binding oscIpText, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
+						<TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="OSC port" />
 						<TextBox
 							x:Name="PortTextBox"
 							Grid.Row="1"
@@ -177,7 +177,7 @@
 							Margin="0,0,0,4"
 							Style="{DynamicResource ConfigNumericTextBoxStyle}"
 							Text="{Binding oscPortText, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
-						<TextBlock Grid.Row="2" Margin="0,0,4,4" VerticalAlignment="Center" Text="Query timeout" />
+						<TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="Query timeout" />
 						<TextBox
 							x:Name="TimeoutTextBox"
 							Grid.Row="2"
@@ -186,7 +186,7 @@
 							Style="{DynamicResource ConfigNumericTextBoxStyle}"
 							Text="{Binding queryTimeoutText, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
 						<TextBlock Grid.Row="2" Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
-						<TextBlock Grid.Row="3" Margin="0,0,4,4" VerticalAlignment="Center" Text="Value cache TTL" />
+						<TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="Value cache TTL" />
 						<TextBox
 							x:Name="CacheTtlTextBox"
 							Grid.Row="3"
@@ -197,7 +197,7 @@
 						<TextBlock Grid.Row="3" Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
 
 						<!-- Latency probe UI is still window-owned for now -->
-						<StackPanel Grid.Row="4" Grid.ColumnSpan="3">
+						<StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3">
 							<Grid Margin="0,8,0,6" HorizontalAlignment="Stretch" TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 								<Grid.ColumnDefinitions>
 									<ColumnDefinition Width="Auto" />
@@ -213,29 +213,29 @@
 									<RowDefinition Height="Auto" />
 								</Grid.RowDefinitions>
 
-								<TextBlock FontWeight="SemiBold" Margin="0,0,10,0" Text="Latency" TextAlignment="Left" HorizontalAlignment="Left" />
-								<TextBlock Grid.Column="1" FontWeight="SemiBold" Margin="0,0,10,0" Text="Ping" TextAlignment="Center" HorizontalAlignment="Stretch" />
-								<wpf:OverflowMarquee Grid.Column="2" Margin="0,0,10,0" HorizontalContentAlignment="Stretch" scrollMode="ONLY_ON_HOVER">
+								<TextBlock Grid.Row="0" Grid.Column="0" FontWeight="SemiBold" Margin="0,0,10,0" Text="Latency" TextAlignment="Left" HorizontalAlignment="Left" />
+								<TextBlock Grid.Row="0" Grid.Column="1" FontWeight="SemiBold" Margin="0,0,10,0" Text="Ping" TextAlignment="Center" HorizontalAlignment="Stretch" />
+								<wpf:OverflowMarquee Grid.Row="0" Grid.Column="2" Margin="0,0,10,0" HorizontalContentAlignment="Stretch" scrollMode="ONLY_ON_HOVER">
 									<TextBlock x:Name="OscHeaderTextBlock" FontWeight="SemiBold" Text="{Binding oscHeaderText}" TextAlignment="Center" HorizontalAlignment="Stretch" />
 								</wpf:OverflowMarquee>
-								<TextBlock Grid.Column="3" FontWeight="SemiBold" Text="" TextAlignment="Center" HorizontalAlignment="Stretch" />
+								<TextBlock Grid.Row="0" Grid.Column="3" FontWeight="SemiBold" Text="" TextAlignment="Center" HorizontalAlignment="Stretch" />
 
-								<TextBlock Grid.Row="1" Margin="0,2,10,0" Text="Min" />
+								<TextBlock Grid.Row="1" Grid.Column="0" Margin="0,2,10,0" Text="Min" />
 								<TextBlock x:Name="PingMinTextBlock" Grid.Row="1" Grid.Column="1" Margin="0,2,10,0" Text="{Binding pingMinText}" Foreground="{Binding pingMinForeground}" TextAlignment="Right" />
 								<TextBlock x:Name="OscMinTextBlock" Grid.Row="1" Grid.Column="2" Margin="0,2,10,0" Text="{Binding oscMinText}" Foreground="{Binding oscMinForeground}" TextAlignment="Right" />
 								<TextBlock Grid.Row="1" Grid.Column="3" Margin="0,2,0,0" Text="ms" />
 
-								<TextBlock Grid.Row="2" Margin="0,2,10,0" Text="Median" />
+								<TextBlock Grid.Row="2" Grid.Column="0" Margin="0,2,10,0" Text="Median" />
 								<TextBlock x:Name="PingMedianTextBlock" Grid.Row="2" Grid.Column="1" Margin="0,2,10,0" Text="{Binding pingMedianText}" Foreground="{Binding pingMedianForeground}" TextAlignment="Right" />
 								<TextBlock x:Name="OscMedianTextBlock" Grid.Row="2" Grid.Column="2" Margin="0,2,10,0" Text="{Binding oscMedianText}" Foreground="{Binding oscMedianForeground}" TextAlignment="Right" />
 								<TextBlock Grid.Row="2" Grid.Column="3" Margin="0,2,0,0" Text="ms" />
 
-								<TextBlock Grid.Row="3" Margin="0,2,10,0" Text="Max" />
+								<TextBlock Grid.Row="3" Grid.Column="0" Margin="0,2,10,0" Text="Max" />
 								<TextBlock x:Name="PingMaxTextBlock" Grid.Row="3" Grid.Column="1" Margin="0,2,10,0" Text="{Binding pingMaxText}" Foreground="{Binding pingMaxForeground}" TextAlignment="Right" />
 								<TextBlock x:Name="OscMaxTextBlock" Grid.Row="3" Grid.Column="2" Margin="0,2,10,0" Text="{Binding oscMaxText}" Foreground="{Binding oscMaxForeground}" TextAlignment="Right" />
 								<TextBlock Grid.Row="3" Grid.Column="3" Margin="0,2,0,0" Text="ms" />
 
-								<TextBlock Grid.Row="4" Margin="0,2,10,0" Text="Responses" />
+								<TextBlock Grid.Row="4" Grid.Column="0" Margin="0,2,10,0" Text="Responses" />
 								<TextBlock x:Name="PingLossTextBlock" Grid.Row="4" Grid.Column="1" Margin="0,2,10,0" Text="{Binding pingLossText}" Foreground="{Binding pingLossForeground}" TextAlignment="Right" />
 								<TextBlock x:Name="OscLossTextBlock" Grid.Row="4" Grid.Column="2" Margin="0,2,10,0" Text="{Binding oscLossText}" Foreground="{Binding oscLossForeground}" TextAlignment="Right" />
 								<TextBlock x:Name="LossUnitTextBlock" Grid.Row="4" Grid.Column="3" Margin="0,2,0,0" Text="{Binding lossUnitText}" TextAlignment="Left" />
@@ -245,7 +245,7 @@
 									<ColumnDefinition Width="Auto" />
 									<ColumnDefinition Width="*" />
 								</Grid.ColumnDefinitions>
-								<TextBlock Margin="0,0,8,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="/info" />
+								<TextBlock Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="/info" />
 								<TextBox
 									x:Name="InfoResultTextBox"
 									Grid.Column="1"
@@ -275,13 +275,13 @@
 							<RowDefinition Height="Auto" />
 							<RowDefinition Height="Auto" />
 						</Grid.RowDefinitions>
-						<TextBlock Margin="0,0,4,4" VerticalAlignment="Center" Text="Height" />
-						<TextBox x:Name="OsdHeightTextBox" Grid.Column="1" Margin="0,0,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding osdHeightText, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
-						<TextBlock Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="DIP" />
-						<TextBlock Grid.Row="1" Margin="0,0,4,4" VerticalAlignment="Center" Text="Display duration" />
+						<TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="Height" />
+						<TextBox x:Name="OsdHeightTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding osdHeightText, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
+						<TextBlock Grid.Row="0" Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="DIP" />
+						<TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="Display duration" />
 						<TextBox x:Name="OsdDurationTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding osdDurationText, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
 						<TextBlock Grid.Row="1" Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
-						<TextBlock Grid.Row="2" Margin="0,0,4,0" VerticalAlignment="Center" Text="Position" />
+						<TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,4,0" VerticalAlignment="Center" Text="Position" />
 						<ComboBox
 							x:Name="OsdPositionComboBox"
 							Grid.Row="2"
@@ -307,16 +307,16 @@
 							<RowDefinition Height="Auto" />
 							<RowDefinition Height="Auto" />
 						</Grid.RowDefinitions>
-						<TextBlock Margin="0,0,4,4" VerticalAlignment="Center" TextWrapping="Wrap" Text="Long-press duration" />
-						<TextBox x:Name="HotkeyLongPressMsTextBox" Grid.Column="1" Margin="0,0,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding hotkeyLongPressMsText, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
-						<TextBlock Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
-						<CheckBox x:Name="HotkeyOptimizeNonLongPressCheckBox" Grid.Row="1" Grid.ColumnSpan="3" Margin="0,4,0,0" IsChecked="{Binding hotkeyOptimizeNonLongPress}">
+						<TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" TextWrapping="Wrap" Text="Long-press duration" />
+						<TextBox x:Name="HotkeyLongPressMsTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding hotkeyLongPressMsText, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}" />
+						<TextBlock Grid.Row="0" Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
+						<CheckBox x:Name="HotkeyOptimizeNonLongPressCheckBox" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,4,0,0" IsChecked="{Binding hotkeyOptimizeNonLongPress}">
 							<TextBlock TextWrapping="Wrap" Text="Optimize non–long-press hotkeys (fire on key down instead of waiting for key up or duration)" />
 						</CheckBox>
-						<CheckBox x:Name="HotkeySuppressLongPressOnlyCheckBox" Grid.Row="2" Grid.ColumnSpan="3" Margin="0,4,0,0" IsChecked="{Binding hotkeySuppressLongPressOnly}">
+						<CheckBox x:Name="HotkeySuppressLongPressOnlyCheckBox" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,4,0,0" IsChecked="{Binding hotkeySuppressLongPressOnly}">
 							<TextBlock TextWrapping="Wrap" Text="Swallow short presses also for long-press-only hotkeys" />
 						</CheckBox>
-						<CheckBox x:Name="HotkeyAcceptMacroChordKeyOrderCheckBox" Grid.Row="3" Grid.ColumnSpan="3" Margin="0,4,0,0" IsChecked="{Binding hotkeyAcceptMacroChordKeyOrder}">
+						<CheckBox x:Name="HotkeyAcceptMacroChordKeyOrderCheckBox" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,4,0,0" IsChecked="{Binding hotkeyAcceptMacroChordKeyOrder}">
 							<TextBlock TextWrapping="Wrap" Text="Allow modifier key-up before main key (needed when simulated by macros in fixed order)" />
 						</CheckBox>
 					</Grid>

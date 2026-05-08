@@ -1,19 +1,17 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using SharpOSC;
 
-namespace WindowsOscVolumeControl;
-
-public abstract partial record Error {
-	public abstract partial record MixerController : Error {
-		public sealed record Network : MixerController;
-		public sealed record InvalidReply : MixerController;
+namespace WindowsOscVolumeControl.Diagnostics {
+	public abstract partial record Error {
+		public abstract record MixerController : Error {
+			public sealed record Network : MixerController;
+			public sealed record InvalidReply : MixerController;
+		}
 	}
 }
+
+namespace WindowsOscVolumeControl.Mixer {
 
 /// <summary>High-level mixer operations (continuous float paths, OSC toggles, <c>/info</c>) with optional per-address value cache.</summary>
 public sealed class MixerController {
@@ -449,4 +447,5 @@ public sealed class MixerController {
 
 	public static UiTextFeedback exceptionMessageFeedback(Exception ex) =>
 		new(ex.Message, UiTextFeedbackKind.ERROR);
+}
 }

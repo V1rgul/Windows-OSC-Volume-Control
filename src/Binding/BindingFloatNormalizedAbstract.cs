@@ -1,4 +1,4 @@
-namespace WindowsOscVolumeControl;
+namespace WindowsOscVolumeControl.Binding;
 
 public abstract class BindingFloatNormalizedAbstract : BindingFloatAbstract {
 	protected BindingFloatNormalizedAbstract(BindingFloatNormalizedAbstract other) : base(other) {
