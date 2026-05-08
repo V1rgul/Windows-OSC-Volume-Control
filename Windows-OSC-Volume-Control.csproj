@@ -20,7 +20,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="src\**\*.cs" Exclude="src\obj\**\*;src\bin\**\*" />
+    <Compile Include="src\**\*.cs" Exclude="src\**\obj\**\*;src\**\bin\**\*;src\Osc\SharpOSC\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -64,6 +64,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm">
       <Version>8.4.2</Version>
     </PackageReference>
+    <ProjectReference Include="src\Osc\SharpOSC.csproj" />
   </ItemGroup>
 
   <!-- Release: framework-dependent publish → small zip; target PC needs .NET 10 Desktop runtime. -->

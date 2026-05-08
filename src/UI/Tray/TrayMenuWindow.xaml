@@ -78,7 +78,7 @@
 		<Border
 			x:Name="SurfaceBackground"
 			Background="{x:Null}"
-			Opacity="0.8"
+			Opacity="0.9"
 			CornerRadius="10"
 			SnapsToDevicePixels="True">
 			<Border.Effect>

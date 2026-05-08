@@ -1,41 +1,18 @@
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Media;
-using System.Windows.Threading;
-using System.Windows.Input;
-using System.Windows.Forms;
 using WindowsOscVolumeControl.UI.Config.ViewModels;
 using WindowsOscVolumeControl.UI.Tray;
-using Key = System.Windows.Input.Key;
-using Keyboard = System.Windows.Input.Keyboard;
-using KeyEventArgs = System.Windows.Input.KeyEventArgs;
-using MouseButton = System.Windows.Input.MouseButton;
-using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
-using KeyboardFocusChangedEventArgs = System.Windows.Input.KeyboardFocusChangedEventArgs;
-using TraversalRequest = System.Windows.Input.TraversalRequest;
-using Brush = System.Windows.Media.Brush;
-using Brushes = System.Windows.Media.Brushes;
+using Media = System.Windows.Media;
 
 namespace WindowsOscVolumeControl.UI.Config;
 
-public partial class ConfigWindow : Window {
+public partial class ConfigWindow {
 	public const string HotkeyAssignmentCaptureTag = "HotkeyAssignmentCapture";
 	public const string BindingCardRestoreTag = "BindingCardRestore";
 
-	ControlActionEditor? _hotkeyCaptureItem;
-	DateTime? _hotkeyCaptureDownUtc;
-	HotkeyGesture _hotkeyCaptureGesture;
-	bool _hotkeyCaptureAwaitingRelease;
 	bool _initialPlacementDone;
 
 	readonly MixerController _mixer;
@@ -44,11 +21,6 @@ public partial class ConfigWindow : Window {
 	readonly ConfigStore _configStore;
 	public ConfigWindowViewModel vm { get; }
 
-	/// <summary>Fluent Expander template: <see cref="Expander"/> → HeaderSite → ChevronGrid.</summary>
-	readonly Dictionary<Expander, (BindingEditor bed, PropertyChangedEventHandler handler)> _bindingCardChevronDimHooks = [];
-
-	// Binding editor collection moved to the view model (`ConfigWindowViewModel.bindings`).
-
 	public ConfigWindow(MixerController mixer, TrayController trayController, AppCoordinator appCoordinator, ConfigStore configStore) {
 		InitializeComponent();
 		DataContext = this;
@@ -56,7 +28,7 @@ public partial class ConfigWindow : Window {
 		_trayController = trayController;
 		_appCoordinator = appCoordinator;
 		_configStore = configStore;
-		vm = new ConfigWindowViewModel(_mixer, _trayController, _appCoordinator, _configStore);
+		vm = new ConfigWindowViewModel(_appCoordinator, _configStore);
 		vm.PropertyChanged += vm_PropertyChanged;
 		loadFromConfigStore();
 		syncTitlebarIconFromTray();
@@ -71,9 +43,9 @@ public partial class ConfigWindow : Window {
 			return;
 		_initialPlacementDone = true;
 
-		System.Drawing.Point cursor = System.Windows.Forms.Cursor.Position;
+		var cursor = Control.MousePosition;
 		Screen screen = Screen.FromPoint(cursor);
-		System.Drawing.Rectangle waPx = screen.WorkingArea;
+		Rectangle waPx = screen.WorkingArea;
 
 		PresentationSource? ps = PresentationSource.FromVisual(this);
 		Matrix fromDevice = ps?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
@@ -81,7 +53,7 @@ public partial class ConfigWindow : Window {
 		// WinForms gives pixels; WPF window coordinates are DIPs.
 		System.Windows.Point waTopLeft = fromDevice.Transform(new System.Windows.Point(waPx.Left, waPx.Top));
 		System.Windows.Point waBottomRight = fromDevice.Transform(new System.Windows.Point(waPx.Right, waPx.Bottom));
-		var wa = new System.Windows.Rect(waTopLeft, waBottomRight);
+		var wa = new Rect(waTopLeft, waBottomRight);
 
 		const double insetDip = 24d;
 
@@ -114,121 +86,6 @@ public partial class ConfigWindow : Window {
 			UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
 	}
 
-	static T? findDataContextAncestor<T>(DependencyObject start) where T : class {
-		DependencyObject? cur = start;
-		while (cur != null) {
-			if (cur is FrameworkElement { DataContext: T match })
-				return match;
-			cur = VisualTreeHelper.GetParent(cur);
-		}
-		return null;
-	}
-
-	static T? findVisualAncestor<T>(DependencyObject start) where T : DependencyObject {
-		DependencyObject? cur = start;
-		while (cur != null) {
-			if (cur is T match)
-				return match;
-			cur = VisualTreeHelper.GetParent(cur);
-		}
-		return null;
-	}
-
-	static bool isUnderBindingCardRestore(DependencyObject? hit) {
-		while (hit != null) {
-			if (hit is System.Windows.Controls.Button { Tag: string s } && s == BindingCardRestoreTag)
-				return true;
-			hit = VisualTreeHelper.GetParent(hit);
-		}
-		return false;
-	}
-
-	const double BINDING_CARD_SOFT_DELETE_CHEVRON_OPACITY = 0.38;
-
-	static bool tryFindFluentExpanderChevronGrid(Expander exp, out UIElement? chevronGrid) {
-		chevronGrid = null;
-		exp.ApplyTemplate();
-		if (exp.Template?.FindName("HeaderSite", exp) is not ToggleButton headerSite)
-			return false;
-		headerSite.ApplyTemplate();
-		if (headerSite.Template?.FindName("ChevronGrid", headerSite) is not UIElement grid)
-			return false;
-		chevronGrid = grid;
-		return true;
-	}
-
-	/// <summary>Fluent expander body uses <c>ExpanderContentBackground</c>; remap to <c>ExpanderHeaderBackground</c> for binding cards only.</summary>
-	static void applyBindingCardExpanderContentFill(Expander exp) {
-		if (exp.TryFindResource("ExpanderHeaderBackground") is Brush headerBg)
-			exp.Resources["ExpanderContentBackground"] = headerBg;
-		exp.ApplyTemplate();
-		if (exp.Template?.FindName("ToggleButtonBorder", exp) is Border headerChrome) {
-			headerChrome.BorderThickness = new Thickness(0);
-			headerChrome.BorderBrush = Brushes.Transparent;
-		}
-		if (exp.Template?.FindName("ContentPresenterBorder", exp) is Border contentChrome) {
-			contentChrome.SetResourceReference(Border.BackgroundProperty, "ExpanderHeaderBackground");
-			contentChrome.BorderThickness = new Thickness(0);
-			contentChrome.BorderBrush = Brushes.Transparent;
-		}
-		// Fluent template sets ContentPresenter.Margin = Padding on all sides; our body already ends with spacing
-		// (e.g. last hotkey row Margin bottom), so that stacks with the template and reads as double bottom inset when expanded.
-		if (exp.Template?.FindName("ContentPresenter", exp) is ContentPresenter contentPresenter) {
-			Thickness p = exp.Padding;
-			contentPresenter.Margin = new Thickness(p.Left, p.Top, p.Right, 0d);
-		}
-	}
-
-	void applyBindingCardChevronDim(Expander exp) {
-		if (!tryFindFluentExpanderChevronGrid(exp, out UIElement? grid))
-			return;
-		if (grid == null)
-			return;
-		bool dim = exp.DataContext is BindingEditor { isDeleted: true };
-		grid.Opacity = dim ? BINDING_CARD_SOFT_DELETE_CHEVRON_OPACITY : 1d;
-	}
-
-	void hookBindingCardChevronDim(Expander exp) {
-		unhookBindingCardChevronDim(exp);
-		if (exp.DataContext is not BindingEditor bed)
-			return;
-		PropertyChangedEventHandler h = (_, args) => {
-			if (args.PropertyName is not null && args.PropertyName != nameof(BindingEditor.isDeleted))
-				return;
-			exp.Dispatcher.BeginInvoke(DispatcherPriority.DataBind, new Action(() => applyBindingCardChevronDim(exp)));
-		};
-		bed.PropertyChanged += h;
-		_bindingCardChevronDimHooks[exp] = (bed, h);
-		applyBindingCardChevronDim(exp);
-	}
-
-	void unhookBindingCardChevronDim(Expander exp) {
-		if (!_bindingCardChevronDimHooks.Remove(exp, out (BindingEditor bed, PropertyChangedEventHandler handler) pair))
-			return;
-		pair.bed.PropertyChanged -= pair.handler;
-	}
-
-	void bindingCard_Expander_Loaded(object sender, RoutedEventArgs e) {
-		if (sender is not Expander exp)
-			return;
-		applyBindingCardExpanderContentFill(exp);
-		exp.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => hookBindingCardChevronDim(exp)));
-	}
-
-	void bindingCard_Expander_Unloaded(object sender, RoutedEventArgs e) {
-		if (sender is not Expander exp)
-			return;
-		unhookBindingCardChevronDim(exp);
-	}
-
-	void bindingCard_Expander_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e) {
-		if (sender is not Expander exp)
-			return;
-		unhookBindingCardChevronDim(exp);
-		applyBindingCardExpanderContentFill(exp);
-		exp.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => hookBindingCardChevronDim(exp)));
-	}
-
 	void loadFromConfigStore() {
 		vm.loadFromConfigStore();
 		UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
@@ -250,16 +107,16 @@ public partial class ConfigWindow : Window {
 		CRITICAL,
 	}
 
-	Brush tryGetThemeBrush(string key, Brush fallback) =>
-		TryFindResource(key) as Brush ?? fallback;
+	Media.Brush tryGetThemeBrush(string key, Media.Brush fallback) =>
+		TryFindResource(key) as Media.Brush ?? fallback;
 
-	Brush brushForStatus(ConfigUiStatus status) => status switch {
-		ConfigUiStatus.MUTED => tryGetThemeBrush("TextFillColorSecondaryBrush", Brushes.Gray),
+	Media.Brush brushForStatus(ConfigUiStatus status) => status switch {
+		ConfigUiStatus.MUTED => tryGetThemeBrush("TextFillColorSecondaryBrush", Media.Brushes.Gray),
 		// Prefer system/theme success; fall back to the more-legible green.
-		ConfigUiStatus.SUCCESS => tryGetThemeBrush("SystemFillColorSuccessBrush", Brushes.LimeGreen),
-		ConfigUiStatus.CAUTION => tryGetThemeBrush("SystemFillColorCautionBrush", Brushes.DarkOrange),
-		ConfigUiStatus.CRITICAL => tryGetThemeBrush("SystemFillColorCriticalBrush", Brushes.IndianRed),
-		_ => tryGetThemeBrush("TextFillColorPrimaryBrush", Brushes.White),
+		ConfigUiStatus.SUCCESS => tryGetThemeBrush("SystemFillColorSuccessBrush", Media.Brushes.LimeGreen),
+		ConfigUiStatus.CAUTION => tryGetThemeBrush("SystemFillColorCautionBrush", Media.Brushes.DarkOrange),
+		ConfigUiStatus.CRITICAL => tryGetThemeBrush("SystemFillColorCriticalBrush", Media.Brushes.IndianRed),
+		_ => tryGetThemeBrush("TextFillColorPrimaryBrush", Media.Brushes.White),
 	};
 
 	ConfigUiStatus responseStatus(int completed, int received) {
@@ -345,7 +202,7 @@ public partial class ConfigWindow : Window {
 
 			applyLatencyStatsToUi(timeoutMs, pingStats.snapshot(), oscStats.snapshot());
 
-			BindingAbstract? firstBinding = (newConfig.trayApp?.bindings ?? []).FirstOrDefault();
+			BindingAbstract? firstBinding = newConfig.trayApp.bindings.FirstOrDefault();
 			bool oscUsesBinding = firstBinding != null;
 			string oscAddress = oscUsesBinding ? firstBinding!.address : "/info";
 			vm.oscHeaderText = oscUsesBinding ? "OSC Binding #1" : "OSC /info";
@@ -414,103 +271,14 @@ public partial class ConfigWindow : Window {
 		}
 	}
 
-	// Autostart/config-path panel moved to SettingsPanelView.
-
-	// Binding editor actions moved to VM commands.
-
-	void bindingCard_Expander_Expanded(object sender, RoutedEventArgs e) {
-		if (sender is not Expander exp)
-			return;
-		if (exp.DataContext is BindingEditor bed && bed.isDeleted)
-			exp.IsExpanded = false;
-		applyBindingCardExpanderContentFill(exp);
-	}
-
-	void bindingCard_Expander_PreviewMouseDown(object sender, MouseButtonEventArgs e) {
-		if (e.ChangedButton != MouseButton.Left)
-			return;
-		if (sender is not Expander exp || exp.DataContext is not BindingEditor bed || !bed.isDeleted)
-			return;
-		if (isUnderBindingCardRestore(e.OriginalSource as DependencyObject))
-			return;
-		e.Handled = true;
-	}
-
-	void bindingCard_Expander_PreviewKeyDown(object sender, KeyEventArgs e) {
-		if (sender is not Expander exp || exp.DataContext is not BindingEditor bed || !bed.isDeleted)
-			return;
-		if (e.Key != Key.Space && e.Key != Key.Enter)
-			return;
-		if (isUnderBindingCardRestore(Keyboard.FocusedElement as DependencyObject))
-			return;
-		e.Handled = true;
-	}
-
-	// Hotkey editor row actions moved to VM commands.
-
-	// Hotkey capture moved to BindingsPanelView.
-
-	void clearHotkeyCaptureTracking() {
-		_hotkeyCaptureItem = null;
-		_hotkeyCaptureDownUtc = null;
-		_hotkeyCaptureGesture = HotkeyGesture.None;
-		_hotkeyCaptureAwaitingRelease = false;
-	}
-
-	// Hotkey capture moved to BindingsPanelView.
-
-	void finalizeHotkeyCapture(ControlActionEditor item, FrameworkElement focusMoveAnchor) {
-		if (!_hotkeyCaptureDownUtc.HasValue)
-			return;
-		HotkeyGesture g = HotkeyUtil.normalize(_hotkeyCaptureGesture);
-		if (g.isNone)
-			return;
-		if (!HotkeyUtil.tryValidate(g, out UiTextFeedback hkFb)) {
-			UiTextFeedbackPresenter.apply(StatusTextBlock, hkFb);
-			clearHotkeyCaptureTracking();
-			return;
-		}
-		item.hotkey = g;
-		// Hotkey capture moved to BindingsPanelView.
-	}
-
-	// Hotkey capture moved to BindingsPanelView.
-
-	void beginHotkeyCaptureKeyDown(KeyEventArgs e, ControlActionEditor item) {
-		HotkeyGesture hotkey = HotkeyUtil.fromKeyEventArgs(e);
-		if (hotkey.isNone) {
-			e.Handled = true;
-			return;
-		}
-
-		if (!HotkeyUtil.tryValidate(hotkey, out UiTextFeedback hkFb)) {
-			UiTextFeedbackPresenter.apply(StatusTextBlock, hkFb);
-			e.Handled = true;
-			return;
-		}
-
-		_hotkeyCaptureGesture = HotkeyUtil.normalize(hotkey);
-		_hotkeyCaptureDownUtc = DateTime.UtcNow;
-		_hotkeyCaptureAwaitingRelease = true;
-		_hotkeyCaptureItem = item;
-		UiTextFeedbackPresenter.apply(StatusTextBlock, new UiTextFeedback("", UiTextFeedbackKind.DEFAULT));
-		e.Handled = true;
-	}
-
-	static void moveFocusAwayAfterAssign(object? captureElement) {
-		if (captureElement is not FrameworkElement fe)
-			return;
-		_ = fe.MoveFocus(new TraversalRequest(System.Windows.Input.FocusNavigationDirection.Next));
-	}
-
 }
 
 public sealed class DragActivePlaceholderMultiConverter : IMultiValueConverter {
 	public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture) {
 		if (values.Length < 3)
 			return false;
-		object? item = values[0];
-		object? draggedItem = values[1];
+		object item = values[0];
+		object draggedItem = values[1];
 		bool isDragging = values[2] is bool b && b;
 		if (!isDragging)
 			return false;

@@ -3,9 +3,9 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Windows.Controls;
 using WindowsOscVolumeControl.UI.Osd;
-using WindowsOscVolumeControl.UI.Tray;
 using Brush = System.Windows.Media.Brush;
 using CommunityToolkit.Mvvm.Input;
 
@@ -61,7 +61,7 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	public string oscIpText {
 		get => _oscIpText;
 		set {
-			if (!setProperty(ref _oscIpText, value ?? ""))
+			if (!setTextProperty(ref _oscIpText, value))
 				return;
 			// Keep cross-field validation reactive (even if only one field was edited).
 			raisePropertyChanged(nameof(oscPortText));
@@ -71,24 +71,24 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	public string oscPortText {
 		get => _oscPortText;
 		set {
-			if (!setProperty(ref _oscPortText, value ?? ""))
+			if (!setTextProperty(ref _oscPortText, value))
 				return;
 			raisePropertyChanged(nameof(oscIpText));
 		}
 	}
-	public string queryTimeoutText { get => _queryTimeoutText; set => setProperty(ref _queryTimeoutText, value ?? ""); }
-	public string valueCacheTtlText { get => _valueCacheTtlText; set => setProperty(ref _valueCacheTtlText, value ?? ""); }
+	public string queryTimeoutText { get => _queryTimeoutText; set => setTextProperty(ref _queryTimeoutText, value); }
+	public string valueCacheTtlText { get => _valueCacheTtlText; set => setTextProperty(ref _valueCacheTtlText, value); }
 
-	public string osdHeightText { get => _osdHeightText; set => setProperty(ref _osdHeightText, value ?? ""); }
-	public string osdDurationText { get => _osdDurationText; set => setProperty(ref _osdDurationText, value ?? ""); }
+	public string osdHeightText { get => _osdHeightText; set => setTextProperty(ref _osdHeightText, value); }
+	public string osdDurationText { get => _osdDurationText; set => setTextProperty(ref _osdDurationText, value); }
 	public OSDController.Config.OsdScreenAnchor osdPosition { get => _osdPosition; set => setProperty(ref _osdPosition, value); }
 
-	public string hotkeyLongPressMsText { get => _hotkeyLongPressMsText; set => setProperty(ref _hotkeyLongPressMsText, value ?? ""); }
+	public string hotkeyLongPressMsText { get => _hotkeyLongPressMsText; set => setTextProperty(ref _hotkeyLongPressMsText, value); }
 	public bool hotkeyOptimizeNonLongPress { get => _hotkeyOptimizeNonLongPress; set => setProperty(ref _hotkeyOptimizeNonLongPress, value); }
 	public bool hotkeySuppressLongPressOnly { get => _hotkeySuppressLongPressOnly; set => setProperty(ref _hotkeySuppressLongPressOnly, value); }
 	public bool hotkeyAcceptMacroChordKeyOrder { get => _hotkeyAcceptMacroChordKeyOrder; set => setProperty(ref _hotkeyAcceptMacroChordKeyOrder, value); }
 
-	public string configPathText { get => _configPathText; set => setProperty(ref _configPathText, value ?? ""); }
+	public string configPathText { get => _configPathText; set => setTextProperty(ref _configPathText, value); }
 
 	public UiTextFeedback statusFeedback { get => _statusFeedback; set => setProperty(ref _statusFeedback, value); }
 	public UiTextFeedback configFeedback { get => _configFeedback; set => setProperty(ref _configFeedback, value); }
@@ -96,16 +96,16 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	public UiTextFeedback autostartFeedback { get => _autostartFeedback; set => setProperty(ref _autostartFeedback, value); }
 	public string? autostartFeedbackPathOrNull { get => _autostartFeedbackPathOrNull; set => setProperty(ref _autostartFeedbackPathOrNull, value); }
 
-	public string oscHeaderText { get => _oscHeaderText; set => setProperty(ref _oscHeaderText, value ?? ""); }
-	public string pingMinText { get => _pingMinText; set => setProperty(ref _pingMinText, value ?? ""); }
-	public string pingMedianText { get => _pingMedianText; set => setProperty(ref _pingMedianText, value ?? ""); }
-	public string pingMaxText { get => _pingMaxText; set => setProperty(ref _pingMaxText, value ?? ""); }
-	public string pingLossText { get => _pingLossText; set => setProperty(ref _pingLossText, value ?? ""); }
-	public string oscMinText { get => _oscMinText; set => setProperty(ref _oscMinText, value ?? ""); }
-	public string oscMedianText { get => _oscMedianText; set => setProperty(ref _oscMedianText, value ?? ""); }
-	public string oscMaxText { get => _oscMaxText; set => setProperty(ref _oscMaxText, value ?? ""); }
-	public string oscLossText { get => _oscLossText; set => setProperty(ref _oscLossText, value ?? ""); }
-	public string lossUnitText { get => _lossUnitText; set => setProperty(ref _lossUnitText, value ?? ""); }
+	public string oscHeaderText { get => _oscHeaderText; set => setTextProperty(ref _oscHeaderText, value); }
+	public string pingMinText { get => _pingMinText; set => setTextProperty(ref _pingMinText, value); }
+	public string pingMedianText { get => _pingMedianText; set => setTextProperty(ref _pingMedianText, value); }
+	public string pingMaxText { get => _pingMaxText; set => setTextProperty(ref _pingMaxText, value); }
+	public string pingLossText { get => _pingLossText; set => setTextProperty(ref _pingLossText, value); }
+	public string oscMinText { get => _oscMinText; set => setTextProperty(ref _oscMinText, value); }
+	public string oscMedianText { get => _oscMedianText; set => setTextProperty(ref _oscMedianText, value); }
+	public string oscMaxText { get => _oscMaxText; set => setTextProperty(ref _oscMaxText, value); }
+	public string oscLossText { get => _oscLossText; set => setTextProperty(ref _oscLossText, value); }
+	public string lossUnitText { get => _lossUnitText; set => setTextProperty(ref _lossUnitText, value); }
 
 	public Brush? pingMinForeground { get => _pingMinForeground; set => setProperty(ref _pingMinForeground, value); }
 	public Brush? pingMedianForeground { get => _pingMedianForeground; set => setProperty(ref _pingMedianForeground, value); }
@@ -155,7 +155,10 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 		}
 	}
 
-	static string tryValidateUInt(string text, uint min, uint max, string label) {
+	bool setTextProperty(ref string field, string? value, [CallerMemberName] string? propertyName = null) =>
+		setProperty(ref field, value ?? "", propertyName);
+
+	static string tryValidateUInt(string? text, uint min, uint max, string label) {
 		if (!uint.TryParse((text ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsed))
 			return label + " must be an integer.";
 		if (parsed < min || parsed > max)
@@ -163,7 +166,7 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 		return "";
 	}
 
-	static string tryValidateInt(string text, int min, int max, string label) {
+	static string tryValidateInt(string? text, int min, int max, string label) {
 		if (!int.TryParse((text ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
 			return label + " must be an integer.";
 		if (parsed < min || parsed > max)
@@ -171,14 +174,10 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 		return "";
 	}
 
-	readonly MixerController _mixer;
-	readonly TrayController _trayController;
 	readonly AppCoordinator _appCoordinator;
 	readonly ConfigStore _configStore;
 
-	public ConfigWindowViewModel(MixerController mixer, TrayController trayController, AppCoordinator appCoordinator, ConfigStore configStore) {
-		_mixer = mixer;
-		_trayController = trayController;
+	public ConfigWindowViewModel(AppCoordinator appCoordinator, ConfigStore configStore) {
 		_appCoordinator = appCoordinator;
 		_configStore = configStore;
 
@@ -229,7 +228,7 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 		autostartFeedbackPathOrNull = autostart.pathOrNull;
 
 		bindings.Clear();
-		foreach (BindingAbstract binding in cfg.trayApp?.bindings ?? [])
+		foreach (BindingAbstract binding in cfg.trayApp.bindings)
 			bindings.Add(BindingEditor.fromBinding(binding));
 	}
 
@@ -260,11 +259,23 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 		bindings.Add(ed);
 	}
 
-	void softDeleteBinding(BindingEditor item) => item.isDeleted = true;
+	void softDeleteBinding(BindingEditor? item) {
+		if (item == null)
+			return;
+		item.isDeleted = true;
+	}
 
-	void restoreBinding(BindingEditor item) => item.isDeleted = false;
+	void restoreBinding(BindingEditor? item) {
+		if (item == null)
+			return;
+		item.isDeleted = false;
+	}
 
-	void addHotkeyToBinding(BindingEditor owner) => owner.actions.Add(owner.createActionEditor());
+	void addHotkeyToBinding(BindingEditor? owner) {
+		if (owner == null)
+			return;
+		owner.actions.Add(owner.createActionEditor());
+	}
 
 	void fillFromX32Catalog(BindingEditor? ed) {
 		if (ed == null)
@@ -274,9 +285,17 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 			ed.tryApplyX32CatalogEntry(e);
 	}
 
-	void softDeleteHotkey(ControlActionEditor item) => item.isDeleted = true;
+	void softDeleteHotkey(ControlActionEditor? item) {
+		if (item == null)
+			return;
+		item.isDeleted = true;
+	}
 
-	void restoreHotkey(ControlActionEditor item) => item.isDeleted = false;
+	void restoreHotkey(ControlActionEditor? item) {
+		if (item == null)
+			return;
+		item.isDeleted = false;
+	}
 
 	void openConfigFolder() {
 		string? dir = Path.GetDirectoryName(_configStore.configPath);
