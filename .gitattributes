@@ -1,0 +1,35 @@
+# https://git-scm.com/docs/gitattributes
+
+* text=auto
+
+# Scripts
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.sh text eol=lf
+
+*.sln text eol=crlf
+
+# Source, project, and markup text
+*.cs text diff=csharp
+*.csproj text
+*.props text
+*.targets text
+*.xaml text
+*.xml text
+*.json text
+*.md text
+*.yml text
+*.yaml text
+
+# Binary — images
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+
+# Binary — PE / symbols
+*.dll binary
+*.exe binary
+*.pdb binary
