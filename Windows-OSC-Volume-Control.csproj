@@ -20,6 +20,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="WindowsOscVolumeControl.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="src\**\*.cs" Exclude="src\**\obj\**\*;src\**\bin\**\*;src\Osc\SharpOSC\**\*.cs" />
   </ItemGroup>
 
@@ -77,7 +81,7 @@
   <Target Name="CreateReleaseZip" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' And '$(DesignTimeBuild)' != 'true'">
     <RemoveDir Directories="$(ReleasePublishDir)" Condition="Exists('$(ReleasePublishDir)')" />
     <MakeDir Directories="$(ReleasePublishDir)" />
-    <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release -o &quot;$(ReleasePublishDir)&quot; --no-build" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release -o &quot;$(ReleasePublishDir)&quot; --no-build -p:Platform=&quot;$(Platform)&quot;" WorkingDirectory="$(MSBuildProjectDirectory)" />
     <Delete Files="$(ReleasePublishDir)\$(AssemblyName).pdb" Condition="Exists('$(ReleasePublishDir)\$(AssemblyName).pdb')" />
     <ZipDirectory SourceDirectory="$(ReleasePublishDir)" DestinationFile="$(ReleaseZipFile)" Overwrite="true" />
     <RemoveDir Directories="$(ReleasePublishDir)" />

@@ -16,6 +16,13 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="WindowsOscVolumeControl.Binding" />
+    <Using Include="WindowsOscVolumeControl.Config" />
+    <Using Include="WindowsOscVolumeControl.Input" />
+    <Using Include="WindowsOscVolumeControl.Misc" />
+    <Using Include="WindowsOscVolumeControl.Mixer" />
+    <Using Include="WindowsOscVolumeControl.Osc" />
+    <Using Include="WindowsOscVolumeControl.UI" />
   </ItemGroup>
 
   <ItemGroup>

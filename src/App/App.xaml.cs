@@ -1,3 +1,5 @@
+using WindowsOscVolumeControl.Diagnostics;
+
 namespace WindowsOscVolumeControl.App;
 
 public partial class AppApplication {
@@ -5,6 +7,7 @@ public partial class AppApplication {
 
 	protected override void OnStartup(System.Windows.StartupEventArgs e) {
 		base.OnStartup(e);
+		AppTrace.initializeFileLogging();
 		_coordinator = new AppCoordinator();
 	}
 

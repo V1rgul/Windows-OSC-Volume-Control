@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using SharpOSC;
@@ -187,7 +188,8 @@ public sealed class MixerController {
 
 		_transport.messageReceived += handler;
 		try {
-			await _transport.sendAsync(address).ConfigureAwait(false);
+			if (!await trySendAsync(address).ConfigureAwait(false))
+				return null;
 			OscMessage message = await reply.Task.WaitAsync(getTimeout()).ConfigureAwait(false);
 			if (message.Arguments.Count == 0 || message.Arguments[0] is not float f) {
 				errors.setError(new Error.MixerController.InvalidReply(), true);
@@ -216,7 +218,8 @@ public sealed class MixerController {
 
 		_transport.messageReceived += handler;
 		try {
-			await _transport.sendAsync(address).ConfigureAwait(false);
+			if (!await trySendAsync(address).ConfigureAwait(false))
+				return null;
 			OscMessage message = await reply.Task.WaitAsync(getTimeout()).ConfigureAwait(false);
 			if (message.Arguments.Count == 0 || message.Arguments[0] is not int i) {
 				errors.setError(new Error.MixerController.InvalidReply(), true);
@@ -256,7 +259,8 @@ public sealed class MixerController {
 			lock (_lock)
 				getOrAddInfoState().markQuerySent(DateTime.UtcNow);
 
-			await _transport.sendAsync(INFO_ADDRESS).ConfigureAwait(false);
+			if (!await trySendAsync(INFO_ADDRESS).ConfigureAwait(false))
+				return (false, "OSC send failed (check IP, port, and network).");
 			OscMessage message = await reply.Task.WaitAsync(getTimeout(), cancellationToken).ConfigureAwait(false);
 			clearMixerErrors();
 			return (true, formatInfoArguments(message));
@@ -319,7 +323,12 @@ public sealed class MixerController {
 
 	void refreshCache(string address, MixerAddressState state) {
 		state.markQuerySent(DateTime.UtcNow);
-		_ = _transport.sendAsync(address);
+		_ = refreshCacheAsync(address);
+	}
+
+	async Task refreshCacheAsync(string address) {
+		if (!await trySendAsync(address).ConfigureAwait(false))
+			emitFailure(address);
 	}
 
 	void applyPending(string address, MixerAddressState.Continuous cont) {
@@ -362,13 +371,46 @@ public sealed class MixerController {
 	}
 
 	void sendAndEmit(string address, object arg, Event evt) {
+		_ = sendAndEmitAsync(address, arg, evt);
+	}
+
+	async Task sendAndEmitAsync(string address, object arg, Event evt) {
+		if (!await trySendAsync(address, arg).ConfigureAwait(false)) {
+			emitFailure(address);
+			return;
+		}
+
 		clearMixerErrors();
-		_ = _transport.sendAsync(address, arg);
-		eventReceived?.Invoke(evt);
+		emit(evt);
 	}
 
 	void emitFailure(string address) =>
-		eventReceived?.Invoke(new Event.OperationFailed { address = address });
+		emit(new Event.OperationFailed { address = address });
+
+	void emit(Event evt) {
+		try {
+			eventReceived?.Invoke(evt);
+		} catch (Exception ex) {
+			AppTrace.Application.TraceEvent(
+				TraceEventType.Error,
+				0,
+				$"Mixer event handler failed: {ex}");
+		}
+	}
+
+	async Task<bool> trySendAsync(string address, params object[] args) {
+		try {
+			await _transport.sendAsync(address, args).ConfigureAwait(false);
+			return true;
+		} catch (Exception ex) {
+			AppTrace.Application.TraceEvent(
+				TraceEventType.Error,
+				0,
+				$"OSC send failed for '{address}': {ex}");
+			errors.setError(new Error.MixerController.Network(), true);
+			return false;
+		}
+	}
 
 	void clearMixerErrors() {
 		errors.setError(new Error.MixerController.Network(), false);

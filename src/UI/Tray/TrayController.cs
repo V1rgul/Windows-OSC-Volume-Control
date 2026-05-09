@@ -31,7 +31,6 @@ public sealed class TrayController : IDisposable {
 			showTrayMenu();
 		};
 
-		_trayIcon.DoubleClick += (_, _) => onConfigure();
 		_trayIcon.MouseDoubleClick += (_, e) => {
 			if (e.Button == MouseButtons.Left)
 				onConfigure();

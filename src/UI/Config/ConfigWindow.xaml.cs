@@ -20,6 +20,7 @@ public partial class ConfigWindow {
 	readonly TrayController _trayController;
 	readonly AppCoordinator _appCoordinator;
 	readonly ConfigStore _configStore;
+	bool _applySaveAndTestRunning;
 	public ConfigWindowViewModel vm { get; }
 
 	public ConfigWindow(MixerController mixer, TrayController trayController, AppCoordinator appCoordinator, ConfigStore configStore) {
@@ -83,192 +84,163 @@ public partial class ConfigWindow {
 
 	void vm_PropertyChanged(object? sender, PropertyChangedEventArgs e) {
 		// Window owns the bottom status bar only; per-panel feedback is handled inside the UserControls.
-		if (e.PropertyName is nameof(ConfigWindowViewModel.statusFeedback))
-			UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
+		if (e.PropertyName is nameof(ConfigWindowViewModel.statusFeedback) or nameof(ConfigWindowViewModel.diagnosticsFeedback))
+			refreshStatusBar();
+	}
+
+	internal void syncDiagnosticsFeedback(string summary) {
+		vm.diagnosticsFeedback = string.IsNullOrEmpty(summary)
+			? new UiTextFeedback("", UiTextFeedbackKind.DEFAULT)
+			: new UiTextFeedback(summary, UiTextFeedbackKind.WARNING);
+		refreshStatusBar();
+	}
+
+	void refreshStatusBar() {
+		string diag = vm.diagnosticsFeedback.text.Trim();
+		string status = vm.statusFeedback.text.Trim();
+		string combinedText;
+		if (diag.Length > 0 && status.Length > 0)
+			combinedText = diag + Environment.NewLine + status;
+		else if (diag.Length > 0)
+			combinedText = vm.diagnosticsFeedback.text;
+		else
+			combinedText = vm.statusFeedback.text;
+
+		UiTextFeedback mergedKind = UiTextFeedbackPresenter.mergeWithWorstKind(vm.statusFeedback, vm.diagnosticsFeedback);
+		UiTextFeedback line = new(combinedText, mergedKind.kind);
+		UiTextFeedbackPresenter.apply(StatusTextBlock, line);
 	}
 
 	void loadFromConfigStore() {
 		vm.loadFromConfigStore();
-		UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
-	}
-
-	static string formatLatencyCellText(int? rttMs) {
-		if (rttMs == null)
-			return "—";
-		int ms = rttMs.Value;
-		if (ms == 0)
-			return "<1";
-		return ms.ToString(CultureInfo.InvariantCulture);
-	}
-
-	enum ConfigUiStatus {
-		MUTED,
-		SUCCESS,
-		CAUTION,
-		CRITICAL,
+		refreshStatusBar();
 	}
 
 	Media.Brush tryGetThemeBrush(string key, Media.Brush fallback) =>
 		TryFindResource(key) as Media.Brush ?? fallback;
 
-	Media.Brush brushForStatus(ConfigUiStatus status) => status switch {
-		ConfigUiStatus.MUTED => tryGetThemeBrush("TextFillColorSecondaryBrush", Media.Brushes.Gray),
-		// Prefer system/theme success; fall back to the more-legible green.
-		ConfigUiStatus.SUCCESS => tryGetThemeBrush("SystemFillColorSuccessBrush", Media.Brushes.LimeGreen),
-		ConfigUiStatus.CAUTION => tryGetThemeBrush("SystemFillColorCautionBrush", Media.Brushes.DarkOrange),
-		ConfigUiStatus.CRITICAL => tryGetThemeBrush("SystemFillColorCriticalBrush", Media.Brushes.IndianRed),
+	Media.Brush brushForLatencyPanel(LatencyPanelUiStatus status) => status switch {
+		LatencyPanelUiStatus.MUTED => tryGetThemeBrush("TextFillColorSecondaryBrush", Media.Brushes.Gray),
+		LatencyPanelUiStatus.SUCCESS => tryGetThemeBrush("SystemFillColorSuccessBrush", Media.Brushes.LimeGreen),
+		LatencyPanelUiStatus.CAUTION => tryGetThemeBrush("SystemFillColorCautionBrush", Media.Brushes.DarkOrange),
+		LatencyPanelUiStatus.CRITICAL => tryGetThemeBrush("SystemFillColorCriticalBrush", Media.Brushes.IndianRed),
 		_ => tryGetThemeBrush("TextFillColorPrimaryBrush", Media.Brushes.White),
 	};
 
-	ConfigUiStatus responseStatus(int completed, int received) {
-		if (completed <= 0)
-			return ConfigUiStatus.MUTED;
-		if (received <= 0)
-			return ConfigUiStatus.CRITICAL;
-		return received < completed ? ConfigUiStatus.CAUTION : ConfigUiStatus.SUCCESS;
-	}
-
-	ConfigUiStatus latencyStatus(int timeoutMs, int? rttMs) {
-		if (rttMs == null)
-			return ConfigUiStatus.MUTED;
-		if (timeoutMs <= 0)
-			return ConfigUiStatus.MUTED;
-		double ratio = rttMs.Value / (double)timeoutMs;
-		if (ratio < 0.10)
-			return ConfigUiStatus.SUCCESS;
-		if (ratio < 0.50)
-			return ConfigUiStatus.CAUTION;
-		return ConfigUiStatus.CRITICAL;
-	}
-
-	void applyLatencyStatsToUi(int timeoutMs, RttStatsSnapshot ping, RttStatsSnapshot osc) {
-		vm.pingMinText = formatLatencyCellText(ping.minMs);
-		vm.pingMedianText = formatLatencyCellText(ping.medianMs);
-		vm.pingMaxText = formatLatencyCellText(ping.maxMs);
-		vm.pingLossText = ping.completedCount == 0 ? "—" : ping.receivedCount.ToString(CultureInfo.InvariantCulture);
-
-		vm.oscMinText = formatLatencyCellText(osc.minMs);
-		vm.oscMedianText = formatLatencyCellText(osc.medianMs);
-		vm.oscMaxText = formatLatencyCellText(osc.maxMs);
-		vm.oscLossText = osc.completedCount == 0 ? "—" : osc.receivedCount.ToString(CultureInfo.InvariantCulture);
-
-		int completed = ping.completedCount;
-		vm.lossUnitText = "/" + completed.ToString(CultureInfo.InvariantCulture);
-
-		vm.pingLossForeground = brushForStatus(responseStatus(ping.completedCount, ping.receivedCount));
-		vm.oscLossForeground = brushForStatus(responseStatus(osc.completedCount, osc.receivedCount));
-
-		vm.pingMinForeground = brushForStatus(latencyStatus(timeoutMs, ping.minMs));
-		vm.pingMedianForeground = brushForStatus(latencyStatus(timeoutMs, ping.medianMs));
-		vm.pingMaxForeground = brushForStatus(latencyStatus(timeoutMs, ping.maxMs));
-
-		vm.oscMinForeground = brushForStatus(latencyStatus(timeoutMs, osc.minMs));
-		vm.oscMedianForeground = brushForStatus(latencyStatus(timeoutMs, osc.medianMs));
-		vm.oscMaxForeground = brushForStatus(latencyStatus(timeoutMs, osc.maxMs));
-	}
-
 	async void buttonApplySaveAndTest_Click(object sender, RoutedEventArgs e) {
-		// Don't rely on PropertyChanged for repeating equal feedback values.
-		vm.statusFeedback = new UiTextFeedback("", UiTextFeedbackKind.WARNING);
-		UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
-		(bool okBuild, AppConfig? newConfig, UiTextFeedback? buildErr) = SettingsFormDraft.tryBuild(
-			vm.oscIpText,
-			vm.oscPortText,
-			vm.queryTimeoutText,
-			vm.valueCacheTtlText,
-			vm.osdPosition,
-			vm.osdHeightText,
-			vm.osdDurationText,
-			vm.hotkeyLongPressMsText,
-			vm.hotkeyOptimizeNonLongPress,
-			vm.hotkeySuppressLongPressOnly,
-			vm.hotkeyAcceptMacroChordKeyOrder,
-			vm.bindings);
-		if (!okBuild) {
-			vm.statusFeedback = buildErr!.Value;
-			UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
+		if (_applySaveAndTestRunning)
 			return;
-		}
 
-		_appCoordinator.beginConfigValidation();
+		_applySaveAndTestRunning = true;
+		System.Windows.Controls.Button? applySaveAndTestButton = sender as System.Windows.Controls.Button;
+		if (applySaveAndTestButton != null)
+			applySaveAndTestButton.IsEnabled = false;
 		try {
-			_appCoordinator.commitConfigFromSettingsForm(newConfig!);
-			vm.configFeedback = _configStore.lastDiskUiFeedback;
+			// Don't rely on PropertyChanged for repeating equal feedback values.
+			vm.statusFeedback = new UiTextFeedback("", UiTextFeedbackKind.WARNING);
+			refreshStatusBar();
+			(bool okBuild, AppConfig? newConfig, UiTextFeedback? buildErr) = SettingsFormDraft.tryBuild(
+				vm.oscIpText,
+				vm.oscPortText,
+				vm.queryTimeoutText,
+				vm.valueCacheTtlText,
+				vm.osdPosition,
+				vm.osdHeightText,
+				vm.osdDurationText,
+				vm.hotkeyLongPressMsText,
+				vm.hotkeyOptimizeNonLongPress,
+				vm.hotkeySuppressLongPressOnly,
+				vm.hotkeyAcceptMacroChordKeyOrder,
+				vm.bindings);
+			if (!okBuild) {
+				vm.statusFeedback = buildErr!.Value;
+				refreshStatusBar();
+				return;
+			}
 
-			int timeoutMs = Math.Max(1, (int)newConfig!.mixer.timeoutMs);
-			const int probes = 10;
+			_appCoordinator.beginConfigValidation();
+			try {
+				_appCoordinator.commitConfigFromSettingsForm(newConfig!);
+				vm.configFeedback = _configStore.lastDiskUiFeedback;
 
-			var pingStats = new RttStatsAccumulator();
-			var oscStats = new RttStatsAccumulator();
+				int timeoutMs = Math.Max(1, (int)newConfig!.mixer.timeoutMs);
+				const int probes = 10;
 
-			applyLatencyStatsToUi(timeoutMs, pingStats.snapshot(), oscStats.snapshot());
+				var pingStats = new RttStatsAccumulator();
+				var oscStats = new RttStatsAccumulator();
 
-			BindingAbstract? firstBinding = newConfig.trayApp.bindings.FirstOrDefault();
-			bool oscUsesBinding = firstBinding != null;
-			string oscAddress = oscUsesBinding ? firstBinding!.address : "/info";
-			vm.oscHeaderText = oscUsesBinding ? "OSC Binding #1" : "OSC /info";
-			// TODO(split-to-resources): bind this via VM once latency panel is VM-driven.
+				vm.applyLatencyStatsToUi(timeoutMs, pingStats.snapshot(), oscStats.snapshot(), brushForLatencyPanel);
 
-			bool lastInfoOk = false;
-			string lastInfoDetail = "";
+				BindingAbstract? firstBinding = newConfig.trayApp.bindings.FirstOrDefault();
+				bool oscUsesBinding = firstBinding != null;
+				string oscAddress = oscUsesBinding ? firstBinding!.address : "/info";
+				vm.oscHeaderText = oscUsesBinding ? "OSC Binding #1" : "OSC /info";
 
-			async Task<int?> probeOscOnceAsync() {
-				if (oscUsesBinding) {
-					switch (firstBinding) {
-						case BindingFloatAbstract:
-							float? reply = await _mixer.QueryContinuousWireAsync(oscAddress);
-							if (reply == null)
+				bool lastInfoOk = false;
+				string lastInfoDetail = "";
+
+				async Task<int?> probeOscOnceAsync() {
+					if (oscUsesBinding) {
+						switch (firstBinding) {
+							case BindingFloatAbstract:
+								float? reply = await _mixer.QueryContinuousWireAsync(oscAddress);
+								if (reply == null)
+									return null;
+								break;
+							case BindingToggle:
+								bool? reply2 = await _mixer.QueryToggleAsync(oscAddress);
+								if (reply2 == null)
+									return null;
+								break;
+							default:
 								return null;
-							break;
-						case BindingToggle:
-							bool? reply2 = await _mixer.QueryToggleAsync(oscAddress);
-							if (reply2 == null)
-								return null;
-							break;
-						default:
+						}
+					} else {
+						(bool ok, string detail) = await _mixer.QueryInfoAsync();
+						lastInfoOk = ok;
+						lastInfoDetail = detail;
+						if (!ok)
 							return null;
 					}
-				} else {
-					(bool ok, string detail) = await _mixer.QueryInfoAsync();
-					lastInfoOk = ok;
-					lastInfoDetail = detail;
-					if (!ok)
+
+					if (!_mixer.tryGetMeasuredLatency(oscAddress, out TimeSpan latency))
 						return null;
+					double ms = latency.TotalMilliseconds;
+					if (!double.IsFinite(ms) || ms < 0 || ms > int.MaxValue)
+						return null;
+					return (int)Math.Round(ms);
 				}
 
-				if (!_mixer.tryGetMeasuredLatency(oscAddress, out TimeSpan latency))
-					return null;
-				double ms = latency.TotalMilliseconds;
-				if (!double.IsFinite(ms) || ms < 0 || ms > int.MaxValue)
-					return null;
-				return (int)Math.Round(ms);
+				for (int i = 0; i < probes; i++) {
+					Task<int?> pingTask = NetworkPingTest.PingOnceAsync(newConfig.oscTransport.endPoint.Address, timeoutMs);
+					Task<int?> oscTask = probeOscOnceAsync();
+					await Task.WhenAll(pingTask, oscTask);
+
+					pingStats.push(pingTask.Result);
+					oscStats.push(oscTask.Result);
+
+					RttStatsSnapshot pingSnap = pingStats.snapshot();
+					RttStatsSnapshot oscSnap = oscStats.snapshot();
+					vm.applyLatencyStatsToUi(timeoutMs, pingSnap, oscSnap, brushForLatencyPanel);
+				}
+
+				if (oscUsesBinding) {
+					(lastInfoOk, lastInfoDetail) = await _mixer.QueryInfoAsync();
+				}
+
+				vm.infoFeedback = MixerController.infoQueryDetailFeedback(lastInfoOk, lastInfoDetail);
+				vm.statusFeedback = MixerController.settingsApplyMixerSummaryFeedback(lastInfoOk);
+				refreshStatusBar();
+			} catch (Exception ex) {
+				vm.statusFeedback = MixerController.exceptionMessageFeedback(ex);
+				refreshStatusBar();
+			} finally {
+				_appCoordinator.finishConfigValidation();
 			}
-
-			for (int i = 0; i < probes; i++) {
-				Task<int?> pingTask = NetworkPingTest.PingOnceAsync(newConfig.oscTransport.endPoint.Address, timeoutMs);
-				Task<int?> oscTask = probeOscOnceAsync();
-				await Task.WhenAll(pingTask, oscTask);
-
-				pingStats.push(pingTask.Result);
-				oscStats.push(oscTask.Result);
-
-				RttStatsSnapshot pingSnap = pingStats.snapshot();
-				RttStatsSnapshot oscSnap = oscStats.snapshot();
-				applyLatencyStatsToUi(timeoutMs, pingSnap, oscSnap);
-			}
-
-			if (oscUsesBinding) {
-				(lastInfoOk, lastInfoDetail) = await _mixer.QueryInfoAsync();
-			}
-
-			vm.infoFeedback = MixerController.infoQueryDetailFeedback(lastInfoOk, lastInfoDetail);
-			vm.statusFeedback = MixerController.settingsApplyMixerSummaryFeedback(lastInfoOk);
-			UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
-		} catch (Exception ex) {
-			vm.statusFeedback = MixerController.exceptionMessageFeedback(ex);
-			UiTextFeedbackPresenter.apply(StatusTextBlock, vm.statusFeedback);
 		} finally {
-			_appCoordinator.finishConfigValidation();
+			if (applySaveAndTestButton != null)
+				applySaveAndTestButton.IsEnabled = true;
+			_applySaveAndTestRunning = false;
 		}
 	}
 

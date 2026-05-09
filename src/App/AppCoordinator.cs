@@ -46,6 +46,7 @@ public sealed class AppCoordinator : IDisposable {
 		_statusController.attach("startupHealth", _applicationErrors);
 		_statusController.attach("mixerRuntime", _mixer.errors);
 		_statusController.attach("keyboardHook", _hook.errors);
+		_statusController.attach("oscTransport", _transport.errors);
 		_statusController.mergedStateChanged += onMergedStateChanged;
 		_statusController.visibleErrorsChanged += onVisibleErrorsChanged;
 		_mixer.eventReceived += onMixerEvent;
@@ -122,14 +123,17 @@ public sealed class AppCoordinator : IDisposable {
 	}
 
 	void onVisibleErrorsChanged() {
-		string summary = formatVisibleErrors(_statusController.getVisibleErrors());
-		ui(() => _tray.setStatusText(summary));
+		string summary = VisibleDiagnosticsFormatting.formatVisibleErrors(_statusController.getVisibleErrors());
+		ui(() => {
+			_tray.setStatusText(summary);
+			_configWindow?.syncDiagnosticsFeedback(summary);
+		});
 	}
 
 	void syncStatusUi() {
 		_lastMergedState = _statusController.getMergedState();
 		_tray.ApplyState(mapMergedState(_lastMergedState));
-		_tray.setStatusText(formatVisibleErrors(_statusController.getVisibleErrors()));
+		_tray.setStatusText(VisibleDiagnosticsFormatting.formatVisibleErrors(_statusController.getVisibleErrors()));
 	}
 
 	static AppTrayIconState mapMergedState(StatusController.MergedState state) => state switch {
@@ -137,20 +141,6 @@ public sealed class AppCoordinator : IDisposable {
 		StatusController.MergedState.NETWORK_ERROR => AppTrayIconState.NETWORK_ERROR,
 		_ => AppTrayIconState.STARTING_OR_INVALID_CONFIG,
 	};
-
-	static string formatVisibleErrors(IReadOnlyCollection<Error> errors) {
-		if (errors.Count == 0)
-			return "";
-
-		return string.Join("; ", errors.Select(static error => error switch {
-			Error.Generic.Starting => "Starting",
-			Error.MixerController.Network => "Mixer network error",
-			Error.MixerController.InvalidReply => "Mixer invalid reply",
-			Error.KeyboardHook.InstallFailed => "Keyboard hook install failed",
-			Error.Application.StartupHealthFault => "Startup health fault",
-			_ => error.GetType().Name,
-		}));
-	}
 
 	void onMixerEvent(MixerController.Event evt) {
 		ui(() => {
@@ -208,8 +198,11 @@ public sealed class AppCoordinator : IDisposable {
 			}
 
 			_configWindow = new ConfigWindow(_mixer, _tray, this, _configStore);
+			_configWindow.syncDiagnosticsFeedback(
+				VisibleDiagnosticsFormatting.formatVisibleErrors(_statusController.getVisibleErrors()));
 			_configWindow.Closed += (_, _) => {
 				setConfiguredHotkeysEnabled(true);
+				_configWindow?.syncDiagnosticsFeedback("");
 				_configWindow = null;
 				scheduleGcTrimAfterConfigClosed();
 			};
@@ -221,13 +214,34 @@ public sealed class AppCoordinator : IDisposable {
 	void scheduleGcTrimAfterConfigClosed() {
 		if (_disposed)
 			return;
-		_ = _dispatcher.BeginInvoke(() => {
-			if (_disposed)
-				return;
-			GC.Collect(GC.MaxGeneration, GCCollectionMode.Default, blocking: true, compacting: true);
-			GC.WaitForPendingFinalizers();
-			GC.Collect(GC.MaxGeneration, GCCollectionMode.Default, blocking: true, compacting: true);
-		}, DispatcherPriority.ApplicationIdle);
+		_ = Task.Run(() => {
+			try {
+				if (_disposed)
+					return;
+				using Process proc = Process.GetCurrentProcess();
+				long managedBefore = GC.GetTotalMemory(false);
+				long wsBefore = proc.WorkingSet64;
+				long privBefore = proc.PrivateMemorySize64;
+
+				GC.Collect(GC.MaxGeneration, GCCollectionMode.Default, blocking: true, compacting: true);
+				GC.WaitForPendingFinalizers();
+				GC.Collect(GC.MaxGeneration, GCCollectionMode.Default, blocking: true, compacting: true);
+
+#if !DEBUG
+				ProcessWorkingSetTrim.tryTrimWorkingSet();
+#endif
+				proc.Refresh();
+				long managedAfter = GC.GetTotalMemory(false);
+				long wsAfter = proc.WorkingSet64;
+				long privAfter = proc.PrivateMemorySize64;
+				AppTrace.Application.TraceEvent(
+					TraceEventType.Information,
+					0,
+					$"Post-settings memory trim: managed {managedBefore}->{managedAfter} B, WorkingSet {wsBefore}->{wsAfter} B, PrivateBytes {privBefore}->{privAfter} B");
+			} catch (Exception ex) {
+				AppTrace.Application.TraceEvent(TraceEventType.Warning, 0, "Post-settings memory trim failed: " + ex);
+			}
+		});
 	}
 
 	void ui(Action action) {

@@ -3,7 +3,15 @@ using System.Net;
 using System.Net.Sockets;
 using SharpOSC;
 
-namespace WindowsOscVolumeControl.Osc;
+namespace WindowsOscVolumeControl.Diagnostics {
+	public abstract partial record Error {
+		public abstract record OscTransport : Error {
+			public sealed record BindFailed : OscTransport;
+		}
+	}
+}
+
+namespace WindowsOscVolumeControl.Osc {
 
 public sealed class OscTransport : IDisposable {
 	public sealed class Config {
@@ -25,6 +33,8 @@ public sealed class OscTransport : IDisposable {
 	bool _disposed;
 
 	public event Action<OscMessage>? messageReceived;
+
+	public ErrorList<Error.OscTransport> errors { get; } = new();
 
 	public OscTransport(Config config) {
 		applyConfig(config);
@@ -57,22 +67,29 @@ public sealed class OscTransport : IDisposable {
 		oldCts?.Dispose();
 		oldUdp?.Dispose();
 
-		UdpClient nextUdp = createUdpClient(nextConfig.endPoint.Port);
+		(UdpClient nextUdp, bool boundToConfiguredPort) = createUdpClient(nextConfig.endPoint.Port);
+		errors.setError(new Error.OscTransport.BindFailed(), !boundToConfiguredPort);
+
 		IPEndPoint nextRemote = new(nextConfig.endPoint.Address, nextConfig.endPoint.Port);
-		var nextCts = new CancellationTokenSource();
 
 		lock (_lock) {
 			throwIfDisposed();
 			_udp = nextUdp;
 			_remote = nextRemote;
-			_loopCts = nextCts;
-			_receiveLoop = Task.Run(() => receiveLoopAsync(nextUdp, nextCts.Token), nextCts.Token);
+			if (boundToConfiguredPort) {
+				var cts = new CancellationTokenSource();
+				_loopCts = cts;
+				_receiveLoop = Task.Run(() => receiveLoopAsync(nextUdp, cts.Token), cts.Token);
+			} else {
+				_loopCts = null;
+				_receiveLoop = null;
+			}
 		}
 
 		AppTrace.OscTransport.TraceEvent(
 			TraceEventType.Information,
 			0,
-			$"OSC socket local={nextUdp.Client.LocalEndPoint} remote={nextRemote}");
+			$"OSC socket local={nextUdp.Client.LocalEndPoint} remote={nextRemote} boundToConfiguredPort={boundToConfiguredPort} receiveLoop={(boundToConfiguredPort ? "on" : "off")}");
 	}
 
 	public async Task sendAsync(string address, params object[] args) {
@@ -90,7 +107,7 @@ public sealed class OscTransport : IDisposable {
 		byte[] bytes = message.GetBytes();
 		string argText = args.Length == 0
 			? ""
-			: " args=[" + string.Join(", ", args.Select(static a => a.GetType().Name + ":" + a)) + "]";
+			: " args=[" + string.Join(", ", args.Cast<object?>().Select(static a => a is null ? "null" : a.GetType().Name + ":" + a)) + "]";
 		string line = $"Sending {address}, {bytes.Length} B{argText}";
 		AppTrace.OscTransport.TraceEvent(TraceEventType.Information, 0, line);
 		await udp.SendAsync(bytes, remote, CancellationToken.None).ConfigureAwait(false);
@@ -132,6 +149,13 @@ public sealed class OscTransport : IDisposable {
 				if (_disposed || cancellationToken.IsCancellationRequested)
 					break;
 				AppTrace.OscTransport.TraceEvent(TraceEventType.Error, 0, ex.ToString());
+			} catch (Exception ex) {
+				if (_disposed || cancellationToken.IsCancellationRequested)
+					break;
+				AppTrace.OscTransport.TraceEvent(
+					TraceEventType.Error,
+					0,
+					$"OSC receive loop error, continuing: {ex}");
 			}
 		}
 	}
@@ -165,10 +189,12 @@ public sealed class OscTransport : IDisposable {
 		}
 	}
 
-	static UdpClient createUdpClient(int oscPort) {
+	static (UdpClient udp, bool boundToConfiguredPort) createUdpClient(int oscPort) {
 		var udp = new UdpClient(AddressFamily.InterNetwork);
 		try {
 			udp.Client.Bind(new IPEndPoint(IPAddress.Any, oscPort));
+			configureSocket(udp);
+			return (udp, true);
 		} catch (SocketException ex) {
 			AppTrace.OscTransport.TraceEvent(
 				TraceEventType.Warning,
@@ -176,10 +202,19 @@ public sealed class OscTransport : IDisposable {
 				$"Bind local UDP {oscPort} failed (another app may use it): {ex.Message}");
 			udp.Dispose();
 			udp = new UdpClient(AddressFamily.InterNetwork);
+			try {
+				udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
+			} catch {
+				udp.Dispose();
+				throw;
+			}
+			configureSocket(udp);
+			return (udp, false);
 		}
+	}
 
+	static void configureSocket(UdpClient udp) {
 		udp.Client.IOControl((IOControlCode)(-1744830452), [0], null);
-		return udp;
 	}
 
 	void throwIfDisposed() {
@@ -211,4 +246,6 @@ public sealed class OscTransport : IDisposable {
 		cts?.Dispose();
 		udp?.Dispose();
 	}
+}
+
 }

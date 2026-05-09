@@ -4,12 +4,20 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows.Controls;
+using WindowsOscVolumeControl.Misc;
 using WindowsOscVolumeControl.UI.Osd;
 using AppCoordinator = WindowsOscVolumeControl.App.AppCoordinator;
 using Brush = System.Windows.Media.Brush;
 using CommunityToolkit.Mvvm.Input;
 
 namespace WindowsOscVolumeControl.UI.Config.ViewModels;
+
+public enum LatencyPanelUiStatus {
+	MUTED,
+	SUCCESS,
+	CAUTION,
+	CRITICAL,
+}
 
 public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	string _oscIpText = "";
@@ -29,6 +37,7 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	string _configPathText = "";
 
 	UiTextFeedback _statusFeedback = new("", UiTextFeedbackKind.DEFAULT);
+	UiTextFeedback _diagnosticsFeedback = new("", UiTextFeedbackKind.DEFAULT);
 	UiTextFeedback _configFeedback = new("", UiTextFeedbackKind.DEFAULT);
 	UiTextFeedback _infoFeedback = new("", UiTextFeedbackKind.DEFAULT);
 	UiTextFeedback _autostartFeedback = new("", UiTextFeedbackKind.DEFAULT);
@@ -91,6 +100,7 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	public string configPathText { get => _configPathText; set => setTextProperty(ref _configPathText, value); }
 
 	public UiTextFeedback statusFeedback { get => _statusFeedback; set => setProperty(ref _statusFeedback, value); }
+	public UiTextFeedback diagnosticsFeedback { get => _diagnosticsFeedback; set => setProperty(ref _diagnosticsFeedback, value); }
 	public UiTextFeedback configFeedback { get => _configFeedback; set => setProperty(ref _configFeedback, value); }
 	public UiTextFeedback infoFeedback { get => _infoFeedback; set => setProperty(ref _infoFeedback, value); }
 	public UiTextFeedback autostartFeedback { get => _autostartFeedback; set => setProperty(ref _autostartFeedback, value); }
@@ -219,6 +229,7 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 		configFeedback = _configStore.lastDiskUiFeedback;
 		infoFeedback = new UiTextFeedback("", UiTextFeedbackKind.DEFAULT);
 		statusFeedback = new UiTextFeedback("", UiTextFeedbackKind.DEFAULT);
+		diagnosticsFeedback = new UiTextFeedback("", UiTextFeedbackKind.DEFAULT);
 
 		WindowsAutostart.UiFeedbackDetail autostart = WindowsAutostart.getCurrentUiFeedback();
 		autostartFeedback = autostart.feedback;
@@ -323,6 +334,62 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 		UiTextFeedback fb = WindowsAutostart.uiFeedbackForDeregisterAll(WindowsAutostart.tryDeregisterAllCopiesFromRun());
 		autostartFeedback = fb;
 		autostartFeedbackPathOrNull = null;
+	}
+
+	public void applyLatencyStatsToUi(int timeoutMs, RttStatsSnapshot ping, RttStatsSnapshot osc, Func<LatencyPanelUiStatus, Brush> brushForStatus) {
+		pingMinText = formatLatencyCellText(ping.minMs);
+		pingMedianText = formatLatencyCellText(ping.medianMs);
+		pingMaxText = formatLatencyCellText(ping.maxMs);
+		pingLossText = ping.completedCount == 0 ? "—" : ping.receivedCount.ToString(CultureInfo.InvariantCulture);
+
+		oscMinText = formatLatencyCellText(osc.minMs);
+		oscMedianText = formatLatencyCellText(osc.medianMs);
+		oscMaxText = formatLatencyCellText(osc.maxMs);
+		oscLossText = osc.completedCount == 0 ? "—" : osc.receivedCount.ToString(CultureInfo.InvariantCulture);
+
+		int completed = ping.completedCount;
+		lossUnitText = "/" + completed.ToString(CultureInfo.InvariantCulture);
+
+		pingLossForeground = brushForStatus(responseStatus(ping.completedCount, ping.receivedCount));
+		oscLossForeground = brushForStatus(responseStatus(osc.completedCount, osc.receivedCount));
+
+		pingMinForeground = brushForStatus(latencyStatus(timeoutMs, ping.minMs));
+		pingMedianForeground = brushForStatus(latencyStatus(timeoutMs, ping.medianMs));
+		pingMaxForeground = brushForStatus(latencyStatus(timeoutMs, ping.maxMs));
+
+		oscMinForeground = brushForStatus(latencyStatus(timeoutMs, osc.minMs));
+		oscMedianForeground = brushForStatus(latencyStatus(timeoutMs, osc.medianMs));
+		oscMaxForeground = brushForStatus(latencyStatus(timeoutMs, osc.maxMs));
+	}
+
+	static string formatLatencyCellText(int? rttMs) {
+		if (rttMs == null)
+			return "—";
+		int ms = rttMs.Value;
+		if (ms == 0)
+			return "<1";
+		return ms.ToString(CultureInfo.InvariantCulture);
+	}
+
+	static LatencyPanelUiStatus responseStatus(int completed, int received) {
+		if (completed <= 0)
+			return LatencyPanelUiStatus.MUTED;
+		if (received <= 0)
+			return LatencyPanelUiStatus.CRITICAL;
+		return received < completed ? LatencyPanelUiStatus.CAUTION : LatencyPanelUiStatus.SUCCESS;
+	}
+
+	static LatencyPanelUiStatus latencyStatus(int timeoutMs, int? rttMs) {
+		if (rttMs == null)
+			return LatencyPanelUiStatus.MUTED;
+		if (timeoutMs <= 0)
+			return LatencyPanelUiStatus.MUTED;
+		double ratio = rttMs.Value / (double)timeoutMs;
+		if (ratio < 0.10)
+			return LatencyPanelUiStatus.SUCCESS;
+		if (ratio < 0.50)
+			return LatencyPanelUiStatus.CAUTION;
+		return LatencyPanelUiStatus.CRITICAL;
 	}
 }
 

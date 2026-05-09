@@ -120,7 +120,16 @@ public partial class KeyboardHook : IDisposable {
 	}
 
 	void queueDispatch(Action dispatch) {
-		ThreadPool.QueueUserWorkItem(_ => dispatch());
+		ThreadPool.QueueUserWorkItem(_ => {
+			try {
+				dispatch();
+			} catch (Exception ex) {
+				AppTrace.KeyboardHook.TraceEvent(
+					TraceEventType.Error,
+					0,
+					$"Hotkey dispatch failed: {ex}");
+			}
+		});
 	}
 
 	static bool IsKeyDown(IntPtr wParam) {

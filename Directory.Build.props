@@ -1,0 +1,8 @@
+<Project>
+  <!-- Keep bin/obj paths stable across Platform (x64 vs Any CPU) so VS/MSBuild project
+       references and design-time builds don't point at a folder SharpOSC never wrote. -->
+  <PropertyGroup>
+    <AppendPlatformToOutputPath>false</AppendPlatformToOutputPath>
+    <AppendPlatformToIntermediateOutputPath>false</AppendPlatformToIntermediateOutputPath>
+  </PropertyGroup>
+</Project>
