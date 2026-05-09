@@ -9,11 +9,19 @@ internal static class TraceLogFileRotation {
 	internal const string TruncationMarkerLine = "--- earlier log truncated ---";
 	internal const long MAX_TRACE_LOG_FILE_BYTES = 1024 * 1024;
 
-	internal static void writeSessionBanner(TextWriter writer, string logPath) {
+	internal static void writeSessionBanner(TextWriter writer) {
+#if DEBUG
+		const string buildConfiguration = "Debug";
+#else
+		const string buildConfiguration = "Release";
+#endif
 		writer.WriteLine(
-			Path.GetFullPath(logPath)
-				+ " | file=min(Warning) | "
-				+ DateTime.UtcNow.ToString("u", CultureInfo.InvariantCulture));
+			  DateTime.UtcNow.ToString("u", CultureInfo.InvariantCulture)
+			+ " --------- Start"
+			+ ", build=" + buildConfiguration
+			+ ", file=min(Warning)"
+			+ " ---------"
+		);
 		writer.Flush();
 	}
 
@@ -69,7 +77,7 @@ internal sealed class RotatingFileTraceListener : TextWriterTraceListener {
 	internal static RotatingFileTraceListener createForNewSession(string path, long maxBytes) {
 		var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
 		var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
-		TraceLogFileRotation.writeSessionBanner(writer, path);
+		TraceLogFileRotation.writeSessionBanner(writer);
 		return new RotatingFileTraceListener(writer, path, maxBytes);
 	}
 

@@ -112,46 +112,6 @@
 					</StackPanel>
 				</GroupBox>
 
-				<GroupBox Header="Config file" Margin="0,0,0,8" Padding="0">
-					<Grid Margin="8,4,8,8">
-						<Grid.RowDefinitions>
-							<RowDefinition Height="Auto" />
-							<RowDefinition Height="Auto" />
-						</Grid.RowDefinitions>
-						<Grid.ColumnDefinitions>
-							<ColumnDefinition Width="*" />
-							<ColumnDefinition Width="Auto" />
-						</Grid.ColumnDefinitions>
-						<TextBox
-							x:Name="ConfigPathTextBox"
-							Grid.Row="0"
-							Grid.Column="0"
-							Style="{DynamicResource ConfigReadOnlyDisplayTextBoxStyle}"
-							FontSize="12"
-							TextWrapping="Wrap"
-							AcceptsReturn="True"
-							VerticalScrollBarVisibility="Disabled"
-							HorizontalScrollBarVisibility="Disabled"
-							Text="{Binding configPathText}"
-							Margin="0,0,0,4" />
-						<Button
-							Grid.Row="0"
-							Grid.Column="1"
-							Margin="8,0,0,4"
-							MinWidth="40"
-							Padding="0"
-							HorizontalAlignment="Right"
-							VerticalAlignment="Stretch"
-							HorizontalContentAlignment="Center"
-							VerticalContentAlignment="Center"
-							Command="{Binding openConfigFolderCommand}"
-							ToolTip="Open config folder">
-							<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE838;" />
-						</Button>
-						<TextBlock x:Name="ConfigFeedbackTextBlock" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" TextWrapping="Wrap" />
-					</Grid>
-				</GroupBox>
-
 				<GroupBox Header="Connection" Margin="0,0,0,8" Padding="0">
 					<Grid Margin="8,4,8,8">
 						<Grid.ColumnDefinitions>
@@ -319,6 +279,78 @@
 						<CheckBox x:Name="HotkeyAcceptMacroChordKeyOrderCheckBox" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,4,0,0" IsChecked="{Binding hotkeyAcceptMacroChordKeyOrder}">
 							<TextBlock TextWrapping="Wrap" Text="Allow modifier key-up before main key (needed when simulated by macros in fixed order)" />
 						</CheckBox>
+					</Grid>
+				</GroupBox>
+
+				<GroupBox Header="Config" Margin="0,0,0,8" Padding="0">
+					<Grid Margin="8,4,8,8">
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto" />
+							<RowDefinition Height="Auto" />
+						</Grid.RowDefinitions>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="*" />
+							<ColumnDefinition Width="Auto" />
+						</Grid.ColumnDefinitions>
+						<TextBox
+							x:Name="ConfigPathTextBox"
+							Grid.Row="0"
+							Grid.Column="0"
+							Style="{DynamicResource ConfigReadOnlyDisplayTextBoxStyle}"
+							FontSize="12"
+							TextWrapping="Wrap"
+							AcceptsReturn="True"
+							VerticalScrollBarVisibility="Disabled"
+							HorizontalScrollBarVisibility="Disabled"
+							Text="{Binding configPathText}"
+							Margin="0,0,0,4" />
+						<Button
+							Grid.Row="0"
+							Grid.Column="1"
+							Margin="8,0,0,4"
+							MinWidth="40"
+							Padding="0"
+							HorizontalAlignment="Right"
+							VerticalAlignment="Stretch"
+							HorizontalContentAlignment="Center"
+							VerticalContentAlignment="Center"
+							Command="{Binding openConfigFolderCommand}"
+							ToolTip="Open config folder">
+							<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE838;" />
+						</Button>
+						<TextBlock x:Name="ConfigFeedbackTextBlock" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" TextWrapping="Wrap" />
+					</Grid>
+				</GroupBox>
+
+				<GroupBox Header="Logs" Margin="0,0,0,8" Padding="0">
+					<Grid Margin="8,4,8,8">
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="*" />
+							<ColumnDefinition Width="Auto" />
+						</Grid.ColumnDefinitions>
+						<TextBox
+							Grid.Column="0"
+							Style="{DynamicResource ConfigReadOnlyDisplayTextBoxStyle}"
+							FontSize="12"
+							TextWrapping="Wrap"
+							AcceptsReturn="True"
+							VerticalScrollBarVisibility="Disabled"
+							HorizontalScrollBarVisibility="Disabled"
+							Text="{Binding traceLogPathText}"
+							Margin="0,0,0,0" />
+						<Button
+							Grid.Column="1"
+							Margin="8,0,0,0"
+							MinWidth="40"
+							Padding="0"
+							HorizontalAlignment="Right"
+							VerticalAlignment="Stretch"
+							HorizontalContentAlignment="Center"
+							VerticalContentAlignment="Center"
+							Command="{Binding openTraceLogFolderCommand}"
+							ToolTip="Open log folder">
+							<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE838;" />
+						</Button>
 					</Grid>
 				</GroupBox>
 			</StackPanel>

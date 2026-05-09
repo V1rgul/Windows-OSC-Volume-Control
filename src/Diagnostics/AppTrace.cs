@@ -14,6 +14,11 @@ static class AppTrace {
 	static readonly object _fileLogInitLock = new();
 	static bool _fileLogInitialized;
 
+	public static string traceLogFilePathForUi => Path.GetFullPath(Path.Combine(
+		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+		"Windows-OSC-Volume-Control",
+		"Windows-OSC-Volume-Control.log"));
+
 	public static void initializeFileLogging() {
 		lock (_fileLogInitLock) {
 			if (_fileLogInitialized)
@@ -22,11 +27,10 @@ static class AppTrace {
 		}
 
 		try {
-			string dir = Path.Combine(
-				Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-				"Windows-OSC-Volume-Control");
-			Directory.CreateDirectory(dir);
-			string path = Path.Combine(dir, "Windows-OSC-Volume-Control.log");
+			string path = traceLogFilePathForUi;
+			string? dir = Path.GetDirectoryName(path);
+			if (!string.IsNullOrEmpty(dir))
+				Directory.CreateDirectory(dir);
 
 			var listener = RotatingFileTraceListener.createForNewSession(path, TraceLogFileRotation.MAX_TRACE_LOG_FILE_BYTES);
 			listener.Filter = new EventTypeFilter(FILE_LOG_LISTENER_MIN_LEVEL);

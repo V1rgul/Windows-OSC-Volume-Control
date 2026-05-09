@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows.Controls;
-using WindowsOscVolumeControl.Misc;
 using WindowsOscVolumeControl.UI.Osd;
 using AppCoordinator = WindowsOscVolumeControl.App.AppCoordinator;
 using Brush = System.Windows.Media.Brush;
@@ -35,6 +34,7 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	bool _hotkeyAcceptMacroChordKeyOrder;
 
 	string _configPathText = "";
+	string _traceLogPathText = "";
 
 	UiTextFeedback _statusFeedback = new("", UiTextFeedbackKind.DEFAULT);
 	UiTextFeedback _diagnosticsFeedback = new("", UiTextFeedbackKind.DEFAULT);
@@ -98,6 +98,7 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	public bool hotkeyAcceptMacroChordKeyOrder { get => _hotkeyAcceptMacroChordKeyOrder; set => setProperty(ref _hotkeyAcceptMacroChordKeyOrder, value); }
 
 	public string configPathText { get => _configPathText; set => setTextProperty(ref _configPathText, value); }
+	public string traceLogPathText { get => _traceLogPathText; set => setTextProperty(ref _traceLogPathText, value); }
 
 	public UiTextFeedback statusFeedback { get => _statusFeedback; set => setProperty(ref _statusFeedback, value); }
 	public UiTextFeedback diagnosticsFeedback { get => _diagnosticsFeedback; set => setProperty(ref _diagnosticsFeedback, value); }
@@ -190,6 +191,7 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 
 		addBindingCommand = new RelayCommand(addBinding);
 		openConfigFolderCommand = new RelayCommand(openConfigFolder);
+		openTraceLogFolderCommand = new RelayCommand(openTraceLogFolder);
 		registerAutostartCommand = new RelayCommand(registerAutostart);
 		deregisterAutostartCommand = new RelayCommand(deregisterAutostart);
 		deregisterAllAutostartCommand = new RelayCommand(deregisterAllAutostart);
@@ -226,6 +228,7 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 		hotkeyAcceptMacroChordKeyOrder = hk.acceptMacroChordKeyOrder;
 
 		configPathText = _configStore.configPathForUi;
+		traceLogPathText = AppTrace.traceLogFilePathForUi;
 		configFeedback = _configStore.lastDiskUiFeedback;
 		infoFeedback = new UiTextFeedback("", UiTextFeedbackKind.DEFAULT);
 		statusFeedback = new UiTextFeedback("", UiTextFeedbackKind.DEFAULT);
@@ -242,6 +245,7 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 
 	public IRelayCommand addBindingCommand { get; }
 	public IRelayCommand openConfigFolderCommand { get; }
+	public IRelayCommand openTraceLogFolderCommand { get; }
 	public IRelayCommand registerAutostartCommand { get; }
 	public IRelayCommand deregisterAutostartCommand { get; }
 	public IRelayCommand deregisterAllAutostartCommand { get; }
@@ -306,7 +310,14 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	}
 
 	void openConfigFolder() {
-		string? dir = Path.GetDirectoryName(_configStore.configPath);
+		launchExplorerOnDirectory(Path.GetDirectoryName(_configStore.configPath));
+	}
+
+	void openTraceLogFolder() {
+		launchExplorerOnDirectory(Path.GetDirectoryName(AppTrace.traceLogFilePathForUi));
+	}
+
+	void launchExplorerOnDirectory(string? dir) {
 		if (string.IsNullOrEmpty(dir))
 			return;
 		try {
