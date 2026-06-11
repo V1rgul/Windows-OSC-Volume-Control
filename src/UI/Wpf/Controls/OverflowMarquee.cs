@@ -61,6 +61,14 @@ public sealed class OverflowMarquee : ContentControl {
 		DefaultStyleKeyProperty.OverrideMetadata(typeof(OverflowMarquee), new FrameworkPropertyMetadata(typeof(OverflowMarquee)));
 	}
 
+	public OverflowMarquee() {
+		Loaded += onLayoutMaybeChanged;
+		SizeChanged += onLayoutMaybeChanged;
+	}
+
+	void onLayoutMaybeChanged(object? sender, RoutedEventArgs e) =>
+		Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(updateAnimationState));
+
 	public ScrollMode scrollMode {
 		get => (ScrollMode)GetValue(scrollModeProperty);
 		set => SetValue(scrollModeProperty, value);
@@ -93,14 +101,19 @@ public sealed class OverflowMarquee : ContentControl {
 
 	public override void OnApplyTemplate() {
 		base.OnApplyTemplate();
+
+		// Template can be re-applied (theme/style change): unhook the previous scroller so handlers don't accumulate.
+		if (_scroller != null) {
+			_scroller.Loaded -= onLayoutMaybeChanged;
+			_scroller.SizeChanged -= onLayoutMaybeChanged;
+		}
+
 		_scroller = GetTemplateChild("PART_Scroller") as ScrollViewer;
 		stopAnimation(snapToStart: true);
 
 		if (_scroller != null) {
-			_scroller.Loaded += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(updateAnimationState));
-			_scroller.SizeChanged += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(updateAnimationState));
-			Loaded += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(updateAnimationState));
-			SizeChanged += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(updateAnimationState));
+			_scroller.Loaded += onLayoutMaybeChanged;
+			_scroller.SizeChanged += onLayoutMaybeChanged;
 		}
 	}
 

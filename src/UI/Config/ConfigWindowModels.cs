@@ -551,19 +551,9 @@ public sealed class ControlActionEditor : ObservableObject {
 
 	public bool isHotkeyIdlePlaceholder => hotkey.isNone && !_isHotkeyCaptureActive;
 
-	public bool showsFloatInput {
-		get {
-			ControlAction? p = tryInstantiatePrototype(selectedActionType);
-			return p?.valueKind == ControlActionValueKind.FLOAT;
-		}
-	}
+	public bool showsFloatInput => valueKindForActionType(selectedActionType) == ControlActionValueKind.FLOAT;
 
-	public bool showsBoolInput {
-		get {
-			ControlAction? p = tryInstantiatePrototype(selectedActionType);
-			return p?.valueKind == ControlActionValueKind.BOOL;
-		}
-	}
+	public bool showsBoolInput => valueKindForActionType(selectedActionType) == ControlActionValueKind.BOOL;
 
 	public void refreshChoiceFromOwner() {
 		if (owner == null) {
@@ -588,6 +578,12 @@ public sealed class ControlActionEditor : ObservableObject {
 			return typeof(ControlActionToggleAbstract).IsAssignableFrom(selectedActionType);
 		return typeof(ControlActionContinuousAbstract).IsAssignableFrom(selectedActionType);
 	}
+
+	/// <summary>Bound to row Visibility; cached because instantiating a prototype per read is wasteful.</summary>
+	static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, ControlActionValueKind?> _valueKindByActionType = new();
+
+	static ControlActionValueKind? valueKindForActionType(Type t) =>
+		_valueKindByActionType.GetOrAdd(t, static type => tryInstantiatePrototype(type)?.valueKind);
 
 	static ControlAction? tryInstantiatePrototype(Type t) {
 		try {

@@ -51,6 +51,7 @@ public partial class BindingsPanelView {
 	ItemsControl? _dragGhostOwnerList;
 
 	ControlActionEditor? _hotkeyCaptureItem;
+	HotkeyGesture _hotkeyCapturePreviousGesture;
 	DateTime? _hotkeyCaptureDownUtc;
 	HotkeyGesture _hotkeyCaptureGesture;
 	bool _hotkeyCaptureAwaitingRelease;
@@ -194,11 +195,13 @@ public partial class BindingsPanelView {
 			return;
 		m.setConfiguredHotkeysEnabled(false);
 		if (sender is FrameworkElement { DataContext: ControlActionEditor item }) {
+			clearHotkeyCaptureTracking();
+			// Remember the current assignment so abandoning capture (focus moves away) restores it.
+			_hotkeyCaptureItem = item;
+			_hotkeyCapturePreviousGesture = item.hotkey;
 			item.isHotkeyCaptureActive = true;
 			item.hotkey = HotkeyGesture.None;
 			m.statusFeedback = new UiTextFeedback("", UiTextFeedbackKind.DEFAULT);
-			clearHotkeyCaptureTracking();
-			_hotkeyCaptureItem = item;
 		}
 	}
 
@@ -206,8 +209,12 @@ public partial class BindingsPanelView {
 		ConfigWindowViewModel? m = vm;
 		if (sender is FrameworkElement { DataContext: ControlActionEditor item }) {
 			item.isHotkeyCaptureActive = false;
-			if (ReferenceEquals(_hotkeyCaptureItem, item))
+			if (ReferenceEquals(_hotkeyCaptureItem, item)) {
+				// Capture abandoned without a completed press: restore the assignment cleared at capture start.
+				if (item.hotkey.isNone)
+					item.hotkey = _hotkeyCapturePreviousGesture;
 				clearHotkeyCaptureTracking();
+			}
 		}
 		m?.setConfiguredHotkeysEnabled(true);
 	}
@@ -242,6 +249,11 @@ public partial class BindingsPanelView {
 
 	void clearHotkeyCaptureTracking() {
 		_hotkeyCaptureItem = null;
+		_hotkeyCapturePreviousGesture = HotkeyGesture.None;
+		resetHotkeyCapturePressTracking();
+	}
+
+	void resetHotkeyCapturePressTracking() {
 		_hotkeyCaptureDownUtc = null;
 		_hotkeyCaptureGesture = HotkeyGesture.None;
 		_hotkeyCaptureAwaitingRelease = false;
@@ -263,7 +275,8 @@ public partial class BindingsPanelView {
 			return;
 		if (!HotkeyUtil.tryValidate(g, out UiTextFeedback hkFb)) {
 			m.statusFeedback = hkFb;
-			clearHotkeyCaptureTracking();
+			// Keep item/previous-gesture tracking so the user can retry or abandon (restoring the old assignment).
+			resetHotkeyCapturePressTracking();
 			return;
 		}
 		item.hotkey = g;
