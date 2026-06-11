@@ -37,10 +37,11 @@ public sealed class OscTransport : IDisposable {
 	public ErrorList<Error.OscTransport> errors { get; } = new();
 
 	public OscTransport(Config config) {
-		applyConfig(config);
+		// No receive loop exists yet, so this completes synchronously.
+		applyConfigAsync(config).GetAwaiter().GetResult();
 	}
 
-	public void applyConfig(Config config) {
+	public async Task applyConfigAsync(Config config) {
 		ArgumentNullException.ThrowIfNull(config);
 
 		Config nextConfig = new(config);
@@ -63,7 +64,7 @@ public sealed class OscTransport : IDisposable {
 
 		oldCts?.Cancel();
 		wakeReceiveLoop(oldUdp);
-		waitForReceiveLoop(oldLoop);
+		await waitForReceiveLoopAsync(oldLoop).ConfigureAwait(false);
 		oldCts?.Dispose();
 		oldUdp?.Dispose();
 
@@ -165,6 +166,15 @@ public sealed class OscTransport : IDisposable {
 			return;
 		try {
 			loop.GetAwaiter().GetResult();
+		} catch (OperationCanceledException) {
+		}
+	}
+
+	static async Task waitForReceiveLoopAsync(Task? loop) {
+		if (loop == null)
+			return;
+		try {
+			await loop.ConfigureAwait(false);
 		} catch (OperationCanceledException) {
 		}
 	}

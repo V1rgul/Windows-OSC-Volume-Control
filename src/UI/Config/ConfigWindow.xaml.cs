@@ -160,7 +160,7 @@ public partial class ConfigWindow {
 
 			_appCoordinator.beginConfigValidation();
 			try {
-				_appCoordinator.commitConfigFromSettingsForm(newConfig!);
+				await _appCoordinator.commitConfigFromSettingsFormAsync(newConfig!);
 				vm.configFeedback = _configStore.lastDiskUiFeedback;
 
 				int timeoutMs = Math.Max(1, (int)newConfig!.mixer.timeoutMs);

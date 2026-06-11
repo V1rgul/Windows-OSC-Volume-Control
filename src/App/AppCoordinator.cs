@@ -89,19 +89,21 @@ public sealed class AppCoordinator : IDisposable {
 	public void finishConfigValidation() =>
 		_applicationErrors.setError(new Error.Generic.Starting(), false);
 
-	public void applyConfigFromStore() {
+	public async Task applyConfigFromStoreAsync() {
 		AppConfig cfg = _configStore.appConfig;
-		_transport.applyConfig(cfg.oscTransport);
+		// Socket teardown/rebind may briefly block on the old receive loop; await keeps the UI thread responsive.
+		// No ConfigureAwait(false): the remainder touches WPF-affine objects and must resume on the dispatcher.
+		await _transport.applyConfigAsync(cfg.oscTransport);
 		_tray.setOscEndPoint(cfg.oscTransport.endPoint);
 		_mixer.ApplyConfig(cfg.mixer);
 		_osd.ApplyConfig(cfg.osd);
 		rebuildHotkeysFromConfig(cfg.trayApp.bindings);
 	}
 
-	public void commitConfigFromSettingsForm(AppConfig newConfig) {
+	public async Task commitConfigFromSettingsFormAsync(AppConfig newConfig) {
 		ArgumentNullException.ThrowIfNull(newConfig);
 		_configStore.adoptAppConfig(newConfig);
-		applyConfigFromStore();
+		await applyConfigFromStoreAsync();
 		_configStore.tryPersistToDisk();
 	}
 

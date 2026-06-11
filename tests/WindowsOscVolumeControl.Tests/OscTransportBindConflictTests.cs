@@ -21,7 +21,7 @@ public class OscTransportBindConflictTests {
 	}
 
 	[Fact]
-	public void OscTransport_ClearsBindFailed_AfterSuccessfulRebind() {
+	public async Task OscTransport_ClearsBindFailed_AfterSuccessfulRebind() {
 		using var portBlocker = new UdpClient(new IPEndPoint(IPAddress.Any, 0));
 		int takenPort = ((IPEndPoint)portBlocker.Client.LocalEndPoint!).Port;
 
@@ -31,7 +31,7 @@ public class OscTransportBindConflictTests {
 		Assert.Contains(transport.errors.activeErrors, static e => e is Error.OscTransport.BindFailed);
 
 		portBlocker.Dispose();
-		transport.applyConfig(new OscTransport.Config {
+		await transport.applyConfigAsync(new OscTransport.Config {
 			endPoint = new IPEndPoint(IPAddress.Loopback, takenPort),
 		});
 
