@@ -119,6 +119,7 @@ public sealed class MixerController {
 		if (!float.IsFinite(binding.minimum) || !float.IsFinite(binding.maximum) || binding.minimum > binding.maximum)
 			return;
 
+		ActionPlan plan;
 		lock (_lock) {
 			MixerAddressState.Continuous cont = getOrAddContinuousState(path);
 			if (!action.needsCurrentWire) {
@@ -127,37 +128,28 @@ public sealed class MixerController {
 				float? prev = cont.tryGetCachedValueTyped(_config.ValueCacheTtlMs);
 				bool increased = prev == null || wire >= prev.Value;
 				cont.updateCache(wire);
-				sendAndEmit(
-					path,
-					wire,
-					new Event.FaderChanged {
-						address = path,
-						newLevel = wire,
-						volumeIncreased = increased,
-					});
-				return;
+				plan = new ActionPlan { effect = ActionEffect.SEND_FADER, faderValue = wire, faderIncreased = increased };
+			} else {
+				cont.enqueue(action, binding, DateTime.UtcNow);
+				plan = cont.tryGetCachedValueTyped(_config.ValueCacheTtlMs) != null
+					? planApplyContinuousLocked(cont)
+					: planRefreshQueryLocked(cont);
 			}
-
-			cont.enqueue(action, binding, DateTime.UtcNow);
-			if (cont.tryGetCachedValueTyped(_config.ValueCacheTtlMs) != null)
-				applyPending(path, cont);
-			else
-				refreshCache(path, cont);
 		}
+		executePlan(path, plan);
 	}
 
 	public void toggle(string address) {
+		ActionPlan plan;
 		lock (_lock) {
 			MixerAddressState.Toggle toggleState = getOrAddToggleState(address);
 			toggleState.markPending(DateTime.UtcNow);
 
-			if (toggleState.tryGetCachedValueTyped(_config.ValueCacheTtlMs) != null) {
-				applyPending(address, toggleState);
-				return;
-			}
-
-			refreshCache(address, toggleState);
+			plan = toggleState.tryGetCachedValueTyped(_config.ValueCacheTtlMs) != null
+				? planApplyToggleLocked(toggleState)
+				: planRefreshQueryLocked(toggleState);
 		}
+		executePlan(address, plan);
 	}
 
 	/// <summary>Sets toggle to an explicit on/off state; clears pending flip and updates cache.</summary>
@@ -166,14 +158,8 @@ public sealed class MixerController {
 			MixerAddressState.Toggle toggleState = getOrAddToggleState(address);
 			toggleState.clearPending();
 			toggleState.updateCache(on);
-			sendAndEmit(
-				address,
-				on ? 1f : 0f,
-				new Event.ToggleChanged {
-					address = address,
-					nowOn = on,
-				});
 		}
+		executePlan(address, new ActionPlan { effect = ActionEffect.SEND_TOGGLE, toggleOn = on });
 	}
 
 	public async Task<float?> QueryContinuousWireAsync(string address) {
@@ -280,7 +266,32 @@ public sealed class MixerController {
 		}
 	}
 
+	/// <summary>What to do for an address once <see cref="_lock"/> is released; state mutation happens under the lock, sends/error/event fan-out outside it.</summary>
+	enum ActionEffect {
+		NONE,
+		/// <summary>Reply did not parse while actions were pending.</summary>
+		FAIL_INVALID_REPLY,
+		/// <summary>Pending actions could not be applied (expired or no cached value).</summary>
+		FAIL_APPLY,
+		SEND_FADER,
+		SEND_TOGGLE,
+		/// <summary>Cache is stale and no query is in flight: send a bare query for the address.</summary>
+		REFRESH_QUERY,
+	}
+
+	struct ActionPlan {
+		public ActionEffect effect;
+		/// <summary>Set on reply-driven plans only; hotkey-driven plans leave the error untouched (as before the refactor).</summary>
+		public bool clearInvalidReply;
+		public float faderValue;
+		public bool faderIncreased;
+		public bool toggleOn;
+	}
+
 	void onMessage(OscMessage msg) {
+		TaskCompletionSource<OscMessage>? infoReply = null;
+		var plan = default(ActionPlan);
+
 		lock (_lock) {
 			if (!_stateByAddress.TryGetValue(msg.Address, out MixerAddressState? state))
 				return;
@@ -289,85 +300,115 @@ public sealed class MixerController {
 
 			switch (state) {
 				case MixerAddressState.Continuous cont:
-					if (!cont.tryUpdateCacheFromReply(msg)) {
-						if (cont.hasPending) {
-							cont.clearPending();
-							errors.setError(new Error.MixerController.InvalidReply(), true);
-							emitFailure(msg.Address);
-						}
-						return;
-					}
-					errors.setError(new Error.MixerController.InvalidReply(), false);
-					applyPending(msg.Address, cont);
-					return;
-
+					plan = planContinuousReplyLocked(cont, msg);
+					break;
 				case MixerAddressState.Toggle toggleState:
-					if (!toggleState.tryUpdateCacheFromReply(msg)) {
-						if (toggleState.hasPending) {
-							toggleState.clearPending();
-							errors.setError(new Error.MixerController.InvalidReply(), true);
-							emitFailure(msg.Address);
-						}
-						return;
-					}
-					errors.setError(new Error.MixerController.InvalidReply(), false);
-					applyPending(msg.Address, toggleState);
-					return;
-
+					plan = planToggleReplyLocked(toggleState, msg);
+					break;
 				case MixerAddressState.Info:
-					_pendingInfoReply?.TrySetResult(msg);
-					return;
+					infoReply = _pendingInfoReply;
+					break;
 			}
 		}
+
+		if (infoReply != null) {
+			infoReply.TrySetResult(msg);
+			return;
+		}
+		executePlan(msg.Address, plan);
 	}
 
-	void refreshCache(string address, MixerAddressState state) {
+	ActionPlan planContinuousReplyLocked(MixerAddressState.Continuous cont, OscMessage msg) {
+		if (!cont.tryUpdateCacheFromReply(msg)) {
+			if (!cont.hasPending)
+				return default;
+			cont.clearPending();
+			return new ActionPlan { effect = ActionEffect.FAIL_INVALID_REPLY };
+		}
+		ActionPlan plan = planApplyContinuousLocked(cont);
+		plan.clearInvalidReply = true;
+		return plan;
+	}
+
+	ActionPlan planToggleReplyLocked(MixerAddressState.Toggle toggleState, OscMessage msg) {
+		if (!toggleState.tryUpdateCacheFromReply(msg)) {
+			if (!toggleState.hasPending)
+				return default;
+			toggleState.clearPending();
+			return new ActionPlan { effect = ActionEffect.FAIL_INVALID_REPLY };
+		}
+		ActionPlan plan = planApplyToggleLocked(toggleState);
+		plan.clearInvalidReply = true;
+		return plan;
+	}
+
+	ActionPlan planApplyContinuousLocked(MixerAddressState.Continuous cont) {
+		if (!cont.hasPending)
+			return default;
+		if (!cont.tryApplyPending(_config.timeoutMs, out float newVal, out bool requestedIncrease))
+			return new ActionPlan { effect = ActionEffect.FAIL_APPLY };
+		return new ActionPlan { effect = ActionEffect.SEND_FADER, faderValue = newVal, faderIncreased = requestedIncrease };
+	}
+
+	ActionPlan planApplyToggleLocked(MixerAddressState.Toggle toggleState) {
+		if (!toggleState.hasPending)
+			return default;
+		if (!toggleState.tryApplyPending(_config.timeoutMs, out bool nowOn))
+			return new ActionPlan { effect = ActionEffect.FAIL_APPLY };
+		return new ActionPlan { effect = ActionEffect.SEND_TOGGLE, toggleOn = nowOn };
+	}
+
+	ActionPlan planRefreshQueryLocked(MixerAddressState state) {
+		// Dedupe: an outstanding query's reply (or its timeout) already drives the pending work.
+		if (state.isQueryInFlight(_config.timeoutMs))
+			return default;
 		state.markQuerySent(DateTime.UtcNow);
-		_ = refreshCacheAsync(address);
+		return new ActionPlan { effect = ActionEffect.REFRESH_QUERY };
+	}
+
+	void executePlan(string address, in ActionPlan plan) {
+		if (plan.clearInvalidReply)
+			errors.setError(new Error.MixerController.InvalidReply(), false);
+
+		switch (plan.effect) {
+			case ActionEffect.NONE:
+				return;
+			case ActionEffect.FAIL_INVALID_REPLY:
+				errors.setError(new Error.MixerController.InvalidReply(), true);
+				emitFailure(address);
+				return;
+			case ActionEffect.FAIL_APPLY:
+				errors.setError(new Error.MixerController.Network(), true);
+				emitFailure(address);
+				return;
+			case ActionEffect.SEND_FADER:
+				sendAndEmit(
+					address,
+					plan.faderValue,
+					new Event.FaderChanged {
+						address = address,
+						newLevel = plan.faderValue,
+						volumeIncreased = plan.faderIncreased,
+					});
+				return;
+			case ActionEffect.SEND_TOGGLE:
+				sendAndEmit(
+					address,
+					plan.toggleOn ? 1f : 0f,
+					new Event.ToggleChanged {
+						address = address,
+						nowOn = plan.toggleOn,
+					});
+				return;
+			case ActionEffect.REFRESH_QUERY:
+				_ = refreshCacheAsync(address);
+				return;
+		}
 	}
 
 	async Task refreshCacheAsync(string address) {
 		if (!await trySendAsync(address).ConfigureAwait(false))
 			emitFailure(address);
-	}
-
-	void applyPending(string address, MixerAddressState.Continuous cont) {
-		if (!cont.hasPending)
-			return;
-
-		if (!cont.tryApplyPending(_config.timeoutMs, out float newVal, out bool requestedIncrease)) {
-			errors.setError(new Error.MixerController.Network(), true);
-			emitFailure(address);
-			return;
-		}
-
-		sendAndEmit(
-			address,
-			newVal,
-			new Event.FaderChanged {
-				address = address,
-				newLevel = newVal,
-				volumeIncreased = requestedIncrease,
-			});
-	}
-
-	void applyPending(string address, MixerAddressState.Toggle toggleState) {
-		if (!toggleState.hasPending)
-			return;
-
-		if (!toggleState.tryApplyPending(_config.timeoutMs, out bool nowOn)) {
-			errors.setError(new Error.MixerController.Network(), true);
-			emitFailure(address);
-			return;
-		}
-
-		sendAndEmit(
-			address,
-			nowOn ? 1f : 0f,
-			new Event.ToggleChanged {
-				address = address,
-				nowOn = nowOn,
-			});
 	}
 
 	void sendAndEmit(string address, object arg, Event evt) {
@@ -376,6 +417,11 @@ public sealed class MixerController {
 
 	async Task sendAndEmitAsync(string address, object arg, Event evt) {
 		if (!await trySendAsync(address, arg).ConfigureAwait(false)) {
+			// The optimistic cache update no longer matches the mixer; force a re-query on the next action.
+			lock (_lock) {
+				if (_stateByAddress.TryGetValue(address, out MixerAddressState? state))
+					state.invalidateCache();
+			}
 			emitFailure(address);
 			return;
 		}
@@ -446,13 +492,6 @@ public sealed class MixerController {
 		return (MixerAddressState.Info)state;
 	}
 
-	internal static string FaderPathToMixOnPath(string faderPath) {
-		const string faderPathSuffix = "/mix/fader";
-		if (faderPath.EndsWith(faderPathSuffix, StringComparison.Ordinal))
-			return faderPath[..^faderPathSuffix.Length] + "/mix/on";
-		throw new InvalidOperationException("FaderAddress must end with /mix/fader for mute (e.g. /main/st/mix/fader).");
-	}
-
 	internal static string formatInfoArguments(OscMessage message) {
 		var sb = new StringBuilder();
 		foreach (object? arg in message.Arguments) {
@@ -476,18 +515,5 @@ public sealed class MixerController {
 			_ => arg.ToString() ?? "",
 		};
 	}
-
-	public static UiTextFeedback infoQueryDetailFeedback(bool ok, string detail) =>
-		new(detail, ok ? UiTextFeedbackKind.DEFAULT : UiTextFeedbackKind.ERROR);
-
-	public static UiTextFeedback settingsApplyMixerSummaryFeedback(bool mixerInfoOk) =>
-		new(
-			mixerInfoOk
-				? "Settings applied and mixer responded."
-				: "Settings saved, but the mixer did not respond cleanly.",
-			mixerInfoOk ? UiTextFeedbackKind.SUCCESS : UiTextFeedbackKind.ERROR);
-
-	public static UiTextFeedback exceptionMessageFeedback(Exception ex) =>
-		new(ex.Message, UiTextFeedbackKind.ERROR);
 }
 }

@@ -228,11 +228,11 @@ public partial class ConfigWindow {
 					(lastInfoOk, lastInfoDetail) = await _mixer.QueryInfoAsync();
 				}
 
-				vm.infoFeedback = MixerController.infoQueryDetailFeedback(lastInfoOk, lastInfoDetail);
-				vm.statusFeedback = MixerController.settingsApplyMixerSummaryFeedback(lastInfoOk);
+				vm.infoFeedback = SettingsFeedback.infoQueryDetail(lastInfoOk, lastInfoDetail);
+				vm.statusFeedback = SettingsFeedback.settingsApplyMixerSummary(lastInfoOk);
 				refreshStatusBar();
 			} catch (Exception ex) {
-				vm.statusFeedback = MixerController.exceptionMessageFeedback(ex);
+				vm.statusFeedback = SettingsFeedback.exceptionMessage(ex);
 				refreshStatusBar();
 			} finally {
 				_appCoordinator.finishConfigValidation();

@@ -18,7 +18,14 @@ abstract class MixerAddressState {
 	public bool isCacheFresh(uint valueCacheTtlMs) =>
 		(DateTime.UtcNow - cachedValueUtc) < TimeSpan.FromMilliseconds(valueCacheTtlMs);
 
+	/// <summary>Marks the cached value stale (e.g. after a failed send left it out of sync with the mixer).</summary>
+	public void invalidateCache() => cachedValueUtc = DateTime.MinValue;
+
 	public void markQuerySent(DateTime nowUtc) => lastQuerySentUtc = nowUtc;
+
+	/// <summary>True while a query sent within <paramref name="timeoutMs"/> has not been answered yet (reply clears it via <see cref="tryRecordQueryLatency"/>).</summary>
+	public bool isQueryInFlight(uint timeoutMs) =>
+		lastQuerySentUtc != null && (DateTime.UtcNow - lastQuerySentUtc.Value) < TimeSpan.FromMilliseconds(timeoutMs);
 
 	public bool tryRecordQueryLatency(DateTime nowUtc) {
 		if (lastQuerySentUtc == null)
