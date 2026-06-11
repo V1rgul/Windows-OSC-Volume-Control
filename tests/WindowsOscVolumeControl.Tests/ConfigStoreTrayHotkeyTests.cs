@@ -2,7 +2,7 @@ namespace WindowsOscVolumeControl.Tests;
 
 public class ConfigStoreTrayHotkeyTests {
 	[Fact]
-	public void LoadTrayConfig_ParsesHotkeyGlobalsAndLongPress() {
+	public void loadAppConfigFromKeyValueText_parsesHotkeyGlobalsAndLongPress() {
 		const string text = """
 			ip=127.0.0.1
 			port=10023
@@ -29,7 +29,7 @@ public class ConfigStoreTrayHotkeyTests {
 	}
 
 	[Fact]
-	public void LoadTrayConfig_ParsesHotkeyAcceptMacroChordKeyOrderFalse() {
+	public void loadAppConfigFromKeyValueText_parsesHotkeyAcceptMacroChordKeyOrderFalse() {
 		const string text = """
 			ip=127.0.0.1
 			port=10023

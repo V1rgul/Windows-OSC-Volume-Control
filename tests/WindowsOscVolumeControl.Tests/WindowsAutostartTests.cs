@@ -6,7 +6,7 @@ public class WindowsAutostartTests {
 	[InlineData(@"C:\b\App.exe arg", @"C:\b\App.exe")]
 	[InlineData(@"C:\b\App.exe", @"C:\b\App.exe")]
 	[InlineData(@"""D:\x y\z.exe""", @"D:\x y\z.exe")]
-	public void WindowsAutostart_tryParseRunCommandFirstExecutable_Parses(string raw, string expected) {
+	public void tryParseRunCommandFirstExecutable_parses(string raw, string expected) {
 		bool ok = WindowsAutostart.tryParseRunCommandFirstExecutable(raw, out string? path);
 
 		Assert.True(ok);
@@ -18,14 +18,14 @@ public class WindowsAutostartTests {
 	[InlineData("   ", false)]
 	[InlineData(@"""C:\unclosed", false)]
 	[InlineData(@"""", false)]
-	public void WindowsAutostart_tryParseRunCommandFirstExecutable_Rejects(string raw, bool expectOk) {
+	public void tryParseRunCommandFirstExecutable_rejects(string raw, bool expectOk) {
 		bool ok = WindowsAutostart.tryParseRunCommandFirstExecutable(raw, out _);
 
 		Assert.Equal(expectOk, ok);
 	}
 
 	[Fact]
-	public void WindowsAutostart_pathsEqualForAutostart_IsOrdinalIgnoreCaseOnWindows() {
+	public void pathsEqualForAutostart_isOrdinalIgnoreCaseOnWindows() {
 		Assert.True(WindowsAutostart.pathsEqualForAutostart(
 			@"C:\Windows\System32\notepad.exe",
 			@"c:/Windows/System32/NOTEPAD.EXE"));

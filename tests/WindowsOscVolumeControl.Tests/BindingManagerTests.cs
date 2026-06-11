@@ -2,7 +2,7 @@ namespace WindowsOscVolumeControl.Tests;
 
 public class BindingManagerTests {
 	[Fact]
-	public void BindingManager_DefaultBindings_UseVolumeKeys() {
+	public void DefaultBindings_useVolumeKeys() {
 		BindingLinear linear = BindingManager.Config.createDefaultLinearBinding();
 		BindingToggle toggle = BindingManager.Config.createDefaultToggleBinding();
 
@@ -19,7 +19,7 @@ public class BindingManagerTests {
 	}
 
 	[Fact]
-	public void BindingManager_MultipleRowsSameGesture_CollectsAllShortSlots() {
+	public void rebuildFromConfig_multipleRowsSameGesture_collectsAllShortSlots() {
 		Assert.True(HotkeyUtil.tryParse("LeftCtrl+A", out HotkeyGesture hk));
 		var f1 = new BindingLinear {
 			name = "F1",
@@ -43,7 +43,7 @@ public class BindingManagerTests {
 	}
 
 	[Fact]
-	public void BindingManager_ShortAndLongSameGesture_SplitBuckets() {
+	public void rebuildFromConfig_shortAndLongSameGesture_splitBuckets() {
 		Assert.True(HotkeyUtil.tryParse("LeftCtrl+B", out HotkeyGesture hk));
 		var f = new BindingLinear {
 			name = "F",

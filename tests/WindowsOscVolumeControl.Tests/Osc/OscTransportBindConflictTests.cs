@@ -7,7 +7,7 @@ namespace WindowsOscVolumeControl.Tests;
 
 public class OscTransportBindConflictTests {
 	[Fact]
-	public void OscTransport_SetsBindFailed_WhenPortAlreadyBound() {
+	public void BindFailed_whenPortAlreadyBound() {
 		using var portBlocker = new UdpClient(new IPEndPoint(IPAddress.Any, 0));
 		int port = ((IPEndPoint)portBlocker.Client.LocalEndPoint!).Port;
 
@@ -21,7 +21,7 @@ public class OscTransportBindConflictTests {
 	}
 
 	[Fact]
-	public async Task OscTransport_ClearsBindFailed_AfterSuccessfulRebind() {
+	public async Task applyConfigAsync_afterPortFreed_clearsBindFailed() {
 		using var portBlocker = new UdpClient(new IPEndPoint(IPAddress.Any, 0));
 		int takenPort = ((IPEndPoint)portBlocker.Client.LocalEndPoint!).Port;
 

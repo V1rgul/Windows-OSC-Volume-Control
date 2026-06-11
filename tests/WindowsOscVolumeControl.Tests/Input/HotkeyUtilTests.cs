@@ -2,7 +2,7 @@ namespace WindowsOscVolumeControl.Tests;
 
 public class HotkeyUtilTests {
 	[Fact]
-	public void HotkeyUtil_RoundTripsCompoundHotkeys() {
+	public void tryParse_roundTripsCompoundHotkeys() {
 		bool parsed = HotkeyUtil.tryParse("LeftCtrl+LeftShift+A", out HotkeyGesture hotkey);
 
 		Assert.True(parsed);
@@ -10,14 +10,14 @@ public class HotkeyUtilTests {
 	}
 
 	[Fact]
-	public void HotkeyUtil_CanonicalizesModifierOrderInFormat() {
+	public void format_canonicalizesModifierOrder() {
 		Assert.True(HotkeyUtil.tryParse("RightShift+LeftCtrl+A", out HotkeyGesture hotkey));
 
 		Assert.Equal("LeftCtrl+RightShift+A", HotkeyUtil.format(hotkey));
 	}
 
 	[Fact]
-	public void HotkeyUtil_RejectsLegacyGenericCtrlToken() {
+	public void tryParse_rejectsLegacyGenericCtrlToken() {
 		Assert.False(HotkeyUtil.tryParse("Ctrl+A", out _));
 	}
 
@@ -29,7 +29,7 @@ public class HotkeyUtilTests {
 	[InlineData(HotkeyModifiers.LEFT_CONTROL, HotkeyModifiers.RIGHT_CONTROL, false)]
 	[InlineData(HotkeyModifiers.LEFT_CONTROL | HotkeyModifiers.LEFT_SHIFT, HotkeyModifiers.LEFT_CONTROL, false)]
 	[InlineData(HotkeyModifiers.LEFT_CONTROL | HotkeyModifiers.LEFT_SHIFT, HotkeyModifiers.LEFT_CONTROL | HotkeyModifiers.LEFT_SHIFT, true)]
-	public void HotkeyUtil_ActiveSidesMatchGesture(HotkeyModifiers required, HotkeyModifiers active, bool expected) {
+	public void activeSidesMatchGesture_returnsExpected(HotkeyModifiers required, HotkeyModifiers active, bool expected) {
 		bool ok = HotkeyUtil.activeSidesMatchGesture(required, active);
 
 		Assert.Equal(expected, ok);
@@ -39,7 +39,7 @@ public class HotkeyUtilTests {
 	[InlineData("VolumeUp", HotkeyGesture.VK_VOLUME_UP)]
 	[InlineData("VolumeDown", HotkeyGesture.VK_VOLUME_DOWN)]
 	[InlineData("VolumeMute", HotkeyGesture.VK_VOLUME_MUTE)]
-	public void HotkeyUtil_ParsesMediaKeys(string text, int expectedKeyCode) {
+	public void tryParse_parsesMediaKeys(string text, int expectedKeyCode) {
 		bool parsed = HotkeyUtil.tryParse(text, out HotkeyGesture hotkey);
 
 		Assert.True(parsed);

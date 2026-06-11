@@ -11,7 +11,7 @@ public class OscMessageFastPathEncodingTests {
 	[InlineData("/ch/01/mix/on")]
 	[InlineData("/a")]
 	[InlineData("/abc")]
-	public void encode_NoArgs_MatchesSharpOsc(string address) {
+	public void encodeOscMessage_noArgs_matchesSharpOsc(string address) {
 		Assert.Equal(new OscMessage(address).GetBytes(), OscTransport.encodeOscMessage(address, []));
 	}
 
@@ -20,7 +20,7 @@ public class OscMessageFastPathEncodingTests {
 	[InlineData("/main/st/mix/fader", 0.75f)]
 	[InlineData("/main/st/mix/fader", 1f)]
 	[InlineData("/ch/01/mix/fader", -0.001f)]
-	public void encode_SingleFloat_MatchesSharpOsc(string address, float value) {
+	public void encodeOscMessage_singleFloat_matchesSharpOsc(string address, float value) {
 		Assert.Equal(new OscMessage(address, value).GetBytes(), OscTransport.encodeOscMessage(address, [value]));
 	}
 
@@ -28,12 +28,12 @@ public class OscMessageFastPathEncodingTests {
 	[InlineData("/main/st/mix/on", 0)]
 	[InlineData("/main/st/mix/on", 1)]
 	[InlineData("/ch/01/mix/on", -42)]
-	public void encode_SingleInt_MatchesSharpOsc(string address, int value) {
+	public void encodeOscMessage_singleInt_matchesSharpOsc(string address, int value) {
 		Assert.Equal(new OscMessage(address, value).GetBytes(), OscTransport.encodeOscMessage(address, [value]));
 	}
 
 	[Fact]
-	public void encode_OtherShapes_FallBackToSharpOsc() {
+	public void encodeOscMessage_otherShapes_fallsBackToSharpOsc() {
 		object[] args = ["text", 3];
 		Assert.Equal(new OscMessage("/x", args).GetBytes(), OscTransport.encodeOscMessage("/x", args));
 	}

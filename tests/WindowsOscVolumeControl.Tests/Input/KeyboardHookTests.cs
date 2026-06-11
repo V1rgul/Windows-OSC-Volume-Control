@@ -4,7 +4,7 @@ public class KeyboardHookTests {
 	[Theory]
 	[InlineData(true)]
 	[InlineData(false)]
-	public void KeyboardHook_resolveKeyUpTargetsForTests_StrictCandidateWins(bool acceptMacroChordKeyOrder) {
+	public void resolveKeyUpTargets_strictCandidateWins(bool acceptMacroChordKeyOrder) {
 		HotkeyGesture g = HotkeyUtil.normalize(new HotkeyGesture {
 			keyCode = (int)System.Windows.Input.KeyInterop.VirtualKeyFromKey(System.Windows.Input.Key.F11),
 			modifiers = HotkeyModifiers.RIGHT_CONTROL | HotkeyModifiers.LEFT_SHIFT,
@@ -20,7 +20,7 @@ public class KeyboardHookTests {
 	}
 
 	[Fact]
-	public void KeyboardHook_resolveKeyUpTargetsForTests_FallbackAllKeyCodeMatches_WhenEnabled() {
+	public void resolveKeyUpTargets_fallbackAllKeyCodeMatches_whenEnabled() {
 		int f11Vk = (int)System.Windows.Input.KeyInterop.VirtualKeyFromKey(System.Windows.Input.Key.F11);
 		HotkeyGesture g1 = HotkeyUtil.normalize(new HotkeyGesture { keyCode = f11Vk, modifiers = HotkeyModifiers.RIGHT_CONTROL | HotkeyModifiers.LEFT_SHIFT });
 		HotkeyGesture g2 = HotkeyUtil.normalize(new HotkeyGesture { keyCode = f11Vk, modifiers = HotkeyModifiers.LEFT_CONTROL | HotkeyModifiers.RIGHT_SHIFT });
@@ -36,7 +36,7 @@ public class KeyboardHookTests {
 	}
 
 	[Fact]
-	public void KeyboardHook_resolveKeyUpTargetsForTests_NoFallbackWhenDisabled() {
+	public void resolveKeyUpTargets_noFallback_whenDisabled() {
 		int f11Vk = (int)System.Windows.Input.KeyInterop.VirtualKeyFromKey(System.Windows.Input.Key.F11);
 		HotkeyGesture g1 = HotkeyUtil.normalize(new HotkeyGesture { keyCode = f11Vk, modifiers = HotkeyModifiers.RIGHT_CONTROL | HotkeyModifiers.LEFT_SHIFT });
 		var keys = new[] { g1 };
@@ -53,7 +53,7 @@ public class KeyboardHookTests {
 	[InlineData(true, true, HotkeyModifiers.RIGHT_CONTROL | HotkeyModifiers.LEFT_SHIFT, HotkeyModifiers.NONE, true)]
 	[InlineData(false, true, HotkeyModifiers.RIGHT_CONTROL | HotkeyModifiers.LEFT_SHIFT, HotkeyModifiers.NONE, false)]
 	[InlineData(false, true, HotkeyModifiers.RIGHT_CONTROL | HotkeyModifiers.LEFT_SHIFT, HotkeyModifiers.RIGHT_CONTROL | HotkeyModifiers.LEFT_SHIFT, true)]
-	public void KeyboardHook_deadlineGestureStillHeld_RespectsFlag(
+	public void deadlineGestureStillHeld_respectsAcceptMacroChordKeyOrderFlag(
 		bool acceptMacroChordKeyOrder,
 		bool mainKeyHeld,
 		HotkeyModifiers required,
