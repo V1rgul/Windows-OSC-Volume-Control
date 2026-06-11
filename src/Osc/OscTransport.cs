@@ -104,13 +104,13 @@ public sealed class OscTransport : IDisposable {
 			remote = _remote ?? throw new InvalidOperationException("OSC transport is not configured.");
 		}
 
-		var message = new OscMessage(address, args);
-		byte[] bytes = message.GetBytes();
-		string argText = args.Length == 0
-			? ""
-			: " args=[" + string.Join(", ", args.Cast<object?>().Select(static a => a is null ? "null" : a.GetType().Name + ":" + a)) + "]";
-		string line = $"Sending {address}, {bytes.Length} B{argText}";
-		AppTrace.OscTransport.TraceEvent(TraceEventType.Information, 0, line);
+		byte[] bytes = encodeOscMessage(address, args);
+		if (AppTrace.OscTransport.Switch.ShouldTrace(TraceEventType.Information)) {
+			string argText = args.Length == 0
+				? ""
+				: " args=[" + string.Join(", ", args.Cast<object?>().Select(static a => a is null ? "null" : a.GetType().Name + ":" + a)) + "]";
+			AppTrace.OscTransport.TraceEvent(TraceEventType.Information, 0, $"Sending {address}, {bytes.Length} B{argText}");
+		}
 		await udp.SendAsync(bytes, remote, CancellationToken.None).ConfigureAwait(false);
 	}
 
@@ -131,10 +131,11 @@ public sealed class OscTransport : IDisposable {
 				}
 
 				foreach (OscMessage message in unpackMessages(packet)) {
-					AppTrace.OscTransport.TraceEvent(
-						TraceEventType.Verbose,
-						0,
-						$"Received OSC address '{message.Address}'");
+					if (AppTrace.OscTransport.Switch.ShouldTrace(TraceEventType.Verbose))
+						AppTrace.OscTransport.TraceEvent(
+							TraceEventType.Verbose,
+							0,
+							$"Received OSC address '{message.Address}'");
 					try {
 						messageReceived?.Invoke(message);
 					} catch (Exception ex) {
@@ -185,6 +186,33 @@ public sealed class OscTransport : IDisposable {
 
 		using var wakeSender = new UdpClient(AddressFamily.InterNetwork);
 		wakeSender.Send([0], 1, new IPEndPoint(IPAddress.Loopback, localEndPoint.Port));
+	}
+
+	/// <summary>Fast path for the dominant traffic shapes (bare query, single float/int set) without SharpOSC's per-argument list allocations; anything else falls back to <see cref="OscMessage.GetBytes"/>.</summary>
+	internal static byte[] encodeOscMessage(string address, object[] args) {
+		if (args.Length > 1 || (args.Length == 1 && args[0] is not (float or int)))
+			return new OscMessage(address, args).GetBytes();
+
+		object? arg = args.Length == 1 ? args[0] : null;
+		int addressLength = address.Length;
+		int addressPadded = (addressLength + 4) & ~3; // NUL-terminated, padded to a 4-byte boundary (≥1 NUL)
+		const int typeTagPadded = 4;                  // "," + optional tag + NUL padding
+		int totalLength = addressPadded + typeTagPadded + (arg == null ? 0 : 4);
+
+		byte[] buffer = new byte[totalLength];
+		_ = System.Text.Encoding.ASCII.GetBytes(address, 0, addressLength, buffer, 0);
+		buffer[addressPadded] = (byte)',';
+		switch (arg) {
+			case float f:
+				buffer[addressPadded + 1] = (byte)'f';
+				System.Buffers.Binary.BinaryPrimitives.WriteSingleBigEndian(buffer.AsSpan(addressPadded + typeTagPadded, 4), f);
+				break;
+			case int i:
+				buffer[addressPadded + 1] = (byte)'i';
+				System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(buffer.AsSpan(addressPadded + typeTagPadded, 4), i);
+				break;
+		}
+		return buffer;
 	}
 
 	static IEnumerable<OscMessage> unpackMessages(OscPacket packet) {

@@ -64,19 +64,23 @@ public sealed class StatusController {
 			}
 		}
 
+		bool traceInformation = AppTrace.StatusController.Switch.ShouldTrace(TraceEventType.Information);
+
 		if (mergedChanged is MergedState merged) {
-			AppTrace.StatusController.TraceEvent(
-				TraceEventType.Information,
-				0,
-				$"Merged state changed to {merged}");
+			if (traceInformation)
+				AppTrace.StatusController.TraceEvent(
+					TraceEventType.Information,
+					0,
+					$"Merged state changed to {merged}");
 			mergedStateChanged?.Invoke(merged);
 		}
 
 		if (detailsChanged) {
-			AppTrace.StatusController.TraceEvent(
-				TraceEventType.Information,
-				0,
-				$"Visible errors changed ({visibleSnapshot?.Count ?? 0})");
+			if (traceInformation)
+				AppTrace.StatusController.TraceEvent(
+					TraceEventType.Information,
+					0,
+					$"Visible errors changed ({visibleSnapshot?.Count ?? 0})");
 			visibleErrorsChanged?.Invoke();
 		}
 	}

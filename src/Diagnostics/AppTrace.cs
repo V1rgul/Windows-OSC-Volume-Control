@@ -37,7 +37,13 @@ static class AppTrace {
 
 			foreach (TraceSource source in allTraceSources()) {
 				source.Listeners.Add(listener);
+				// Release: gate at the switch so hot paths can skip building trace strings via ShouldTrace.
+				// Debug: keep everything flowing to the default (debugger) listener; the file filter still applies.
+#if DEBUG
 				source.Switch.Level = SourceLevels.All;
+#else
+				source.Switch.Level = FILE_LOG_LISTENER_MIN_LEVEL;
+#endif
 			}
 
 			Trace.AutoFlush = true;
