@@ -120,6 +120,7 @@ internal sealed class DragGhostAdorner : Adorner {
 
 internal sealed class InsertionLineAdorner : Adorner {
 	public double lineY;
+	Pen? _pen;
 
 	public InsertionLineAdorner(UIElement adornedElement) : base(adornedElement) {
 		IsHitTestVisible = false;
@@ -130,12 +131,15 @@ internal sealed class InsertionLineAdorner : Adorner {
 		if (r.Width <= 0d || r.Height <= 0d)
 			return;
 
-		Brush b = (AdornedElement as FrameworkElement)?.TryFindResource("TextFillColorPrimaryBrush") as Brush
-		          ?? Brushes.White;
-		var pen = new Pen(b, 2.0);
-		pen.Freeze();
+		// Adorners live for one drag session, so resolving the theme brush once is enough.
+		if (_pen == null) {
+			Brush b = (AdornedElement as FrameworkElement)?.TryFindResource("TextFillColorPrimaryBrush") as Brush
+			          ?? Brushes.White;
+			_pen = new Pen(b, 2.0);
+			_pen.Freeze();
+		}
 		double yy = Math.Round(lineY) + 0.5;
-		drawingContext.DrawLine(pen, new Point(r.Left, yy), new Point(r.Right, yy));
+		drawingContext.DrawLine(_pen, new Point(r.Left, yy), new Point(r.Right, yy));
 	}
 }
 

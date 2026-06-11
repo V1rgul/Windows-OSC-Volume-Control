@@ -217,6 +217,14 @@ public sealed class AppCoordinator : IDisposable {
 	void scheduleGcTrimAfterConfigClosed() {
 		if (_disposed)
 			return;
+		// Wait for the dispatcher to go idle first: pending render/teardown work can still reference
+		// the closed window, and collecting too early would miss that garbage.
+		_ = _dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(runGcTrimInBackground));
+	}
+
+	void runGcTrimInBackground() {
+		if (_disposed)
+			return;
 		_ = Task.Run(() => {
 			try {
 				if (_disposed)

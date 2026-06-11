@@ -365,56 +365,45 @@ public partial class BindingsPanelView {
 	}
 
 	static ImageSource? tryRenderGhostSnapshot(FrameworkElement list, FrameworkElement draggedContainer, Thickness outerMargin) {
-		// Single reliable method: render the *owning window* (true composited surface),
-		// then crop the dragged row rectangle in that coordinate space.
+		// Rasterize through the *owning window* (true composited surface, keeps layered Fluent backgrounds),
+		// but only the dragged row rectangle: a VisualBrush viewbox avoids allocating a full-window bitmap.
 		Window? window = Window.GetWindow(list);
 		if (window == null)
 			return null;
-		window.UpdateLayout();
-		draggedContainer.UpdateLayout();
 
-		double w = window.ActualWidth;
-		double h = window.ActualHeight;
-		if (w <= 0d || h <= 0d)
-			return null;
-
-		PresentationSource? ps = PresentationSource.FromVisual(window);
-		Matrix toDevice = ps?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
-		double dpiScaleX = toDevice.M11;
-		double dpiScaleY = toDevice.M22;
-
-		int winPxW = Math.Max(1, (int)Math.Ceiling(w * dpiScaleX));
-		int winPxH = Math.Max(1, (int)Math.Ceiling(h * dpiScaleY));
-
-		var rtb = new RenderTargetBitmap(winPxW, winPxH, 96d * dpiScaleX, 96d * dpiScaleY, PixelFormats.Pbgra32);
-		rtb.Render(window);
-		rtb.Freeze();
-
-		Point topLeft = draggedContainer.TranslatePoint(new Point(0, 0), window);
 		double cw = draggedContainer.ActualWidth;
 		double ch = draggedContainer.ActualHeight;
 		if (cw <= 0d || ch <= 0d)
 			return null;
 
 		// Exclude the per-row outer margin so the ghost doesn't carry the darker bars.
+		Point topLeft = draggedContainer.TranslatePoint(new Point(0, 0), window);
 		double cropX = topLeft.X + outerMargin.Left;
 		double cropY = topLeft.Y + outerMargin.Top;
-		double cropW = Math.Max(0d, cw - (outerMargin.Left + outerMargin.Right));
-		double cropH = Math.Max(0d, ch - (outerMargin.Top + outerMargin.Bottom));
+		double cropW = Math.Max(1d, cw - (outerMargin.Left + outerMargin.Right));
+		double cropH = Math.Max(1d, ch - (outerMargin.Top + outerMargin.Bottom));
 
-		int x = (int)Math.Round(cropX * dpiScaleX);
-		int y = (int)Math.Round(cropY * dpiScaleY);
-		int cwPx = Math.Max(1, (int)Math.Round(cropW * dpiScaleX));
-		int chPx = Math.Max(1, (int)Math.Round(cropH * dpiScaleY));
+		PresentationSource? ps = PresentationSource.FromVisual(window);
+		Matrix toDevice = ps?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
+		double dpiScaleX = toDevice.M11;
+		double dpiScaleY = toDevice.M22;
 
-		x = Math.Clamp(x, 0, Math.Max(0, winPxW - 1));
-		y = Math.Clamp(y, 0, Math.Max(0, winPxH - 1));
-		cwPx = Math.Clamp(cwPx, 1, winPxW - x);
-		chPx = Math.Clamp(chPx, 1, winPxH - y);
+		var windowCropBrush = new VisualBrush(window) {
+			ViewboxUnits = BrushMappingMode.Absolute,
+			Viewbox = new Rect(cropX, cropY, cropW, cropH),
+			Stretch = Stretch.Fill,
+		};
 
-		var crop = new CroppedBitmap(rtb, new Int32Rect(x, y, cwPx, chPx));
-		crop.Freeze();
-		return crop;
+		var rowVisual = new DrawingVisual();
+		using (DrawingContext dc = rowVisual.RenderOpen())
+			dc.DrawRectangle(windowCropBrush, null, new Rect(0d, 0d, cropW, cropH));
+
+		int pxW = Math.Max(1, (int)Math.Ceiling(cropW * dpiScaleX));
+		int pxH = Math.Max(1, (int)Math.Ceiling(cropH * dpiScaleY));
+		var rtb = new RenderTargetBitmap(pxW, pxH, 96d * dpiScaleX, 96d * dpiScaleY, PixelFormats.Pbgra32);
+		rtb.Render(rowVisual);
+		rtb.Freeze();
+		return rtb;
 	}
 
 	static double resolveCardCornerRadiusFromTemplate(FrameworkElement container, object draggedItem) {
@@ -506,34 +495,13 @@ public partial class BindingsPanelView {
 		hideInsertionLine(list);
 	}
 
+	// Reorder drags are handled exclusively by the Preview* handlers (which set e.Handled, so these
+	// bubbling list handlers never run for them). They only reject foreign drags over the lists.
 	void reorderList_DragOver(object sender, DragEventArgs e) {
-		ConfigWindowViewModel? m = vm;
-		if (sender is not ItemsControl list || m == null) {
-			e.Effects = DragDropEffects.None;
-			e.Handled = true;
+		if (sender is not ItemsControl list)
 			return;
-		}
-
-		if (!m.isDragInProgress || m.dragOwnerList == null || !ReferenceEquals(list, m.dragOwnerList)) {
-			hideInsertionLine(list);
-			e.Effects = DragDropEffects.None;
-			e.Handled = true;
-			return;
-		}
-
-		if (!e.Data.GetDataPresent(ReorderDragDrop.reorderDragFormat) || m.dragItem == null) {
-			hideInsertionLine(list);
-			e.Effects = DragDropEffects.None;
-			e.Handled = true;
-			return;
-		}
-
-		Point p = e.GetPosition(list);
-		updateDragGhost(list, p);
-		_ = ReorderDragDrop.computeDropIndex(list, p, m.dragItem, out double lineY);
-		showInsertionLine(list, lineY);
-
-		e.Effects = DragDropEffects.Move;
+		hideInsertionLine(list);
+		e.Effects = DragDropEffects.None;
 		e.Handled = true;
 	}
 
@@ -580,31 +548,11 @@ public partial class BindingsPanelView {
 	}
 
 	void reorderList_Drop(object sender, DragEventArgs e) {
-		ConfigWindowViewModel? m = vm;
-		if (sender is not ItemsControl list || m == null) {
-			e.Effects = DragDropEffects.None;
-			e.Handled = true;
+		if (sender is not ItemsControl list)
 			return;
-		}
-
-		try {
-			if (!m.isDragInProgress || m.dragOwnerList == null || !ReferenceEquals(list, m.dragOwnerList) || m.dragItem == null) {
-				e.Effects = DragDropEffects.None;
-				return;
-			}
-			if (!e.Data.GetDataPresent(ReorderDragDrop.reorderDragFormat)) {
-				e.Effects = DragDropEffects.None;
-				return;
-			}
-
-			Point p = e.GetPosition(list);
-			int dropIndex = ReorderDragDrop.computeDropIndex(list, p, m.dragItem, out _);
-			tryMoveDraggedItem(m, list, m.dragItem, dropIndex);
-			e.Effects = DragDropEffects.Move;
-		} finally {
-			hideInsertionLine(list);
-			e.Handled = true;
-		}
+		hideInsertionLine(list);
+		e.Effects = DragDropEffects.None;
+		e.Handled = true;
 	}
 
 	static void tryMoveDraggedItem(ConfigWindowViewModel m, ItemsControl list, object dragged, int dropIndex) {
@@ -639,14 +587,18 @@ public partial class BindingsPanelView {
 			ad = new InsertionLineAdorner(list);
 			_insertionLineAdorners[list] = ad;
 			layer.Add(ad);
-		}
-		ad.lineY = y;
-		ad.InvalidateVisual();
 
-		// Keep drag ghost above insertion line (insertion line is added lazily during dragover).
-		if (_dragGhostLayer != null && _dragGhostAdorner != null && AdornerLayer.GetAdornerLayer(list) == _dragGhostLayer) {
-			_dragGhostLayer.Remove(_dragGhostAdorner);
-			_dragGhostLayer.Add(_dragGhostAdorner);
+			// One-time z-order fix: keep the drag ghost above the lazily added insertion line.
+			if (_dragGhostLayer != null && _dragGhostAdorner != null && ReferenceEquals(layer, _dragGhostLayer)) {
+				_dragGhostLayer.Remove(_dragGhostAdorner);
+				_dragGhostLayer.Add(_dragGhostAdorner);
+			}
+		}
+
+		// The line snaps to whole pixels in OnRender, so sub-quarter-DIP moves don't need a repaint.
+		if (Math.Abs(ad.lineY - y) > 0.25d) {
+			ad.lineY = y;
+			ad.InvalidateVisual();
 		}
 	}
 
