@@ -32,24 +32,27 @@ public abstract class BindingFloatAbstract : BindingAbstract {
 			_ => throw new NotSupportedException(action.GetType().Name),
 		};
 
-	public virtual int osdFractionalDigits {
-		get {
-			int max = 0;
-			max = Math.Max(max, minimumFractionalDigits);
-			max = Math.Max(max, maximumFractionalDigits);
-			foreach (ControlAction a in actions) {
-				if (a is not ControlActionContinuousAbstract ca)
-					continue;
-				int d = ca switch {
-					ControlActionContinuousSet s => s.fractionalDigits,
-					ControlActionContinuousDelta dl => dl.fractionalDigits,
-					ControlActionContinuousRawDelta r => digitsForRawDelta(r.delta),
-					_ => 0,
-				};
-				max = Math.Max(max, d);
-			}
-			return Math.Clamp(max, 0, 6);
+	int? _osdFractionalDigitsCache;
+
+	/// <summary>Cached lazily: read per OSD update on the immutable rebuild-time clones, and the walk over <see cref="BindingAbstract.actions"/> (with <see cref="digitsForRawDelta"/> probes) is not free.</summary>
+	public int osdFractionalDigits => _osdFractionalDigitsCache ??= computeOsdFractionalDigits();
+
+	int computeOsdFractionalDigits() {
+		int max = 0;
+		max = Math.Max(max, minimumFractionalDigits);
+		max = Math.Max(max, maximumFractionalDigits);
+		foreach (ControlAction a in actions) {
+			if (a is not ControlActionContinuousAbstract ca)
+				continue;
+			int d = ca switch {
+				ControlActionContinuousSet s => s.fractionalDigits,
+				ControlActionContinuousDelta dl => dl.fractionalDigits,
+				ControlActionContinuousRawDelta r => digitsForRawDelta(r.delta),
+				_ => 0,
+			};
+			max = Math.Max(max, d);
 		}
+		return Math.Clamp(max, 0, 6);
 	}
 
 	protected virtual int digitsForRawDelta(float d)

@@ -216,14 +216,7 @@ public sealed class ConfigStore {
 
 	static List<BindingAbstract> cloneDefaultBindings() {
 		var trayDefaults = new BindingManager.Config();
-		return trayDefaults.bindings.Select(static b => b switch {
-			BindingLinear f => (BindingAbstract)new BindingLinear(f),
-			BindingLinf x => new BindingLinf(x),
-			BindingLogf g => new BindingLogf(g),
-			BindingLevel l => new BindingLevel(l),
-			BindingToggle t => new BindingToggle(t),
-			_ => throw new InvalidOperationException("Unknown binding type."),
-		}).ToList();
+		return trayDefaults.bindings.Select(BindingManager.cloneBinding).ToList();
 	}
 
 	static BindingManager.Config buildBindingManagerConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {

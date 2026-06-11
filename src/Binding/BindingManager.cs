@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Diagnostics.CodeAnalysis;
 
 namespace WindowsOscVolumeControl.Binding;
 
@@ -12,6 +13,15 @@ public readonly struct HotkeyDispatchTargets {
 
 /// <summary>Runtime OSC bindings and hotkey → slot map built from tray configuration.</summary>
 public sealed class BindingManager {
+	internal static BindingAbstract cloneBinding(BindingAbstract b) => b switch {
+		BindingLinear f => new BindingLinear(f),
+		BindingLinf x => new BindingLinf(x),
+		BindingLogf g => new BindingLogf(g),
+		BindingLevel l => new BindingLevel(l),
+		BindingToggle t => new BindingToggle(t),
+		_ => throw new InvalidOperationException("Unknown binding type: " + b.GetType().Name),
+	};
+
 	/// <summary>OSC bindings; persisted via <see cref="ConfigStore"/>.</summary>
 	public sealed class Config {
 		public Config() { }
@@ -20,15 +30,6 @@ public sealed class BindingManager {
 			ArgumentNullException.ThrowIfNull(from);
 			bindings = from.bindings.Select(cloneBinding).ToList();
 		}
-
-		static BindingAbstract cloneBinding(BindingAbstract b) => b switch {
-			BindingLinear f => new BindingLinear(f),
-			BindingLinf x => new BindingLinf(x),
-			BindingLogf g => new BindingLogf(g),
-			BindingLevel l => new BindingLevel(l),
-			BindingToggle t => new BindingToggle(t),
-			_ => throw new InvalidOperationException("Unknown binding type: " + b.GetType().Name),
-		};
 
 		public static BindingLinear createDefaultLinearBinding() => new() {
 			name = "MAIN",
@@ -77,6 +78,8 @@ public sealed class BindingManager {
 	}
 
 	volatile FrozenDictionary<HotkeyGesture, HotkeyDispatchTargets> _byGesture = FrozenDictionary<HotkeyGesture, HotkeyDispatchTargets>.Empty;
+	volatile FrozenDictionary<string, BindingFloatAbstract> _floatByAddress = FrozenDictionary<string, BindingFloatAbstract>.Empty;
+	volatile FrozenDictionary<string, BindingToggle> _toggleByAddress = FrozenDictionary<string, BindingToggle>.Empty;
 	volatile int[] _boundMainKeyCodes = [];
 
 	/// <summary>Distinct main-key VK codes of all bound gestures; feeds the keyboard hook's lock-free fast path.</summary>
@@ -85,15 +88,18 @@ public sealed class BindingManager {
 	/// <summary>Rebuilds the snapshot from config. Same gesture may appear in multiple rows and in both short and long buckets.</summary>
 	internal void rebuildFromConfig(IEnumerable<BindingAbstract> bindings) {
 		var merge = new Dictionary<HotkeyGesture, GestureBuckets>();
+		var floatByAddress = new Dictionary<string, BindingFloatAbstract>(StringComparer.Ordinal);
+		var toggleByAddress = new Dictionary<string, BindingToggle>(StringComparer.Ordinal);
 		foreach (BindingAbstract b in bindings) {
-			BindingAbstract row = b switch {
-				BindingLinear f => new BindingLinear(f),
-				BindingLinf x => new BindingLinf(x),
-				BindingLogf g => new BindingLogf(g),
-				BindingLevel l => new BindingLevel(l),
-				BindingToggle t => new BindingToggle(t),
-				_ => throw new InvalidOperationException("Unknown binding type: " + b.GetType().Name),
-			};
+			BindingAbstract row = cloneBinding(b);
+			switch (row) {
+				case BindingFloatAbstract bf:
+					_ = floatByAddress.TryAdd(bf.address, bf);
+					break;
+				case BindingToggle bt:
+					_ = toggleByAddress.TryAdd(bt.address, bt);
+					break;
+			}
 			foreach (ControlAction ha in row.actions) {
 				if (ha.hotkey.isNone)
 					continue;
@@ -123,6 +129,8 @@ public sealed class BindingManager {
 		}
 
 		_boundMainKeyCodes = frozenMap.Keys.Select(static g => g.keyCode).Distinct().ToArray();
+		_floatByAddress = floatByAddress.ToFrozenDictionary(StringComparer.Ordinal);
+		_toggleByAddress = toggleByAddress.ToFrozenDictionary(StringComparer.Ordinal);
 		_byGesture = frozenMap.ToFrozenDictionary();
 	}
 
@@ -130,4 +138,10 @@ public sealed class BindingManager {
 		hotkey = HotkeyUtil.normalize(hotkey);
 		return _byGesture.TryGetValue(hotkey, out targets);
 	}
+
+	internal bool tryGetFloatBindingByAddress(string address, [NotNullWhen(true)] out BindingFloatAbstract? binding) =>
+		_floatByAddress.TryGetValue(address, out binding);
+
+	internal bool tryGetToggleBindingByAddress(string address, [NotNullWhen(true)] out BindingToggle? binding) =>
+		_toggleByAddress.TryGetValue(address, out binding);
 }

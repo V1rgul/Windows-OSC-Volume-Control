@@ -163,17 +163,11 @@ public sealed class AppCoordinator : IDisposable {
 		});
 	}
 
-	bool tryGetFloatBinding(string address, [NotNullWhen(true)] out BindingFloatAbstract? binding) {
-		binding = _configStore.appConfig.trayApp.bindings.OfType<BindingFloatAbstract>()
-			.FirstOrDefault(f => string.Equals(f.address, address, StringComparison.Ordinal));
-		return binding != null;
-	}
+	bool tryGetFloatBinding(string address, [NotNullWhen(true)] out BindingFloatAbstract? binding) =>
+		_oscBindings.tryGetFloatBindingByAddress(address, out binding);
 
-	bool tryGetToggleBinding(string address, [NotNullWhen(true)] out BindingToggle? binding) {
-		binding = _configStore.appConfig.trayApp.bindings.OfType<BindingToggle>()
-			.FirstOrDefault(t => string.Equals(t.address, address, StringComparison.Ordinal));
-		return binding != null;
-	}
+	bool tryGetToggleBinding(string address, [NotNullWhen(true)] out BindingToggle? binding) =>
+		_oscBindings.tryGetToggleBindingByAddress(address, out binding);
 
 	static string formatContinuousDisplay(float wire, BindingFloatAbstract bf) {
 		if (bf is BindingLevel bl) {
