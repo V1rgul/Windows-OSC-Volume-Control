@@ -58,6 +58,9 @@ public partial class KeyboardHook : IDisposable {
 	const int WM_SYSKEYDOWN = 0x0104;
 	const int WM_KEYUP = 0x0101;
 	const int WM_SYSKEYUP = 0x0105;
+	const uint WM_QUIT = 0x0012;
+	const int VK_TABLE_SIZE = 256;
+	const int HOOK_THREAD_WAIT_MS = 5000;
 	const int VK_LSHIFT = 0xA0;
 	const int VK_RSHIFT = 0xA1;
 	const int VK_LCONTROL = 0xA2;
@@ -87,9 +90,12 @@ public partial class KeyboardHook : IDisposable {
 		}
 	}
 
-	readonly IntPtr _hookId;
 	// ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
 	readonly LowLevelKeyboardProc _proc;
+	readonly Thread _hookThread;
+	readonly ManualResetEventSlim _hookInstalled = new(false);
+	IntPtr _hookId;
+	uint _hookThreadId;
 	readonly object _configuredHotkeysSync = new();
 	volatile Func<HotkeyGesture, HotkeyDispatchTargets?> _getTargets = static _ => null;
 	Action<IReadOnlyList<BindingManager.Slot>> _dispatchSlots = static _ => { };
@@ -98,18 +104,45 @@ public partial class KeyboardHook : IDisposable {
 	bool _suppressKeyForLongPressOnlyGestures;
 	bool _acceptMacroChordKeyOrder = true;
 	readonly Dictionary<HotkeyGesture, ActiveHotkeyPress> _activePresses = [];
+	/// <summary>Lock-free fast-path table of VK codes bound as hotkey main keys; swapped wholesale in <see cref="setHotkeyDispatch"/>.</summary>
+	volatile bool[] _boundMainKeyVkTable = new bool[VK_TABLE_SIZE];
+	volatile bool _hasActivePresses;
 	bool _configuredHotkeysEnabled = true;
-	bool _disposed;
+	volatile bool _disposed;
 
 	public ErrorList<Error.KeyboardHook> errors { get; } = new();
 
 	public KeyboardHook() {
 		_proc = HookCallback;
-		_hookId = SetHook(_proc);
-		if (_hookId == IntPtr.Zero) {
+		// WH_KEYBOARD_LL callbacks run on the installing thread. A dedicated message-pump thread keeps
+		// system-wide keyboard latency independent of WPF UI-thread stalls (layout, blocking GC, ...).
+		_hookThread = new Thread(hookThreadProc) {
+			IsBackground = true,
+			Name = "KeyboardHookMessagePump",
+		};
+		_hookThread.Start();
+
+		if (!_hookInstalled.Wait(HOOK_THREAD_WAIT_MS) || _hookId == IntPtr.Zero) {
 			errors.setError(new Error.KeyboardHook.InstallFailed(), true);
 			AppTrace.KeyboardHook.TraceEvent(TraceEventType.Error, 0, "SetWindowsHookEx failed.");
 		}
+	}
+
+	void hookThreadProc() {
+		// Touch the message queue before signaling readiness so Dispose can reliably PostThreadMessage(WM_QUIT).
+		_ = PeekMessage(out MSG _, IntPtr.Zero, 0, 0, 0);
+		_hookThreadId = GetCurrentThreadId();
+		_hookId = SetHook(_proc);
+		_hookInstalled.Set();
+		if (_hookId == IntPtr.Zero)
+			return;
+
+		while (GetMessage(out MSG msg, IntPtr.Zero, 0, 0) > 0) {
+			_ = TranslateMessage(ref msg);
+			_ = DispatchMessage(ref msg);
+		}
+
+		_ = UnhookWindowsHookEx(_hookId);
 	}
 
 	static IntPtr SetHook(LowLevelKeyboardProc proc) {
@@ -122,6 +155,8 @@ public partial class KeyboardHook : IDisposable {
 	void queueDispatch(Action dispatch) {
 		ThreadPool.QueueUserWorkItem(_ => {
 			try {
+				if (_disposed)
+					return;
 				dispatch();
 			} catch (Exception ex) {
 				AppTrace.KeyboardHook.TraceEvent(
@@ -145,13 +180,21 @@ public partial class KeyboardHook : IDisposable {
 	/// <summary>Replaces hotkey resolution delegates. Invoked from the hook thread.</summary>
 	public void setHotkeyDispatch(
 		Func<HotkeyGesture, HotkeyDispatchTargets?> getTargets,
-		Action<IReadOnlyList<BindingManager.Slot>> dispatchSlots) {
+		Action<IReadOnlyList<BindingManager.Slot>> dispatchSlots,
+		IReadOnlyCollection<int> boundMainKeyCodes) {
 		ArgumentNullException.ThrowIfNull(getTargets);
 		ArgumentNullException.ThrowIfNull(dispatchSlots);
+		ArgumentNullException.ThrowIfNull(boundMainKeyCodes);
+		var table = new bool[VK_TABLE_SIZE];
+		foreach (int vk in boundMainKeyCodes) {
+			if ((uint)vk < (uint)table.Length)
+				table[vk] = true;
+		}
 		lock (_configuredHotkeysSync) {
 			cancelAllActivePressesLocked();
 			_getTargets = getTargets;
 			_dispatchSlots = dispatchSlots;
+			_boundMainKeyVkTable = table;
 		}
 	}
 
@@ -179,6 +222,7 @@ public partial class KeyboardHook : IDisposable {
 		foreach (ActiveHotkeyPress p in _activePresses.Values)
 			p.disposeTimers();
 		_activePresses.Clear();
+		_hasActivePresses = false;
 	}
 
 	static bool IsModifierVirtualKey(int vkCode) =>
@@ -324,6 +368,7 @@ public partial class KeyboardHook : IDisposable {
 			keyDownUtc = DateTime.UtcNow,
 		};
 		_activePresses[candidate] = press;
+		_hasActivePresses = true;
 
 		if (hasLong) {
 			ActiveHotkeyPress pressForTimer = press;
@@ -347,6 +392,8 @@ public partial class KeyboardHook : IDisposable {
 	}
 
 	void onLongTimerFired(ActiveHotkeyPress expected) {
+		if (_disposed)
+			return;
 		IReadOnlyList<BindingManager.Slot>? longList;
 		bool tookLong;
 		lock (_configuredHotkeysSync) {
@@ -359,6 +406,8 @@ public partial class KeyboardHook : IDisposable {
 	}
 
 	void onShortDeadlineFired(HotkeyGesture g) {
+		if (_disposed)
+			return;
 		IReadOnlyList<BindingManager.Slot> shortList;
 		lock (_configuredHotkeysSync) {
 			if (!_activePresses.TryGetValue(g, out ActiveHotkeyPress? press))
@@ -421,6 +470,7 @@ public partial class KeyboardHook : IDisposable {
 		}
 
 		_activePresses.Remove(key);
+		_hasActivePresses = _activePresses.Count > 0;
 
 		if (longListFromKeyUp != null && longListFromKeyUp.Count > 0)
 			queueDispatch(() => _dispatchSlots(longListFromKeyUp));
@@ -431,24 +481,37 @@ public partial class KeyboardHook : IDisposable {
 	}
 
 	IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam) {
-		if (nCode >= 0) {
+		if (nCode >= 0 && !_disposed) {
 			int vkCode = Marshal.ReadInt32(lParam);
-			if (tryHandleConfiguredHotkey(wParam, vkCode))
+			if (mayConcernConfiguredHotkeys(vkCode) && tryHandleConfiguredHotkey(wParam, vkCode))
 				return new IntPtr(1);
 		}
 		return CallNextHookEx(_hookId, nCode, wParam, lParam);
 	}
 
+	/// <summary>Lock-free fast path: with no press in flight, only VK codes bound as hotkey main keys need the locked state machine.</summary>
+	bool mayConcernConfiguredHotkeys(int vkCode) {
+		if (_hasActivePresses)
+			return true;
+		bool[] bound = _boundMainKeyVkTable;
+		return (uint)vkCode < (uint)bound.Length && bound[vkCode];
+	}
+
 	public void Dispose() {
 		if (_disposed)
 			return;
+		_disposed = true;
 
 		lock (_configuredHotkeysSync)
 			cancelAllActivePressesLocked();
 
-		if (_hookId != IntPtr.Zero)
-			_ = UnhookWindowsHookEx(_hookId);
-		_disposed = true;
+		// The hook is uninstalled on the pump thread itself after WM_QUIT drains, so no callback can race the unhook.
+		if (_hookInstalled.Wait(HOOK_THREAD_WAIT_MS) && _hookId != IntPtr.Zero) {
+			_ = PostThreadMessage(_hookThreadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
+			if (!_hookThread.Join(HOOK_THREAD_WAIT_MS))
+				AppTrace.KeyboardHook.TraceEvent(TraceEventType.Warning, 0, "Keyboard hook thread did not exit in time.");
+		}
+		_hookInstalled.Dispose();
 	}
 
 	[LibraryImport("user32.dll", EntryPoint = "SetWindowsHookExW")]
@@ -466,5 +529,37 @@ public partial class KeyboardHook : IDisposable {
 
 	[LibraryImport("kernel32.dll", EntryPoint = "GetModuleHandleW", StringMarshalling = StringMarshalling.Utf16)]
 	private static partial IntPtr GetModuleHandle(string lpModuleName);
+
+	[StructLayout(LayoutKind.Sequential)]
+	struct MSG {
+		public IntPtr hwnd;
+		public uint message;
+		public IntPtr wParam;
+		public IntPtr lParam;
+		public uint time;
+		public int ptX;
+		public int ptY;
+	}
+
+	[LibraryImport("user32.dll", EntryPoint = "GetMessageW")]
+	private static partial int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+	[LibraryImport("user32.dll", EntryPoint = "PeekMessageW")]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	private static partial bool PeekMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
+
+	[LibraryImport("user32.dll")]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	private static partial bool TranslateMessage(ref MSG lpMsg);
+
+	[LibraryImport("user32.dll", EntryPoint = "DispatchMessageW")]
+	private static partial IntPtr DispatchMessage(ref MSG lpMsg);
+
+	[LibraryImport("user32.dll", EntryPoint = "PostThreadMessageW")]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	private static partial bool PostThreadMessage(uint idThread, uint msg, IntPtr wParam, IntPtr lParam);
+
+	[LibraryImport("kernel32.dll")]
+	private static partial uint GetCurrentThreadId();
 }
 }

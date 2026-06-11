@@ -77,6 +77,10 @@ public sealed class BindingManager {
 	}
 
 	volatile FrozenDictionary<HotkeyGesture, HotkeyDispatchTargets> _byGesture = FrozenDictionary<HotkeyGesture, HotkeyDispatchTargets>.Empty;
+	volatile int[] _boundMainKeyCodes = [];
+
+	/// <summary>Distinct main-key VK codes of all bound gestures; feeds the keyboard hook's lock-free fast path.</summary>
+	internal IReadOnlyCollection<int> boundMainKeyCodes => _boundMainKeyCodes;
 
 	/// <summary>Rebuilds the snapshot from config. Same gesture may appear in multiple rows and in both short and long buckets.</summary>
 	internal void rebuildFromConfig(IEnumerable<BindingAbstract> bindings) {
@@ -118,6 +122,7 @@ public sealed class BindingManager {
 				frozenMap[g] = t;
 		}
 
+		_boundMainKeyCodes = frozenMap.Keys.Select(static g => g.keyCode).Distinct().ToArray();
 		_byGesture = frozenMap.ToFrozenDictionary();
 	}
 

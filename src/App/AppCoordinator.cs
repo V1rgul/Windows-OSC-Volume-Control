@@ -74,7 +74,8 @@ public sealed class AppCoordinator : IDisposable {
 			slots => {
 				foreach (BindingManager.Slot slot in slots)
 					handleOscHotkey(slot.binding, slot.action);
-			});
+			},
+			_oscBindings.boundMainKeyCodes);
 		_hook.applyConfig(_configStore.appConfig.keyboardHook);
 	}
 
