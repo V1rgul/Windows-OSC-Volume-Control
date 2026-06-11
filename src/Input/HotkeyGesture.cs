@@ -227,7 +227,9 @@ public static class HotkeyUtil {
 			modifiers |= HotkeyModifiers.LEFT_SHIFT;
 		if (Keyboard.IsKeyDown(Key.RightShift))
 			modifiers |= HotkeyModifiers.RIGHT_SHIFT;
-		if (Keyboard.IsKeyDown(Key.LeftAlt) || Keyboard.IsKeyDown(Key.System))
+		// No Key.System check here: it maps to VK_MENU (either Alt), so it would misattribute a held
+		// right Alt (AltGr) as LEFT_ALT and the captured gesture would never match the global hook.
+		if (Keyboard.IsKeyDown(Key.LeftAlt))
 			modifiers |= HotkeyModifiers.LEFT_ALT;
 		if (Keyboard.IsKeyDown(Key.RightAlt))
 			modifiers |= HotkeyModifiers.RIGHT_ALT;

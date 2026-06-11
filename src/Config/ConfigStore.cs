@@ -104,6 +104,7 @@ public sealed class ConfigStore {
 		List<BindingAbstract> bindings = tray.bindings;
 		KeyboardHook.Config hk = KeyboardHook.Config.Clamped(cfg.keyboardHook);
 		var lines = new List<string> {
+			"configVersion=1",
 			"ip=" + osc.endPoint.Address,
 			"port=" + osc.endPoint.Port.ToString(CultureInfo.InvariantCulture),
 			"timeoutMs=" + mixer.timeoutMs.ToString(CultureInfo.InvariantCulture),
@@ -119,15 +120,15 @@ public sealed class ConfigStore {
 		for (int i = 0; i < bindings.Count; i++) {
 			BindingAbstract b = bindings[i];
 			string p = i.ToString(CultureInfo.InvariantCulture);
-			lines.Add("osc." + p + ".name=" + b.name.Trim());
-			lines.Add("osc." + p + ".address=" + b.address.Trim());
+			lines.Add("osc." + p + ".name=" + sanitizeConfigValue(b.name));
+			lines.Add("osc." + p + ".address=" + sanitizeConfigValue(b.address));
 			switch (b) {
 				case BindingLinear f:
 					lines.Add("osc." + p + ".type=linear");
 					lines.Add("osc." + p + ".minimum=" + ContinuousFloatUtil.formatFloatForConfig(f.minimum, f.minimumFractionalDigits));
 					lines.Add("osc." + p + ".maximum=" + ContinuousFloatUtil.formatFloatForConfig(f.maximum, f.maximumFractionalDigits));
 					if (f.unit is { } lu)
-						lines.Add("osc." + p + ".unit=" + lu);
+						lines.Add("osc." + p + ".unit=" + sanitizeConfigValue(lu));
 					break;
 				case BindingLinf lf: {
 					lines.Add("osc." + p + ".type=linf");
@@ -138,7 +139,7 @@ public sealed class ConfigStore {
 					lines.Add("osc." + p + ".rangeMinimum=" + ContinuousFloatUtil.formatFloatForConfig(lf.rangeMinimum, rMinDig));
 					lines.Add("osc." + p + ".rangeMaximum=" + ContinuousFloatUtil.formatFloatForConfig(lf.rangeMaximum, rMaxDig));
 					if (lf.unit is { } lu2)
-						lines.Add("osc." + p + ".unit=" + lu2);
+						lines.Add("osc." + p + ".unit=" + sanitizeConfigValue(lu2));
 					break;
 				}
 				case BindingLogf lg: {
@@ -150,7 +151,7 @@ public sealed class ConfigStore {
 					lines.Add("osc." + p + ".rangeMinimum=" + ContinuousFloatUtil.formatFloatForConfig(lg.rangeMinimum, gRMinDig));
 					lines.Add("osc." + p + ".rangeMaximum=" + ContinuousFloatUtil.formatFloatForConfig(lg.rangeMaximum, gRMaxDig));
 					if (lg.unit is { } lu3)
-						lines.Add("osc." + p + ".unit=" + lu3);
+						lines.Add("osc." + p + ".unit=" + sanitizeConfigValue(lu3));
 					break;
 				}
 				case BindingLevel lv:
@@ -214,6 +215,10 @@ public sealed class ConfigStore {
 		}
 	}
 
+	/// <summary>Free-text values are stored in a line-oriented key=value file: line breaks would corrupt or inject keys, so they are flattened on save.</summary>
+	static string sanitizeConfigValue(string value) =>
+		value.Trim().Replace('\r', ' ').Replace('\n', ' ');
+
 	static List<BindingAbstract> cloneDefaultBindings() {
 		var trayDefaults = new BindingManager.Config();
 		return trayDefaults.bindings.Select(BindingManager.cloneBinding).ToList();
@@ -237,19 +242,19 @@ public sealed class ConfigStore {
 				repairNotes.Add("hotkeyLongPressMs invalid; using default.");
 		}
 		if (map.TryGetValue("hotkeyOptimizeNonLongPressKeyDown", out string? optStr)) {
-			if (bool.TryParse(optStr.Trim(), out bool opt))
+			if (tryParseBoolLoose(optStr, out bool opt))
 				provisional.optimizeNonLongPressKeyDown = opt;
 			else
 				repairNotes.Add("hotkeyOptimizeNonLongPressKeyDown invalid; using default.");
 		}
 		if (map.TryGetValue("hotkeySuppressKeyForLongPressOnly", out string? supStr)) {
-			if (bool.TryParse(supStr.Trim(), out bool sup))
+			if (tryParseBoolLoose(supStr, out bool sup))
 				provisional.suppressKeyForLongPressOnlyGestures = sup;
 			else
 				repairNotes.Add("hotkeySuppressKeyForLongPressOnly invalid; using default.");
 		}
 		if (map.TryGetValue("hotkeyAcceptMacroChordKeyOrder", out string? macroStr)) {
-			if (bool.TryParse(macroStr.Trim(), out bool macro))
+			if (tryParseBoolLoose(macroStr, out bool macro))
 				provisional.acceptMacroChordKeyOrder = macro;
 			else
 				repairNotes.Add("hotkeyAcceptMacroChordKeyOrder invalid; using default.");

@@ -19,5 +19,5 @@ public sealed class BindingLinear : BindingFloatAbstract {
 		=> applyValueRaw(currentWire + wireDelta);
 
 	public override float getNormalizedRatio(float wire)
-		=> (maximum > minimum) ? (wire - minimum) / (maximum - minimum) : 0f;
+		=> (maximum > minimum) ? Math.Clamp((wire - minimum) / (maximum - minimum), 0f, 1f) : 0f;
 }
