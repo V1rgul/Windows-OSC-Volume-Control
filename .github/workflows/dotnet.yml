@@ -54,9 +54,11 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
           COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
         run: |
+          release_tag="sha-${COMMIT_SHA}"
           release_title="${COMMIT_SUBJECT%%$'\n'*}"
-          gh release create "$COMMIT_SHA" \
+          gh release create "$release_tag" \
             "Windows-OSC-Volume-Control-Release.zip" \
+            --target "$COMMIT_SHA" \
             --title "$release_title" \
             --generate-notes \
             --latest
