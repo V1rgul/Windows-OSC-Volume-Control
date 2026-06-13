@@ -8,21 +8,7 @@
 	Height="820"
 	MinWidth="1180"
 	MinHeight="700">
-	<DockPanel>
-		<Border DockPanel.Dock="Bottom" Padding="8" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}">
-			<DockPanel LastChildFill="False">
-				<TextBlock x:Name="StatusTextBlock" DockPanel.Dock="Left" FontWeight="SemiBold" VerticalAlignment="Center" />
-				<Button
-					DockPanel.Dock="Right"
-					Padding="18,8"
-					FontWeight="SemiBold"
-					Style="{DynamicResource AccentButtonStyle}"
-					Click="buttonApplySaveAndTest_Click">
-					Apply, save and test
-				</Button>
-			</DockPanel>
-		</Border>
-
+	<Grid>
 		<Grid Margin="8,0,8,0">
 			<Grid.ColumnDefinitions>
 				<ColumnDefinition Width="280" />
@@ -32,5 +18,41 @@
 			<local:SettingsPanelView Grid.Column="0" DataContext="{Binding vm}" />
 			<local:BindingsPanelView Grid.Column="1" DataContext="{Binding vm}" />
 		</Grid>
-	</DockPanel>
+
+		<!-- Footer chrome mirrors a dragged binding card: the drag ghost rasterizes the opaque
+		     composited window surface (window background + the card's two ExpanderHeaderBackground
+		     tints + 1px stroke) and draws it at dragGhostOpacity. We reproduce that stack here so the
+		     footer reads as a real card over the scrolling content instead of a translucent white tint.
+		     FooterSurfaceBase.Background (opaque window surface) and FooterChrome.Opacity are set in code-behind. -->
+		<Border
+			x:Name="FooterChrome"
+			VerticalAlignment="Bottom"
+			HorizontalAlignment="Stretch"
+			Margin="{StaticResource ConfigFooterOuterMargin}"
+			Panel.ZIndex="1">
+			<Grid>
+				<Border x:Name="FooterSurfaceBase" CornerRadius="10" />
+				<Border
+					CornerRadius="10"
+					BorderThickness="1"
+					BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+					Background="{DynamicResource ExpanderHeaderBackground}" />
+				<Border
+					CornerRadius="10"
+					BorderThickness="0"
+					Background="{DynamicResource ExpanderHeaderBackground}" />
+				<DockPanel LastChildFill="False" Margin="8">
+					<TextBlock x:Name="StatusTextBlock" DockPanel.Dock="Left" FontWeight="SemiBold" VerticalAlignment="Center" />
+					<Button
+						DockPanel.Dock="Right"
+						Padding="18,8"
+						FontWeight="SemiBold"
+						Style="{DynamicResource AccentButtonStyle}"
+						Click="buttonApplySaveAndTest_Click">
+						Apply, save and test
+					</Button>
+				</DockPanel>
+			</Grid>
+		</Border>
+	</Grid>
 </Window>

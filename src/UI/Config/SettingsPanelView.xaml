@@ -353,6 +353,7 @@
 						</Button>
 					</Grid>
 				</GroupBox>
+				<Border Height="{StaticResource ConfigFooterScrollInsetHeight}" />
 			</StackPanel>
 		</wpf:SmoothScrollViewer>
 	</Border>

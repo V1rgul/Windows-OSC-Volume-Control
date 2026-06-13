@@ -12,6 +12,8 @@ namespace WindowsOscVolumeControl.UI.Wpf.Behaviors;
 
 internal static class ReorderDragDrop {
 	internal const string reorderDragFormat = "WindowsOscVolumeControl.ReorderItem";
+	/// <summary>Opacity applied to the rasterized binding-card drag ghost (<see cref="DragGhostAdorner"/>).</summary>
+	internal const double dragGhostOpacity = 0.90;
 
 	internal static int dropIndexToMoveIndex(int oldIndex, int dropIndex, int count) {
 		int idx = Math.Clamp(dropIndex, 0, count);

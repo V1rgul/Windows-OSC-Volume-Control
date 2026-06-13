@@ -355,7 +355,7 @@ public partial class BindingsPanelView {
 			dragStartPointInList,
 			cursorOffset,
 			size,
-			opacity: 0.90,
+			opacity: ReorderDragDrop.dragGhostOpacity,
 			cornerRadius: radius);
 		layer.Add(_dragGhostAdorner);
 		_dragGhostAdorner.InvalidateVisual();

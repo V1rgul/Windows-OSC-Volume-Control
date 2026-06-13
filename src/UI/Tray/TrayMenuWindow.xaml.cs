@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Media;
+using WindowsOscVolumeControl.UI.Wpf.Theme;
 
 namespace WindowsOscVolumeControl.UI.Tray;
 
@@ -23,71 +23,7 @@ public sealed partial class TrayMenuWindow : IDisposable {
 	}
 
 	void applyWindowBackgroundFromThemeStyle() {
-		SurfaceBackground.Background = resolveOpaqueSurfaceBackground();
-	}
-
-	System.Windows.Media.Brush resolveOpaqueSurfaceBackground() {
-		// 1) Prefer the actual Window style Background (Fluent theme).
-		if (TryFindResource(typeof(Window)) is Style windowStyle) {
-			foreach (SetterBase sb in windowStyle.Setters) {
-				if (sb is not Setter s)
-					continue;
-				if (s.Property != System.Windows.Controls.Control.BackgroundProperty)
-					continue;
-				if (tryResolveBrushFromSetterValue(s.Value) is { } b1)
-					return opacifyBrush(b1);
-			}
-		}
-
-		// 2) Try common Fluent keys (varies by .NET/WPF version).
-		object[] keys = [
-			"WindowBackground",
-			"WindowBackgroundBrush",
-			"ApplicationBackground",
-			"ApplicationBackgroundBrush",
-			"SolidBackgroundFillColorBase",
-			"SolidBackgroundFillColorBaseBrush",
-			"SolidBackgroundFillColorBaseAlt",
-			"SolidBackgroundFillColorBaseAltBrush",
-			"LayerFillColorDefault",
-			"LayerFillColorDefaultBrush",
-			"LayerFillColorAlt",
-			"LayerFillColorAltBrush",
-		];
-
-		foreach (object key in keys) {
-			if (TryFindResource(key) is System.Windows.Media.Brush b2)
-				return opacifyBrush(b2);
-			if (TryFindResource(key) is System.Windows.Media.Color c)
-				return new SolidColorBrush(System.Windows.Media.Color.FromArgb(255, c.R, c.G, c.B));
-		}
-
-		throw new InvalidOperationException(
-			"Failed to resolve an opaque theme surface background brush for TrayMenuWindow. " +
-			"Expected a Window Background setter or one of the common Fluent theme resource keys.");
-	}
-
-	System.Windows.Media.Brush? tryResolveBrushFromSetterValue(object? value) {
-		if (value is System.Windows.Media.Brush b)
-			return b;
-
-		// Fluent theme uses DynamicResource in style setters.
-		if (value is DynamicResourceExtension dre && TryFindResource(dre.ResourceKey) is System.Windows.Media.Brush db)
-			return db;
-
-		return null;
-	}
-
-	static System.Windows.Media.Brush opacifyBrush(System.Windows.Media.Brush brush) {
-		if (brush is SolidColorBrush scb) {
-			System.Windows.Media.Color c = scb.Color;
-			if (c.A == 255)
-				return brush;
-			SolidColorBrush clone = new(System.Windows.Media.Color.FromArgb(255, c.R, c.G, c.B));
-			clone.Freeze();
-			return clone;
-		}
-		return brush;
+		SurfaceBackground.Background = ThemeSurface.resolveOpaqueWindowSurfaceBrush(this);
 	}
 
 	public void setEndPointText(string text) {

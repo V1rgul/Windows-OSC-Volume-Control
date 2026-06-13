@@ -5,6 +5,8 @@ using System.Windows.Data;
 using System.Windows.Media;
 using WindowsOscVolumeControl.UI.Config.ViewModels;
 using WindowsOscVolumeControl.UI.Tray;
+using WindowsOscVolumeControl.UI.Wpf.Behaviors;
+using WindowsOscVolumeControl.UI.Wpf.Theme;
 using AppCoordinator = WindowsOscVolumeControl.App.AppCoordinator;
 using Media = System.Windows.Media;
 
@@ -36,6 +38,14 @@ public partial class ConfigWindow {
 		syncTitlebarIconFromTray();
 		WindowStartupLocation = WindowStartupLocation.Manual;
 		ContentRendered += (_, _) => placeNearTrayCornerOnce();
+		Loaded += (_, _) => applyFooterChromeLikeDraggedCard();
+	}
+
+	// Match a dragged binding card: stack the card tints over the opaque window surface, then apply the
+	// same ghost opacity. Resolving the surface brush needs a live visual tree, hence Loaded (not ctor).
+	void applyFooterChromeLikeDraggedCard() {
+		FooterSurfaceBase.Background = ThemeSurface.resolveOpaqueWindowSurfaceBrush(this);
+		FooterChrome.Opacity = ReorderDragDrop.dragGhostOpacity;
 	}
 
 	public void syncTitlebarIconFromTray() => Icon = _trayController.windowIconSourceSnapshot;
