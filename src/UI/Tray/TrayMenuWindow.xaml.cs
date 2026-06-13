@@ -27,8 +27,12 @@ public sealed partial class TrayMenuWindow : IDisposable {
 	}
 
 	public void setEndPointText(string text) {
-		EndPointText.Text = string.IsNullOrWhiteSpace(text) ? "0.0.0.0:0" : text.Trim();
+		string raw = string.IsNullOrWhiteSpace(text) ? "0.0.0.0:0" : text.Trim();
+		EndPointText.Text = formatEndPointDisplay(raw);
 	}
+
+	static string formatEndPointDisplay(string text) =>
+		text.Replace(".", "\u200A.\u200A").Replace(":", "\u2009:\u2009");
 
 	public void showAtCursor() {
 		if (_disposed)

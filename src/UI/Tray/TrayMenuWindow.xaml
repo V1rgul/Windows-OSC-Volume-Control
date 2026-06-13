@@ -99,7 +99,7 @@
 					TextAlignment="Center"
 					Foreground="{DynamicResource TextControlForeground}"
 					FontWeight="SemiBold"
-					Text="0.0.0.0:0" />
+					Text="0 . 0 . 0 . 0 : 0" />
 
 				<Separator Margin="6,6,6,6" />
 
