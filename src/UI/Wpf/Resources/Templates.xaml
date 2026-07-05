@@ -3,8 +3,9 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
 	<!-- Copied from PresentationFramework.Fluent TextBox.xaml DefaultTextBoxControlTemplate,
-	     with focus darkening triggers removed (IsFocused / DeleteButton.IsPressed). -->
-	<ControlTemplate x:Key="ConfigReadOnlyDisplayTextBoxTemplate" TargetType="{x:Type TextBox}">
+	     with focus darkening triggers removed (IsFocused / DeleteButton.IsPressed).
+	     Also used for editable config scalar fields to avoid Fluent Validation.HasError chrome. -->
+	<ControlTemplate x:Key="ConfigFlatTextBoxTemplate" TargetType="{x:Type TextBox}">
 		<Grid>
 			<Border
 				x:Name="ContentBorder"
@@ -36,6 +37,45 @@
 				<Setter TargetName="ContentBorder" Property="Background" Value="{DynamicResource TextControlBackgroundDisabled}" />
 				<Setter TargetName="ContentBorder" Property="BorderBrush" Value="{DynamicResource TextControlBorderBrushDisabled}" />
 				<Setter TargetName="PART_ContentHost" Property="Foreground" Value="{DynamicResource TextControlForegroundDisabled}" />
+			</Trigger>
+		</ControlTemplate.Triggers>
+	</ControlTemplate>
+
+	<!-- Apply footer button: hover/press overlay tints the full Background (flash fade included). -->
+	<ControlTemplate x:Key="ConfigApplyButtonTemplate" TargetType="{x:Type Button}">
+		<Grid SnapsToDevicePixels="True">
+			<Border
+				x:Name="Chrome"
+				Background="{TemplateBinding Background}"
+				BorderBrush="{TemplateBinding BorderBrush}"
+				BorderThickness="{TemplateBinding BorderThickness}"
+				CornerRadius="4" />
+			<Border
+				x:Name="HoverLightenOverlay"
+				Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+				CornerRadius="4"
+				BorderThickness="0"
+				Opacity="0"
+				IsHitTestVisible="False" />
+			<ContentPresenter
+				Margin="{TemplateBinding Padding}"
+				HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+				VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+				Focusable="False"
+				RecognizesAccessKey="True" />
+		</Grid>
+		<ControlTemplate.Triggers>
+			<Trigger Property="IsMouseOver" Value="True">
+				<Setter TargetName="HoverLightenOverlay" Property="Opacity" Value="1" />
+			</Trigger>
+			<Trigger Property="IsMouseOver" Value="False">
+				<Setter TargetName="HoverLightenOverlay" Property="Opacity" Value="0" />
+			</Trigger>
+			<Trigger Property="IsPressed" Value="True">
+				<Setter TargetName="HoverLightenOverlay" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+			</Trigger>
+			<Trigger Property="IsPressed" Value="False">
+				<Setter TargetName="HoverLightenOverlay" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
 			</Trigger>
 		</ControlTemplate.Triggers>
 	</ControlTemplate>

@@ -1,0 +1,30 @@
+<ToolTip
+	x:Class="WindowsOscVolumeControl.UI.Config.ScalarFieldToolTip"
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:local="clr-namespace:WindowsOscVolumeControl.UI.Config">
+	<StackPanel MaxWidth="320">
+		<TextBlock
+			Text="{Binding helpText, RelativeSource={RelativeSource AncestorType=local:ScalarFieldToolTip}}"
+			TextWrapping="Wrap" />
+		<ItemsControl
+			Margin="0,8,0,0"
+			ItemsSource="{Binding PlacementTarget.(Validation.Errors), RelativeSource={RelativeSource AncestorType=ToolTip}}">
+			<ItemsControl.Style>
+				<Style TargetType="ItemsControl">
+					<Setter Property="Visibility" Value="Collapsed" />
+					<Style.Triggers>
+						<DataTrigger Binding="{Binding PlacementTarget.(Validation.HasError), RelativeSource={RelativeSource AncestorType=ToolTip}}" Value="True">
+							<Setter Property="Visibility" Value="Visible" />
+						</DataTrigger>
+					</Style.Triggers>
+				</Style>
+			</ItemsControl.Style>
+			<ItemsControl.ItemTemplate>
+				<DataTemplate>
+					<TextBlock Foreground="{DynamicResource SystemFillColorCriticalBrush}" Text="{Binding ErrorContent}" TextWrapping="Wrap" />
+				</DataTemplate>
+			</ItemsControl.ItemTemplate>
+		</ItemsControl>
+	</StackPanel>
+</ToolTip>

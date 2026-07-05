@@ -3,6 +3,9 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
+using Result;
 using WindowsOscVolumeControl.UI.Config.ViewModels;
 using WindowsOscVolumeControl.UI.Tray;
 using WindowsOscVolumeControl.UI.Wpf.Behaviors;
@@ -23,6 +26,17 @@ public partial class ConfigWindow {
 	readonly AppCoordinator _appCoordinator;
 	readonly ConfigStore _configStore;
 	bool _applySaveAndTestRunning;
+	DispatcherTimer? _applySpinnerTimer;
+	RotateTransform? _applySpinnerRotate;
+
+	enum ApplyButtonChrome {
+		IDLE,
+		BUSY,
+		FLASH_OK,
+		FLASH_FAIL,
+	}
+
+	ApplyButtonChrome _applyButtonChrome = ApplyButtonChrome.IDLE;
 	public ConfigWindowViewModel vm { get; }
 
 	public ConfigWindow(MixerController mixer, TrayController trayController, AppCoordinator appCoordinator, ConfigStore configStore) {
@@ -38,7 +52,10 @@ public partial class ConfigWindow {
 		syncTitlebarIconFromTray();
 		WindowStartupLocation = WindowStartupLocation.Manual;
 		ContentRendered += (_, _) => placeNearTrayCornerOnce();
-		Loaded += (_, _) => applyFooterChromeLikeDraggedCard();
+		Loaded += (_, _) => {
+			applyFooterChromeLikeDraggedCard();
+			syncApplyButtonTextBrush();
+		};
 	}
 
 	// Match a dragged binding card: stack the card tints over the opaque window surface, then apply the
@@ -93,9 +110,10 @@ public partial class ConfigWindow {
 	}
 
 	void vm_PropertyChanged(object? sender, PropertyChangedEventArgs e) {
-		// Window owns the bottom status bar only; per-panel feedback is handled inside the UserControls.
 		if (e.PropertyName is nameof(ConfigWindowViewModel.statusFeedback) or nameof(ConfigWindowViewModel.diagnosticsFeedback))
 			refreshStatusBar();
+		if (e.PropertyName is nameof(ConfigWindowViewModel.hasScalarErrors) && _applyButtonChrome == ApplyButtonChrome.IDLE)
+			syncApplyButtonTextBrush();
 	}
 
 	internal void syncDiagnosticsFeedback(string summary) {
@@ -137,27 +155,79 @@ public partial class ConfigWindow {
 		_ => tryGetThemeBrush("TextFillColorPrimaryBrush", Media.Brushes.White),
 	};
 
+	Media.Brush applyButtonAccentTextBrush() =>
+		tryGetThemeBrush("TextOnAccentFillColorPrimaryBrush", Media.Brushes.White);
+
+	Media.Brush applyButtonCriticalBrush() =>
+		tryGetThemeBrush("SystemFillColorCriticalBrush", Media.Brushes.IndianRed);
+
+	Media.Brush applyButtonSuccessBrush() =>
+		tryGetThemeBrush("SystemFillColorSuccessBrush", Media.Brushes.LimeGreen);
+
+	void setApplyButtonBusy(bool busy) {
+		ApplySaveAndTestSpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+		if (busy)
+			startApplySpinner();
+		else
+			stopApplySpinner();
+		if (busy)
+			_applyButtonChrome = ApplyButtonChrome.BUSY;
+		else if (_applyButtonChrome == ApplyButtonChrome.BUSY)
+			_applyButtonChrome = ApplyButtonChrome.IDLE;
+		syncApplyButtonTextBrush();
+	}
+
+	void startApplySpinner() {
+		_applySpinnerRotate ??= (RotateTransform)ApplySaveAndTestSpinner.RenderTransform;
+		if (_applySpinnerTimer == null) {
+			_applySpinnerTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
+			_applySpinnerTimer.Tick += (_, _) => {
+				if (_applySpinnerRotate != null)
+					_applySpinnerRotate.Angle = (_applySpinnerRotate.Angle + 12d) % 360d;
+			};
+		}
+		_applySpinnerTimer.Start();
+	}
+
+	void stopApplySpinner() {
+		_applySpinnerTimer?.Stop();
+		if (_applySpinnerRotate != null)
+			_applySpinnerRotate.Angle = 0d;
+	}
+
+	void syncApplyButtonTextBrush() {
+		ApplySaveAndTestButtonText.Foreground = vm.hasScalarErrors
+			? applyButtonCriticalBrush()
+			: applyButtonAccentTextBrush();
+	}
+
 	async void buttonApplySaveAndTest_Click(object sender, RoutedEventArgs e) {
 		if (_applySaveAndTestRunning)
 			return;
 
 		_applySaveAndTestRunning = true;
-		System.Windows.Controls.Button? applySaveAndTestButton = sender as System.Windows.Controls.Button;
-		if (applySaveAndTestButton != null)
-			applySaveAndTestButton.IsEnabled = false;
+		vm.applyInProgress = true;
+		setApplyButtonBusy(busy: true);
+		await Dispatcher.Yield(DispatcherPriority.Render);
+		bool? flashSuccess = null;
+		bool lastInfoOk = false;
 		try {
-			// Don't rely on PropertyChanged for repeating equal feedback values.
-			vm.statusFeedback = new UiTextFeedback("", UiTextFeedbackKind.WARNING);
+			(bool scalarOk, SettingsScalarsMaterialized scalars) = vm.scalarsResult.match(
+				v => (true, v),
+				_ => {
+					vm.statusFeedback = new UiTextFeedback(vm.formatScalarErrorsForFooter(), UiTextFeedbackKind.ERROR);
+					refreshStatusBar();
+					flashSuccess = false;
+					return (false, default);
+				});
+			if (!scalarOk)
+				return;
+
+			vm.statusFeedback = new UiTextFeedback("", UiTextFeedbackKind.DEFAULT);
 			refreshStatusBar();
 			(bool okBuild, AppConfig? newConfig, UiTextFeedback? buildErr) = SettingsFormDraft.tryBuild(
-				vm.oscIpText,
-				vm.oscPortText,
-				vm.queryTimeoutText,
-				vm.valueCacheTtlText,
+				scalars,
 				vm.osdPosition,
-				vm.osdHeightText,
-				vm.osdDurationText,
-				vm.hotkeyLongPressMsText,
 				vm.hotkeyOptimizeNonLongPress,
 				vm.hotkeySuppressLongPressOnly,
 				vm.hotkeyAcceptMacroChordKeyOrder,
@@ -165,6 +235,7 @@ public partial class ConfigWindow {
 			if (!okBuild) {
 				vm.statusFeedback = buildErr!.Value;
 				refreshStatusBar();
+				flashSuccess = false;
 				return;
 			}
 
@@ -172,6 +243,12 @@ public partial class ConfigWindow {
 			try {
 				await _appCoordinator.commitConfigFromSettingsFormAsync(newConfig!);
 				vm.configFeedback = _configStore.lastDiskUiFeedback;
+				if (_configStore.lastDiskOutcome is AppConfigDiskOutcome.SAVE_FAILED) {
+					vm.statusFeedback = vm.configFeedback;
+					refreshStatusBar();
+					flashSuccess = false;
+					return;
+				}
 
 				int timeoutMs = Math.Max(1, (int)newConfig!.mixer.timeoutMs);
 				const int probes = 10;
@@ -186,7 +263,6 @@ public partial class ConfigWindow {
 				string oscAddress = oscUsesBinding ? firstBinding!.address : "/info";
 				vm.oscHeaderText = oscUsesBinding ? "OSC Binding #1" : "OSC /info";
 
-				bool lastInfoOk = false;
 				string lastInfoDetail = "";
 
 				async Task<int?> probeOscOnceAsync() {
@@ -232,6 +308,7 @@ public partial class ConfigWindow {
 					RttStatsSnapshot pingSnap = pingStats.snapshot();
 					RttStatsSnapshot oscSnap = oscStats.snapshot();
 					vm.applyLatencyStatsToUi(timeoutMs, pingSnap, oscSnap, brushForLatencyPanel);
+					await Dispatcher.Yield(DispatcherPriority.Render);
 				}
 
 				if (oscUsesBinding) {
@@ -247,12 +324,51 @@ public partial class ConfigWindow {
 			} finally {
 				_appCoordinator.finishConfigValidation();
 			}
+
+			syncDiagnosticsFeedback(_appCoordinator.visibleDiagnosticsSummaryForConfigUi());
+
+			bool diskClean = vm.configFeedback.kind is UiTextFeedbackKind.SUCCESS or UiTextFeedbackKind.DEFAULT;
+			bool diagnosticsClean = vm.diagnosticsFeedback.kind is UiTextFeedbackKind.SUCCESS or UiTextFeedbackKind.DEFAULT;
+			flashSuccess = lastInfoOk && diskClean && diagnosticsClean;
 		} finally {
-			if (applySaveAndTestButton != null)
-				applySaveAndTestButton.IsEnabled = true;
+			vm.applyInProgress = false;
 			_applySaveAndTestRunning = false;
+			setApplyButtonBusy(busy: false);
+			if (flashSuccess is bool success)
+				flashApplyButtonChrome(success);
+			else
+				syncApplyButtonTextBrush();
 		}
 	}
+
+	void flashApplyButtonChrome(bool success) {
+		_applyButtonChrome = success ? ApplyButtonChrome.FLASH_OK : ApplyButtonChrome.FLASH_FAIL;
+		syncApplyButtonTextBrush();
+
+		Media.Color flashColor = colorFromBrush(
+			success ? applyButtonSuccessBrush() : applyButtonCriticalBrush(),
+			success ? Media.Colors.LimeGreen : Media.Colors.IndianRed);
+		Media.Color accentColor = colorFromBrush(
+			tryGetThemeBrush("AccentFillColorDefaultBrush", Media.Brushes.DodgerBlue),
+			Media.Colors.DodgerBlue);
+
+		var brush = new SolidColorBrush(flashColor);
+		ApplySaveAndTestButton.Background = brush;
+
+		var fade = new ColorAnimation(flashColor, accentColor, TimeSpan.FromMilliseconds(1000)) {
+			EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+			FillBehavior = FillBehavior.HoldEnd,
+		};
+		fade.Completed += (_, _) => {
+			_applyButtonChrome = ApplyButtonChrome.IDLE;
+			ApplySaveAndTestButton.ClearValue(System.Windows.Controls.Control.BackgroundProperty);
+			syncApplyButtonTextBrush();
+		};
+		brush.BeginAnimation(SolidColorBrush.ColorProperty, fade);
+	}
+
+	static Media.Color colorFromBrush(Media.Brush? brush, Media.Color fallback) =>
+		brush is SolidColorBrush solid ? solid.Color : fallback;
 
 }
 

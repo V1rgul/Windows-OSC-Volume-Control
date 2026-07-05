@@ -44,12 +44,32 @@
 				<DockPanel LastChildFill="False" Margin="8">
 					<TextBlock x:Name="StatusTextBlock" DockPanel.Dock="Left" FontWeight="SemiBold" VerticalAlignment="Center" />
 					<Button
+						x:Name="ApplySaveAndTestButton"
 						DockPanel.Dock="Right"
-						Padding="18,8"
-						FontWeight="SemiBold"
-						Style="{DynamicResource AccentButtonStyle}"
-						Click="buttonApplySaveAndTest_Click">
-						Apply, save and test
+						Click="buttonApplySaveAndTest_Click"
+						DataContext="{Binding vm}"
+						Style="{StaticResource ConfigApplyButtonStyle}">
+						<StackPanel Orientation="Horizontal">
+							<Ellipse
+								x:Name="ApplySaveAndTestSpinner"
+								Width="14"
+								Height="14"
+								Margin="0,0,8,0"
+								Stroke="{DynamicResource TextOnAccentFillColorPrimaryBrush}"
+								StrokeThickness="2"
+								Fill="Transparent"
+								StrokeDashArray="2.2 3.8"
+								Visibility="Collapsed"
+								RenderTransformOrigin="0.5,0.5">
+								<Ellipse.RenderTransform>
+									<RotateTransform Angle="0" />
+								</Ellipse.RenderTransform>
+							</Ellipse>
+							<TextBlock
+								x:Name="ApplySaveAndTestButtonText"
+								VerticalAlignment="Center"
+								Text="Apply, save and test" />
+						</StackPanel>
 					</Button>
 				</DockPanel>
 			</Grid>

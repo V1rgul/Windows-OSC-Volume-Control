@@ -1,7 +1,10 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
+using Result;
 using SharpOSC;
+using WindowsOscVolumeControl.Diagnostics;
 
 namespace WindowsOscVolumeControl.Diagnostics {
 	public abstract partial record StatusError {
@@ -22,6 +25,20 @@ public sealed class OscTransport : IDisposable {
 		public Config(Config other) {
 			ArgumentNullException.ThrowIfNull(other);
 			endPoint = new IPEndPoint(other.endPoint.Address, other.endPoint.Port);
+		}
+
+		public static Result<IPAddress> parseIpField(string? text) {
+			if (string.IsNullOrWhiteSpace(text) || !IPAddress.TryParse(text.Trim(), out IPAddress? ip))
+				return new ResultError.Generic.Parsing { message = "Invalid IP address." };
+			return ip;
+		}
+
+		public static Result<int> parsePortField(string? text) {
+			if (string.IsNullOrWhiteSpace(text)
+			    || !int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int port)
+			    || port is < 1 or > 65535)
+				return new ResultError.Generic.Parsing { message = "Port must be between 1 and 65535." };
+			return port;
 		}
 	}
 

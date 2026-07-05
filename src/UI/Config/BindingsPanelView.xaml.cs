@@ -260,11 +260,11 @@ public partial class BindingsPanelView {
 	}
 
 	bool tryParseHotkeyLongPressMsForCapture(ConfigWindowViewModel m, out uint ms) {
-		ms = KeyboardHook.Config.DEFAULT_LONG_PRESS_MS;
-		if (!uint.TryParse(m.hotkeyLongPressMsText.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsed))
-			return false;
-		ms = KeyboardHook.Config.Clamped(new KeyboardHook.Config { longPressDurationMs = parsed }).longPressDurationMs;
-		return true;
+		(bool ok, uint parsedMs) = m.hotkeyLongPressMsResult.match(
+			v => (true, v),
+			_ => (false, KeyboardHook.Config.DEFAULT_LONG_PRESS_MS));
+		ms = parsedMs;
+		return ok;
 	}
 
 	void finalizeHotkeyCapture(ConfigWindowViewModel m, ControlActionEditor item, FrameworkElement focusMoveAnchor) {

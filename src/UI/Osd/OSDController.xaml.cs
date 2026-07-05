@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
+using Result;
+using WindowsOscVolumeControl.Diagnostics;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -102,6 +104,22 @@ public partial class OSDController {
 				DisplayDurationMs = duration,
 				screenAnchor = clampScreenAnchor(cfg.screenAnchor),
 			};
+		}
+
+		public static Result<int> parseHeightDip(string? text) {
+			if (!int.TryParse((text ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
+				return new ResultError.Generic.Parsing { message = "Must be an integer." };
+			if (parsed < MIN_HEIGHT_DIP || parsed > MAX_HEIGHT_DIP)
+				return new ResultError.Generic.Parsing { message = $"Must be between {MIN_HEIGHT_DIP} and {MAX_HEIGHT_DIP}." };
+			return parsed;
+		}
+
+		public static Result<uint> parseDisplayDurationMs(string? text) {
+			if (!uint.TryParse((text ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsed))
+				return new ResultError.Generic.Parsing { message = "Must be an integer." };
+			if (parsed < MIN_DISPLAY_DURATION_MS || parsed > MAX_DISPLAY_DURATION_MS)
+				return new ResultError.Generic.Parsing { message = $"Must be between {MIN_DISPLAY_DURATION_MS} and {MAX_DISPLAY_DURATION_MS}." };
+			return parsed;
 		}
 	}
 

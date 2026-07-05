@@ -1,9 +1,15 @@
+using System.Collections;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Net;
 using System.Windows.Controls;
+using Result;
+using WindowsOscVolumeControl.Diagnostics;
+using WindowsOscVolumeControl.Input;
+using WindowsOscVolumeControl.Osc;
 using WindowsOscVolumeControl.UI.Osd;
 using AppCoordinator = WindowsOscVolumeControl.App.AppCoordinator;
 using Brush = System.Windows.Media.Brush;
@@ -18,7 +24,7 @@ public enum LatencyPanelUiStatus {
 	CRITICAL,
 }
 
-public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
+public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorInfo {
 	string _oscIpText = "";
 	string _oscPortText = "";
 	string _queryTimeoutText = "";
@@ -32,6 +38,18 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	bool _hotkeyOptimizeNonLongPress;
 	bool _hotkeySuppressLongPressOnly;
 	bool _hotkeyAcceptMacroChordKeyOrder;
+
+	bool _loadingScalars;
+	bool _applyInProgress;
+
+	Result<IPAddress> _oscIpResult = OscTransport.Config.parseIpField("");
+	Result<int> _oscPortResult = OscTransport.Config.parsePortField("");
+	Result<uint> _queryTimeoutResult = MixerController.Config.parseTimeoutMs("");
+	Result<uint> _valueCacheTtlResult = MixerController.Config.parseValueCacheTtlMs("");
+	Result<int> _osdHeightResult = OSDController.Config.parseHeightDip("");
+	Result<uint> _osdDurationResult = OSDController.Config.parseDisplayDurationMs("");
+	Result<uint> _hotkeyLongPressMsResult = KeyboardHook.Config.parseLongPressMs("");
+	Result<SettingsScalarsMaterialized> _scalarsResult = new ResultError.Generic.Parsing { message = "Invalid IP address." };
 
 	string _configPathText = "";
 	string _traceLogPathText = "";
@@ -72,8 +90,8 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 		set {
 			if (!setTextProperty(ref _oscIpText, value))
 				return;
-			// Keep cross-field validation reactive (even if only one field was edited).
-			raisePropertyChanged(nameof(oscPortText));
+			if (!_loadingScalars)
+				parseScalarField(nameof(oscIpText));
 		}
 	}
 
@@ -82,17 +100,61 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 		set {
 			if (!setTextProperty(ref _oscPortText, value))
 				return;
-			raisePropertyChanged(nameof(oscIpText));
+			if (!_loadingScalars)
+				parseScalarField(nameof(oscPortText));
 		}
 	}
-	public string queryTimeoutText { get => _queryTimeoutText; set => setTextProperty(ref _queryTimeoutText, value); }
-	public string valueCacheTtlText { get => _valueCacheTtlText; set => setTextProperty(ref _valueCacheTtlText, value); }
 
-	public string osdHeightText { get => _osdHeightText; set => setTextProperty(ref _osdHeightText, value); }
-	public string osdDurationText { get => _osdDurationText; set => setTextProperty(ref _osdDurationText, value); }
+	public string queryTimeoutText {
+		get => _queryTimeoutText;
+		set {
+			if (!setTextProperty(ref _queryTimeoutText, value))
+				return;
+			if (!_loadingScalars)
+				parseScalarField(nameof(queryTimeoutText));
+		}
+	}
+
+	public string valueCacheTtlText {
+		get => _valueCacheTtlText;
+		set {
+			if (!setTextProperty(ref _valueCacheTtlText, value))
+				return;
+			if (!_loadingScalars)
+				parseScalarField(nameof(valueCacheTtlText));
+		}
+	}
+
+	public string osdHeightText {
+		get => _osdHeightText;
+		set {
+			if (!setTextProperty(ref _osdHeightText, value))
+				return;
+			if (!_loadingScalars)
+				parseScalarField(nameof(osdHeightText));
+		}
+	}
+
+	public string osdDurationText {
+		get => _osdDurationText;
+		set {
+			if (!setTextProperty(ref _osdDurationText, value))
+				return;
+			if (!_loadingScalars)
+				parseScalarField(nameof(osdDurationText));
+		}
+	}
 	public OSDController.Config.OsdScreenAnchor osdPosition { get => _osdPosition; set => setProperty(ref _osdPosition, value); }
 
-	public string hotkeyLongPressMsText { get => _hotkeyLongPressMsText; set => setTextProperty(ref _hotkeyLongPressMsText, value); }
+	public string hotkeyLongPressMsText {
+		get => _hotkeyLongPressMsText;
+		set {
+			if (!setTextProperty(ref _hotkeyLongPressMsText, value))
+				return;
+			if (!_loadingScalars)
+				parseScalarField(nameof(hotkeyLongPressMsText));
+		}
+	}
 	public bool hotkeyOptimizeNonLongPress { get => _hotkeyOptimizeNonLongPress; set => setProperty(ref _hotkeyOptimizeNonLongPress, value); }
 	public bool hotkeySuppressLongPressOnly { get => _hotkeySuppressLongPressOnly; set => setProperty(ref _hotkeySuppressLongPressOnly, value); }
 	public bool hotkeyAcceptMacroChordKeyOrder { get => _hotkeyAcceptMacroChordKeyOrder; set => setProperty(ref _hotkeyAcceptMacroChordKeyOrder, value); }
@@ -135,51 +197,39 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	// Binding editor collection (kept as-is; BindingEditor / ControlActionEditor own per-row state).
 	public ObservableCollection<BindingEditor> bindings { get; } = [];
 
-	public string Error => "";
+	public Result<uint> hotkeyLongPressMsResult => _hotkeyLongPressMsResult;
+	public Result<SettingsScalarsMaterialized> scalarsResult => _scalarsResult;
+	public bool hasScalarErrors => _scalarsResult.isError;
+	public bool applyInProgress { get => _applyInProgress; set => setProperty(ref _applyInProgress, value); }
 
-	public string this[string columnName] {
-		get {
-			// Keep this aligned with SettingsFormDraft.tryBuild parsing rules.
-			switch (columnName) {
-				case nameof(oscIpText):
-					return OscConnectionConfigParse.isIpFieldSyntaxOk(oscIpText) ? "" : "Invalid IP address.";
-				case nameof(oscPortText):
-					return OscConnectionConfigParse.isPortFieldSyntaxOk(oscPortText) ? "" : "Port must be between 1 and 65535.";
+	public event EventHandler<DataErrorsChangedEventArgs>? ErrorsChanged;
 
-				case nameof(queryTimeoutText): {
-					return tryValidateUInt(queryTimeoutText, MixerController.Config.MIN_TIMEOUT_MS, MixerController.Config.MAX_TIMEOUT_MS, "Query timeout");
-				}
-				case nameof(valueCacheTtlText): {
-					return tryValidateUInt(valueCacheTtlText, 0, MixerController.Config.MAX_VALUE_CACHE_TTL_MS, "Value cache TTL");
-				}
-				case nameof(osdHeightText): {
-					return tryValidateInt(osdHeightText, OSDController.Config.MIN_HEIGHT_DIP, OSDController.Config.MAX_HEIGHT_DIP, "OSD height");
-				}
-				case nameof(osdDurationText): {
-					return tryValidateUInt(osdDurationText, OSDController.Config.MIN_DISPLAY_DURATION_MS, OSDController.Config.MAX_DISPLAY_DURATION_MS, "OSD display duration");
-				}
-				case nameof(hotkeyLongPressMsText): {
-					return tryValidateUInt(hotkeyLongPressMsText, KeyboardHook.Config.MIN_LONG_PRESS_MS, KeyboardHook.Config.MAX_LONG_PRESS_MS, "Long-press duration");
-				}
+	public bool HasErrors => hasScalarErrors;
+
+	public System.Collections.IEnumerable GetErrors(string? propertyName) {
+		if (string.IsNullOrEmpty(propertyName))
+			return orderedScalarErrorMessages().ToArray();
+		return errorMessagesForProperty(propertyName).ToArray();
+	}
+
+	public bool tryGetMaterializedScalars(out SettingsScalarsMaterialized scalars, out string? firstError) {
+		(bool ok, SettingsScalarsMaterialized materialized, string? error) = _scalarsResult.match(
+			v => (true, v, (string?)null),
+			errors => (false, default, firstParsingMessage(errors)));
+		scalars = materialized;
+		firstError = error;
+		return ok;
+	}
+
+	public string formatScalarErrorsForFooter() {
+		var lines = new List<string>();
+		foreach (string propertyName in ScalarPropertyNames.all) {
+			foreach (global::Result.Result.Error error in scalarResultForProperty(propertyName).errors) {
+				string message = parsingMessage(error);
+				lines.Add($"{ScalarPropertyNames.humanLabels[propertyName]}: {message}");
 			}
-			return "";
 		}
-	}
-
-	static string tryValidateUInt(string? text, uint min, uint max, string label) {
-		if (!uint.TryParse((text ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsed))
-			return label + " must be an integer.";
-		if (parsed < min || parsed > max)
-			return label + " must be between " + min + " and " + max + ".";
-		return "";
-	}
-
-	static string tryValidateInt(string? text, int min, int max, string label) {
-		if (!int.TryParse((text ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
-			return label + " must be an integer.";
-		if (parsed < min || parsed > max)
-			return label + " must be between " + min + " and " + max + ".";
-		return "";
+		return string.Join(Environment.NewLine, lines);
 	}
 
 	readonly AppCoordinator _appCoordinator;
@@ -212,20 +262,36 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 	public void loadFromConfigStore() {
 		AppConfig cfg = _configStore.appConfig;
 
-		oscIpText = cfg.oscTransport.endPoint.Address.ToString();
-		oscPortText = cfg.oscTransport.endPoint.Port.ToString(CultureInfo.InvariantCulture);
-		queryTimeoutText = cfg.mixer.timeoutMs.ToString(CultureInfo.InvariantCulture);
-		valueCacheTtlText = cfg.mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture);
+		_loadingScalars = true;
+		try {
+			_oscIpText = cfg.oscTransport.endPoint.Address.ToString();
+			raisePropertyChanged(nameof(oscIpText));
+			_oscPortText = cfg.oscTransport.endPoint.Port.ToString(CultureInfo.InvariantCulture);
+			raisePropertyChanged(nameof(oscPortText));
+			_queryTimeoutText = cfg.mixer.timeoutMs.ToString(CultureInfo.InvariantCulture);
+			raisePropertyChanged(nameof(queryTimeoutText));
+			_valueCacheTtlText = cfg.mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture);
+			raisePropertyChanged(nameof(valueCacheTtlText));
 
-		osdHeightText = cfg.osd.heightDip.ToString(CultureInfo.InvariantCulture);
-		osdDurationText = cfg.osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture);
-		osdPosition = cfg.osd.screenAnchor;
+			_osdHeightText = cfg.osd.heightDip.ToString(CultureInfo.InvariantCulture);
+			raisePropertyChanged(nameof(osdHeightText));
+			_osdDurationText = cfg.osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture);
+			raisePropertyChanged(nameof(osdDurationText));
+			osdPosition = cfg.osd.screenAnchor;
 
-		KeyboardHook.Config hk = cfg.keyboardHook;
-		hotkeyLongPressMsText = hk.longPressDurationMs.ToString(CultureInfo.InvariantCulture);
-		hotkeyOptimizeNonLongPress = hk.optimizeNonLongPressKeyDown;
-		hotkeySuppressLongPressOnly = hk.suppressKeyForLongPressOnlyGestures;
-		hotkeyAcceptMacroChordKeyOrder = hk.acceptMacroChordKeyOrder;
+			KeyboardHook.Config hk = cfg.keyboardHook;
+			_hotkeyLongPressMsText = hk.longPressDurationMs.ToString(CultureInfo.InvariantCulture);
+			raisePropertyChanged(nameof(hotkeyLongPressMsText));
+			hotkeyOptimizeNonLongPress = hk.optimizeNonLongPressKeyDown;
+			hotkeySuppressLongPressOnly = hk.suppressKeyForLongPressOnlyGestures;
+			hotkeyAcceptMacroChordKeyOrder = hk.acceptMacroChordKeyOrder;
+		} finally {
+			_loadingScalars = false;
+		}
+
+		foreach (string propertyName in ScalarPropertyNames.all)
+			parseScalarField(propertyName, recomputeAggregate: false);
+		recomputeScalarsResult();
 
 		configPathText = _configStore.configPathForUi;
 		traceLogPathText = AppTrace.traceLogFilePathForUi;
@@ -402,5 +468,97 @@ public sealed class ConfigWindowViewModel : ObservableObject, IDataErrorInfo {
 			return LatencyPanelUiStatus.CAUTION;
 		return LatencyPanelUiStatus.CRITICAL;
 	}
+
+	void parseScalarField(string propertyName, bool recomputeAggregate = true) {
+		switch (propertyName) {
+			case nameof(oscIpText):
+				_oscIpResult = OscTransport.Config.parseIpField(_oscIpText);
+				break;
+			case nameof(oscPortText):
+				_oscPortResult = OscTransport.Config.parsePortField(_oscPortText);
+				break;
+			case nameof(queryTimeoutText):
+				_queryTimeoutResult = MixerController.Config.parseTimeoutMs(_queryTimeoutText);
+				break;
+			case nameof(valueCacheTtlText):
+				_valueCacheTtlResult = MixerController.Config.parseValueCacheTtlMs(_valueCacheTtlText);
+				break;
+			case nameof(osdHeightText):
+				_osdHeightResult = OSDController.Config.parseHeightDip(_osdHeightText);
+				break;
+			case nameof(osdDurationText):
+				_osdDurationResult = OSDController.Config.parseDisplayDurationMs(_osdDurationText);
+				break;
+			case nameof(hotkeyLongPressMsText):
+				_hotkeyLongPressMsResult = KeyboardHook.Config.parseLongPressMs(_hotkeyLongPressMsText);
+				break;
+			default:
+				return;
+		}
+
+		ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(propertyName));
+		if (propertyName == nameof(hotkeyLongPressMsText))
+			raisePropertyChanged(nameof(hotkeyLongPressMsResult));
+
+		if (recomputeAggregate && !_loadingScalars)
+			recomputeScalarsResult();
+	}
+
+	void recomputeScalarsResult() {
+		foreach (string propertyName in ScalarPropertyNames.all) {
+			if (scalarResultForProperty(propertyName).isError) {
+				global::Result.Result.Error[] errors = scalarResultForProperty(propertyName).errors;
+				_scalarsResult = errors;
+				raisePropertyChanged(nameof(scalarsResult));
+				raisePropertyChanged(nameof(hasScalarErrors));
+				return;
+			}
+		}
+
+		_scalarsResult = new SettingsScalarsMaterialized(
+			new IPEndPoint(_oscIpResult.value, _oscPortResult.value),
+			_queryTimeoutResult.value,
+			_valueCacheTtlResult.value,
+			_osdHeightResult.value,
+			_osdDurationResult.value,
+			_hotkeyLongPressMsResult.value);
+		raisePropertyChanged(nameof(scalarsResult));
+		raisePropertyChanged(nameof(hasScalarErrors));
+	}
+
+	IResult scalarResultForProperty(string propertyName) => propertyName switch {
+		nameof(oscIpText) => _oscIpResult,
+		nameof(oscPortText) => _oscPortResult,
+		nameof(queryTimeoutText) => _queryTimeoutResult,
+		nameof(valueCacheTtlText) => _valueCacheTtlResult,
+		nameof(osdHeightText) => _osdHeightResult,
+		nameof(osdDurationText) => _osdDurationResult,
+		nameof(hotkeyLongPressMsText) => _hotkeyLongPressMsResult,
+		_ => _scalarsResult,
+	};
+
+	IEnumerable<string> errorMessagesForProperty(string propertyName) => propertyName switch {
+		nameof(oscIpText) => _oscIpResult.match(_ => [], errors => errors.Select(parsingMessage)),
+		nameof(oscPortText) => _oscPortResult.match(_ => [], errors => errors.Select(parsingMessage)),
+		nameof(queryTimeoutText) => _queryTimeoutResult.match(_ => [], errors => errors.Select(parsingMessage)),
+		nameof(valueCacheTtlText) => _valueCacheTtlResult.match(_ => [], errors => errors.Select(parsingMessage)),
+		nameof(osdHeightText) => _osdHeightResult.match(_ => [], errors => errors.Select(parsingMessage)),
+		nameof(osdDurationText) => _osdDurationResult.match(_ => [], errors => errors.Select(parsingMessage)),
+		nameof(hotkeyLongPressMsText) => _hotkeyLongPressMsResult.match(_ => [], errors => errors.Select(parsingMessage)),
+		_ => [],
+	};
+
+	IEnumerable<string> orderedScalarErrorMessages() {
+		var messages = new List<string>();
+		foreach (string propertyName in ScalarPropertyNames.all)
+			messages.AddRange(errorMessagesForProperty(propertyName));
+		return messages;
+	}
+
+	static string parsingMessage(global::Result.Result.Error error) =>
+		error is ResultErrorWithMsg withMsg ? withMsg.message : "Invalid value.";
+
+	static string? firstParsingMessage(global::Result.Result.Error[] errors) =>
+		errors.Length > 0 ? parsingMessage(errors[0]) : null;
 }
 

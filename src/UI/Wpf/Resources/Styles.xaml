@@ -3,6 +3,8 @@
 	<Thickness x:Key="ReorderCardOuterMargin">0,2,0,2</Thickness>
 	<!-- Inter-card gap = top + bottom ReorderCardOuterMargin (2 + 2). Footer uses the same inset on all sides. -->
 	<Thickness x:Key="ConfigFooterOuterMargin">4</Thickness>
+	<!-- Suppresses the default red validation adorner; scalar fields use Foreground + tooltip instead. -->
+	<ControlTemplate x:Key="ConfigSuppressValidationAdornerTemplate" />
 	<!-- ConfigWindow overlay footer: outer margin + card chrome + button row (~66 dip) + buffer. -->
 	<sys:Double xmlns:sys="clr-namespace:System;assembly=System.Runtime" x:Key="ConfigFooterScrollInsetHeight">68</sys:Double>
 	<!-- Inline Style without BasedOn drops Fluent chrome (sharp Aero look). -->
@@ -85,27 +87,34 @@
 	<!-- DefaultTextBoxBaseStyle omits Fluent's focus clear (X) button so right-aligned digits do not shift. -->
 	<Style x:Key="ConfigNumericTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource DefaultTextBoxBaseStyle}">
 		<Setter Property="TextAlignment" Value="Right" />
-		<!-- Suppress default validation adorner (red border). -->
-		<Setter Property="Validation.ErrorTemplate" Value="{x:Null}" />
+		<Setter Property="Template" Value="{StaticResource ConfigFlatTextBoxTemplate}" />
+		<Setter Property="Validation.ErrorTemplate" Value="{StaticResource ConfigSuppressValidationAdornerTemplate}" />
 		<Style.Triggers>
 			<Trigger Property="Validation.HasError" Value="True">
 				<Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
-				<!-- Keep Fluent border chrome unchanged. -->
-				<Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
 			</Trigger>
 		</Style.Triggers>
 	</Style>
 
 	<Style x:Key="ConfigTextBoxValidationStyle" TargetType="TextBox" BasedOn="{StaticResource DefaultTextBoxBaseStyle}">
-		<!-- Suppress default validation adorner (red border). -->
-		<Setter Property="Validation.ErrorTemplate" Value="{x:Null}" />
+		<Setter Property="Template" Value="{StaticResource ConfigFlatTextBoxTemplate}" />
+		<Setter Property="Validation.ErrorTemplate" Value="{StaticResource ConfigSuppressValidationAdornerTemplate}" />
 		<Style.Triggers>
 			<Trigger Property="Validation.HasError" Value="True">
 				<Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
-				<!-- Keep Fluent border chrome unchanged. -->
-				<Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
 			</Trigger>
 		</Style.Triggers>
+	</Style>
+
+	<!-- Apply button: custom template keeps text stable on hover; flash is applied to Background in code-behind. -->
+	<Style x:Key="ConfigApplyButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+		<Setter Property="Padding" Value="18,8" />
+		<Setter Property="FontWeight" Value="SemiBold" />
+		<Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+		<Setter Property="BorderBrush" Value="{DynamicResource AccentControlElevationBorder}" />
+		<Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="Template" Value="{StaticResource ConfigApplyButtonTemplate}" />
 	</Style>
 
 	<!-- Read-only display fields: keep selection/copy, but avoid the focused "active input" darkening. -->
@@ -124,7 +133,7 @@
 		<Setter Property="Padding" Value="{DynamicResource TextControlThemePadding}" />
 		<Setter Property="Border.CornerRadius" Value="{DynamicResource ControlCornerRadius}" />
 		<Setter Property="SelectionBrush" Value="{DynamicResource TextControlSelectionHighlightColor}" />
-		<Setter Property="Template" Value="{StaticResource ConfigReadOnlyDisplayTextBoxTemplate}" />
+		<Setter Property="Template" Value="{StaticResource ConfigFlatTextBoxTemplate}" />
 	</Style>
 </ResourceDictionary>
 

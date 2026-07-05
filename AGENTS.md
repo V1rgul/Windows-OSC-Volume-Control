@@ -21,3 +21,7 @@ Avoid naive substring renames: e.g. `t.Name` → `t.name` can corrupt `Port.Name
 ### Tooling
 
 Root **`.editorconfig`** turns off ReSharper/Rider **Inconsistent Naming** and relaxes **IDE1006**, **CA1707**, **CA1715** so the custom style does not spam warnings. Prefer extending `.editorconfig` if new analyzers conflict.
+
+## Build
+
+- Before building, make sure the app is not running (`taskkill /IM "Windows-OSC-Volume-Control.exe"`) (otherwise the build will fail due to locked exe)

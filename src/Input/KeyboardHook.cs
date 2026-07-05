@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows.Input;
+using Result;
+using WindowsOscVolumeControl.Diagnostics;
 
 namespace WindowsOscVolumeControl.Diagnostics {
 	public abstract partial record StatusError {
@@ -51,6 +54,14 @@ public partial class KeyboardHook : IDisposable {
 				suppressKeyForLongPressOnlyGestures = raw.suppressKeyForLongPressOnlyGestures,
 				acceptMacroChordKeyOrder = raw.acceptMacroChordKeyOrder,
 			};
+		}
+
+		public static Result<uint> parseLongPressMs(string? text) {
+			if (!uint.TryParse((text ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsed))
+				return new ResultError.Generic.Parsing { message = "Must be an integer." };
+			if (parsed < MIN_LONG_PRESS_MS || parsed > MAX_LONG_PRESS_MS)
+				return new ResultError.Generic.Parsing { message = $"Must be between {MIN_LONG_PRESS_MS} and {MAX_LONG_PRESS_MS}." };
+			return parsed;
 		}
 	}
 

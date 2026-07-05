@@ -1,6 +1,9 @@
 using System.Globalization;
 using System.IO;
 using System.Net;
+using Result;
+using WindowsOscVolumeControl.Diagnostics;
+using WindowsOscVolumeControl.Input;
 using WindowsOscVolumeControl.UI.Osd;
 
 namespace WindowsOscVolumeControl.Config;
@@ -236,10 +239,9 @@ public sealed class ConfigStore {
 	static KeyboardHook.Config buildKeyboardHookConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
 		var provisional = new KeyboardHook.Config();
 		if (map.TryGetValue("hotkeyLongPressMs", out string? lpStr)) {
-			if (uint.TryParse(lpStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint lp))
-				provisional.longPressDurationMs = lp;
-			else
-				repairNotes.Add("hotkeyLongPressMs invalid; using default.");
+			KeyboardHook.Config.parseLongPressMs(lpStr).@switch(
+				v => provisional.longPressDurationMs = v,
+				_ => repairNotes.Add("hotkeyLongPressMs invalid; using default."));
 		}
 		if (map.TryGetValue("hotkeyOptimizeNonLongPressKeyDown", out string? optStr)) {
 			if (tryParseBoolLoose(optStr, out bool opt))
@@ -259,17 +261,16 @@ public sealed class ConfigStore {
 			else
 				repairNotes.Add("hotkeyAcceptMacroChordKeyOrder invalid; using default.");
 		}
-		return KeyboardHook.Config.Clamped(provisional);
+		return provisional;
 	}
 
 	static OscTransport.Config buildOscConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
-		if (map.TryGetValue("ip", out string? ipStr)
-		    && map.TryGetValue("port", out string? portStr)
-		    && OscConnectionConfigParse.tryParseIpPort(ipStr, portStr, out IPAddress ip, out int port, out _, out _)) {
-			return new OscTransport.Config {
-				endPoint = new IPEndPoint(ip, port),
-			};
-		}
+		map.TryGetValue("ip", out string? ipStr);
+		map.TryGetValue("port", out string? portStr);
+		Result<IPAddress> ip = OscTransport.Config.parseIpField(ipStr);
+		Result<int> port = OscTransport.Config.parsePortField(portStr);
+		if (ip.isSuccess && port.isSuccess)
+			return new OscTransport.Config { endPoint = new IPEndPoint(ip.value, port.value) };
 		repairNotes.Add("OSC IP/port missing or invalid; using connection defaults.");
 		return new OscTransport.Config();
 	}
@@ -278,19 +279,16 @@ public sealed class ConfigStore {
 		var mixerDefaults = new MixerController.Config();
 		uint timeoutMs = mixerDefaults.timeoutMs;
 		if (map.TryGetValue("timeoutMs", out string? toStr)) {
-			if (uint.TryParse(toStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint to)
-			    && to >= MixerController.Config.MIN_TIMEOUT_MS)
-				timeoutMs = Math.Min(to, MixerController.Config.MAX_TIMEOUT_MS);
-			else
-				repairNotes.Add("timeoutMs invalid; using default.");
+			MixerController.Config.parseTimeoutMs(toStr).@switch(
+				v => timeoutMs = v,
+				_ => repairNotes.Add("timeoutMs invalid; using default."));
 		}
 
 		uint valueCacheTtlMs = mixerDefaults.ValueCacheTtlMs;
 		if (map.TryGetValue("valueCacheTtlMs", out string? ttlStr)) {
-			if (uint.TryParse(ttlStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint ttl))
-				valueCacheTtlMs = Math.Min(ttl, MixerController.Config.MAX_VALUE_CACHE_TTL_MS);
-			else
-				repairNotes.Add("valueCacheTtlMs invalid; using default.");
+			MixerController.Config.parseValueCacheTtlMs(ttlStr).@switch(
+				v => valueCacheTtlMs = v,
+				_ => repairNotes.Add("valueCacheTtlMs invalid; using default."));
 		}
 		return new MixerController.Config {
 			timeoutMs = timeoutMs,
@@ -301,16 +299,14 @@ public sealed class ConfigStore {
 	static OSDController.Config buildOsdConfigFromMap(IReadOnlyDictionary<string, string> map, List<string> repairNotes) {
 		var o = new OSDController.Config();
 		if (map.TryGetValue("osdHeightDip", out string? hStr)) {
-			if (!int.TryParse(hStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int h))
-				repairNotes.Add("osdHeightDip invalid; ignored.");
-			else
-				o.heightDip = h;
+			OSDController.Config.parseHeightDip(hStr).@switch(
+				v => o.heightDip = v,
+				_ => repairNotes.Add("osdHeightDip invalid; using default."));
 		}
 		if (map.TryGetValue("osdDisplayDurationMs", out string? dStr)) {
-			if (!uint.TryParse(dStr.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint d))
-				repairNotes.Add("osdDisplayDurationMs invalid; ignored.");
-			else
-				o.DisplayDurationMs = d;
+			OSDController.Config.parseDisplayDurationMs(dStr).@switch(
+				v => o.DisplayDurationMs = v,
+				_ => repairNotes.Add("osdDisplayDurationMs invalid; using default."));
 		}
 		if (map.TryGetValue("osdScreenAnchor", out string? anchorStr)) {
 			if (!Enum.TryParse(anchorStr.Trim(), ignoreCase: true, out OSDController.Config.OsdScreenAnchor parsed) || !Enum.IsDefined(parsed))
@@ -318,10 +314,7 @@ public sealed class ConfigStore {
 			else
 				o.screenAnchor = parsed;
 		}
-		OSDController.Config clamped = OSDController.Config.Clamped(o);
-		if (clamped.heightDip != o.heightDip || clamped.DisplayDurationMs != o.DisplayDurationMs)
-			repairNotes.Add("OSD size or duration was out of range; clamped.");
-		return clamped;
+		return o;
 	}
 
 	static Dictionary<string, string> parseKeyValueLines(string text) {

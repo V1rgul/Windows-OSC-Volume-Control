@@ -89,6 +89,9 @@ public sealed class AppCoordinator : IDisposable {
 	public void finishConfigValidation() =>
 		_applicationStatusRegister.setStatusError<StatusError.Generic.Starting>(false);
 
+	internal string visibleDiagnosticsSummaryForConfigUi() =>
+		VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrorTypes());
+
 	public async Task applyConfigFromStoreAsync() {
 		AppConfig cfg = _configStore.appConfig;
 		// Socket teardown/rebind may briefly block on the old receive loop; await keeps the UI thread responsive.

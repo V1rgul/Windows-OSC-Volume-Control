@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using Result;
 using SharpOSC;
+using WindowsOscVolumeControl.Diagnostics;
 
 namespace WindowsOscVolumeControl.Diagnostics {
 	public abstract partial record StatusError {
@@ -34,6 +36,20 @@ public sealed class MixerController {
 			ArgumentNullException.ThrowIfNull(other);
 			timeoutMs = other.timeoutMs;
 			ValueCacheTtlMs = other.ValueCacheTtlMs;
+		}
+
+		public static Result<uint> parseTimeoutMs(string? text) =>
+			parseBoundedUInt(text, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS);
+
+		public static Result<uint> parseValueCacheTtlMs(string? text) =>
+			parseBoundedUInt(text, MIN_VALUE_CACHE_TTL_MS, MAX_VALUE_CACHE_TTL_MS);
+
+		static Result<uint> parseBoundedUInt(string? text, uint min, uint max) {
+			if (!uint.TryParse((text ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out uint parsed))
+				return new ResultError.Generic.Parsing { message = "Must be an integer." };
+			if (parsed < min || parsed > max)
+				return new ResultError.Generic.Parsing { message = $"Must be between {min} and {max}." };
+			return parsed;
 		}
 	}
 
