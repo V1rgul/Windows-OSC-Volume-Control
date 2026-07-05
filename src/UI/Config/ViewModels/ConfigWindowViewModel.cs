@@ -25,6 +25,8 @@ public enum LatencyPanelUiStatus {
 }
 
 public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorInfo {
+	const string FOOTER_ERROR_SEPARATOR = "; ";
+	const string FOOTER_FIELD_SEPARATOR = "\n";
 	string _oscIpText = "";
 	string _oscPortText = "";
 	string _queryTimeoutText = "";
@@ -212,24 +214,24 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 		return errorMessagesForProperty(propertyName).ToArray();
 	}
 
-	public bool tryGetMaterializedScalars(out SettingsScalarsMaterialized scalars, out string? firstError) {
+	public bool tryGetMaterializedScalars(out SettingsScalarsMaterialized scalars, out string? errorsText) {
 		(bool ok, SettingsScalarsMaterialized materialized, string? error) = _scalarsResult.match(
 			v => (true, v, (string?)null),
-			errors => (false, default, firstParsingMessage(errors)));
+			errors => (false, default, string.Join(FOOTER_ERROR_SEPARATOR, errors)));
 		scalars = materialized;
-		firstError = error;
+		errorsText = error;
 		return ok;
 	}
 
 	public string formatScalarErrorsForFooter() {
 		var lines = new List<string>();
 		foreach (string propertyName in ScalarPropertyNames.all) {
-			foreach (global::Result.Result.Error error in scalarResultForProperty(propertyName).errors) {
-				string message = parsingMessage(error);
-				lines.Add($"{ScalarPropertyNames.humanLabels[propertyName]}: {message}");
-			}
+			IResult scalarResult = scalarResultForProperty(propertyName);
+			if (!scalarResult.isError)
+				continue;
+			lines.Add($"{ScalarPropertyNames.humanLabels[propertyName]}: {string.Join(FOOTER_ERROR_SEPARATOR, scalarResult.errors)}");
 		}
-		return string.Join(Environment.NewLine, lines);
+		return string.Join(FOOTER_FIELD_SEPARATOR, lines);
 	}
 
 	public string formatBindingErrorsForFooter() {
@@ -244,13 +246,11 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 				ControlActionEditor action = binding.actions[h];
 				if (action.isDeleted)
 					continue;
-				foreach (ValidationFieldDescriptor field in action.footerValidationFields) {
-					foreach (string message in validationErrorsFor(action, field.propertyName))
-						lines.Add($"Binding {i + 1}, hotkey {h + 1}, {field.label}: {message}");
-				}
+				foreach (ValidationFieldDescriptor field in action.footerValidationFields)
+					appendBindingFieldErrors(lines, i + 1, action, field, hotkeyNumberOneBased: h + 1);
 			}
 		}
-		return string.Join(Environment.NewLine, lines);
+		return string.Join(FOOTER_FIELD_SEPARATOR, lines);
 	}
 
 	readonly AppCoordinator _appCoordinator;
@@ -527,9 +527,9 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 
 	void recomputeScalarsResult() {
 		foreach (string propertyName in ScalarPropertyNames.all) {
-			if (scalarResultForProperty(propertyName).isError) {
-				global::Result.Result.Error[] errors = scalarResultForProperty(propertyName).errors;
-				_scalarsResult = errors;
+			IResult scalarResult = scalarResultForProperty(propertyName);
+			if (scalarResult.isError) {
+				_scalarsResult = scalarResult.errors;
 				raisePropertyChanged(nameof(scalarsResult));
 				raisePropertyChanged(nameof(hasScalarErrors));
 				return;
@@ -558,9 +558,19 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 		_ => _scalarsResult,
 	};
 
-	static void appendBindingFieldErrors(List<string> lines, int bindingNumberOneBased, BindingEditor binding, ValidationFieldDescriptor field) {
-		foreach (string message in validationErrorsFor(binding, field.propertyName))
-			lines.Add($"Binding {bindingNumberOneBased}, {field.label}: {message}");
+	static void appendBindingFieldErrors(
+		List<string> lines,
+		int bindingNumberOneBased,
+		INotifyDataErrorInfo source,
+		ValidationFieldDescriptor field,
+		int? hotkeyNumberOneBased = null) {
+		string[] messages = validationErrorsFor(source, field.propertyName).Cast<string>().ToArray();
+		if (messages.Length == 0)
+			return;
+		string prefix = hotkeyNumberOneBased is int hotkey
+			? $"Binding {bindingNumberOneBased}, hotkey {hotkey}, {field.label}"
+			: $"Binding {bindingNumberOneBased}, {field.label}";
+		lines.Add($"{prefix}: {string.Join(FOOTER_ERROR_SEPARATOR, messages)}");
 	}
 
 	static IEnumerable<string> validationErrorsFor(INotifyDataErrorInfo source, string propertyName) =>
@@ -577,13 +587,13 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 		&& editor.actions.Count == 0;
 
 	IEnumerable<string> errorMessagesForProperty(string propertyName) => propertyName switch {
-		nameof(oscIpText) => _oscIpResult.match(_ => [], errors => errors.Select(parsingMessage)),
-		nameof(oscPortText) => _oscPortResult.match(_ => [], errors => errors.Select(parsingMessage)),
-		nameof(queryTimeoutText) => _queryTimeoutResult.match(_ => [], errors => errors.Select(parsingMessage)),
-		nameof(valueCacheTtlText) => _valueCacheTtlResult.match(_ => [], errors => errors.Select(parsingMessage)),
-		nameof(osdHeightText) => _osdHeightResult.match(_ => [], errors => errors.Select(parsingMessage)),
-		nameof(osdDurationText) => _osdDurationResult.match(_ => [], errors => errors.Select(parsingMessage)),
-		nameof(hotkeyLongPressMsText) => _hotkeyLongPressMsResult.match(_ => [], errors => errors.Select(parsingMessage)),
+		nameof(oscIpText) => _oscIpResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
+		nameof(oscPortText) => _oscPortResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
+		nameof(queryTimeoutText) => _queryTimeoutResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
+		nameof(valueCacheTtlText) => _valueCacheTtlResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
+		nameof(osdHeightText) => _osdHeightResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
+		nameof(osdDurationText) => _osdDurationResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
+		nameof(hotkeyLongPressMsText) => _hotkeyLongPressMsResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
 		_ => [],
 	};
 
@@ -593,11 +603,4 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 			messages.AddRange(errorMessagesForProperty(propertyName));
 		return messages;
 	}
-
-	static string parsingMessage(global::Result.Result.Error error) =>
-		error is ResultErrorWithMsg withMsg ? withMsg.message : "Invalid value.";
-
-	static string? firstParsingMessage(global::Result.Result.Error[] errors) =>
-		errors.Length > 0 ? parsingMessage(errors[0]) : null;
 }
-

@@ -6,6 +6,8 @@ public static class Result
 
 	public abstract class Error
 	{
+		public override string ToString() => GetType().Name;
+
 		public sealed class Unspecified : Error;
 	}
 }

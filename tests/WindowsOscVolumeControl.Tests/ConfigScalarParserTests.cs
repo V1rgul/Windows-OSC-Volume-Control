@@ -23,6 +23,7 @@ public class ConfigScalarParserTests {
 	public void parseIpField_invalid_returnsParsingError(string text) {
 		Result<IPAddress> result = OscTransport.Config.parseIpField(text);
 		Assert.True(result.isError);
+		Assert.NotNull(result.errors);
 		Assert.IsType<ResultError.Generic.Parsing>(result.errors[0]);
 		Assert.Equal("Invalid IP address.", ((ResultErrorWithMsg)result.errors[0]).message);
 	}
@@ -44,6 +45,7 @@ public class ConfigScalarParserTests {
 	public void parsePortField_invalid_returnsParsingError(string text) {
 		Result<int> result = OscTransport.Config.parsePortField(text);
 		Assert.True(result.isError);
+		Assert.NotNull(result.errors);
 		Assert.Equal("Port must be between 1 and 65535.", ((ResultErrorWithMsg)result.errors[0]).message);
 	}
 
@@ -120,7 +122,27 @@ public class ConfigScalarParserTests {
 	public void parseOscAddressField_invalid_returnsParsingError(string text) {
 		Result<string> result = BindingManager.Config.parseOscAddressField(text);
 		Assert.True(result.isError);
+		Assert.NotNull(result.errors);
 		Assert.IsType<ResultError.Generic.Parsing>(result.errors[0]);
+	}
+
+	[Fact]
+	public void parseOscAddressField_trailingSpace_reportsForbiddenCharErrorNotPrintableAscii() {
+		Result<string> result = BindingManager.Config.parseOscAddressField("/main/st/mix/fader f");
+		Assert.True(result.isError);
+		Assert.Single(result.errors);
+		Assert.Equal(
+			"OSC address parts must not contain space, #, *, comma, ?, [], or {}.",
+			((ResultErrorWithMsg)result.errors[0]).message);
+	}
+
+	[Theory]
+	[InlineData("main/st mix/fader", 2)]
+	public void parseOscAddressField_invalid_returnsMultipleParsingErrors(string text, int expectedErrorCount) {
+		Result<string> result = BindingManager.Config.parseOscAddressField(text);
+		Assert.True(result.isError);
+		Assert.Equal(expectedErrorCount, result.errors.Length);
+		Assert.All(result.errors, static e => Assert.IsType<ResultError.Generic.Parsing>(e));
 	}
 
 	[Theory]
@@ -142,6 +164,7 @@ public class ConfigScalarParserTests {
 	public void parseContinuousFloatField_invalid_returnsParsingError(string text) {
 		Result<BindingManager.Config.FloatFieldValue> result = BindingManager.Config.parseContinuousFloatField(text);
 		Assert.True(result.isError);
+		Assert.NotNull(result.errors);
 		Assert.IsType<ResultError.Generic.Parsing>(result.errors[0]);
 	}
 }

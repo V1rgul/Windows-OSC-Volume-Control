@@ -117,12 +117,7 @@ public abstract class ObservableValidationObject : ObservableObject, INotifyData
 	}
 
 	protected static string[] validationMessages(IResult result) =>
-		result.isError
-			? result.errors.Select(parsingMessage).ToArray()
-			: [];
-
-	static string parsingMessage(global::Result.Result.Error error) =>
-		error is ResultErrorWithMsg withMsg ? withMsg.message : "Invalid value.";
+		result.isError ? Array.ConvertAll(result.errors, static e => e.ToString()) : [];
 }
 
 public sealed class BindingEditor : ObservableValidationObject {

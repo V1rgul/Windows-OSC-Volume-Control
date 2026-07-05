@@ -5,8 +5,12 @@ using WindowsOscVolumeControl.UI.Osd;
 
 namespace WindowsOscVolumeControl.UI.Config;
 
-/// <summary>Builds <see cref="AppConfig"/> from settings-window field values; owns validation copy as <see cref="UiTextFeedback"/>.</summary>
 static class SettingsFormDraft {
+	const string FOOTER_ERROR_SEPARATOR = "; ";
+
+	static string footerErrors(global::Result.Result.Error[] errors) =>
+		string.Join(FOOTER_ERROR_SEPARATOR, errors);
+
 	public static (bool ok, AppConfig? config, UiTextFeedback? error) tryBuild(
 		SettingsScalarsMaterialized scalars,
 		OSDController.Config.OsdScreenAnchor osdScreenAnchor,
@@ -186,7 +190,7 @@ static class SettingsFormDraft {
 			return true;
 		}
 		value = "";
-		error = new UiTextFeedback($"Binding {bindingNumberOneBased}: {firstParsingMessage(result)}", UiTextFeedbackKind.ERROR);
+		error = new UiTextFeedback($"Binding {bindingNumberOneBased}: {footerErrors(result.errors)}", UiTextFeedbackKind.ERROR);
 		return false;
 	}
 
@@ -198,7 +202,7 @@ static class SettingsFormDraft {
 			return true;
 		}
 		value = "";
-		error = new UiTextFeedback($"Binding {bindingNumberOneBased}: {firstParsingMessage(result)}", UiTextFeedbackKind.ERROR);
+		error = new UiTextFeedback($"Binding {bindingNumberOneBased}: {footerErrors(result.errors)}", UiTextFeedbackKind.ERROR);
 		return false;
 	}
 
@@ -208,19 +212,13 @@ static class SettingsFormDraft {
 		error = null;
 		Result<BindingManager.Config.FloatFieldValue> result = BindingManager.Config.parseContinuousFloatField(text);
 		if (result.isError) {
-			error = firstParsingMessage(result);
+			error = footerErrors(result.errors);
 			return false;
 		}
 		value = result.value.value;
 		fractionalDigits = result.value.fractionalDigits;
 		return true;
 	}
-
-	static string firstParsingMessage(IResult result) =>
-		result.errors.Length > 0 ? parsingMessage(result.errors[0]) : "Invalid value.";
-
-	static string parsingMessage(global::Result.Result.Error error) =>
-		error is ResultErrorWithMsg withMsg ? withMsg.message : "Invalid value.";
 
 	/// <summary>Both range fields blank → use limit; otherwise both must be valid numbers.</summary>
 	static bool tryParseOptionalRange(

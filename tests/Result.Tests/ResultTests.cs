@@ -15,7 +15,7 @@ public class ResultImplicitConversionTests
 		Assert.True(result.isSuccess);
 		Assert.False(result.isError);
 		Assert.Equal(42, result.value);
-		Assert.Empty(result.errors);
+		Assert.Throws<ArgumentNullException>(() => _ = result.errors);
 	}
 
 	[Fact]
@@ -26,6 +26,7 @@ public class ResultImplicitConversionTests
 
 		Assert.True(result.isError);
 		Assert.Single(result.errors);
+		Assert.NotNull(result.errors);
 		Assert.Same(error, result.errors[0]);
 	}
 
@@ -36,6 +37,7 @@ public class ResultImplicitConversionTests
 
 		Assert.True(result.isError);
 		Assert.Single(result.errors);
+		Assert.NotNull(result.errors);
 		Assert.Same(Result.unspecifiedError, result.errors[0]);
 		Assert.IsType<Result.Error.Unspecified>(result.errors[0]);
 	}
@@ -51,6 +53,7 @@ public class ResultImplicitConversionTests
 		Result<int> result = errors;
 
 		Assert.True(result.isError);
+		Assert.NotNull(result.errors);
 		Assert.Equal(2, result.errors.Length);
 		Assert.Same(errors, result.errors);
 	}

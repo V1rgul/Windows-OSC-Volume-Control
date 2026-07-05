@@ -73,25 +73,39 @@ public sealed class BindingManager {
 
 		public static Result<string> parseOscAddressField(string? text) {
 			string address = (text ?? "").Trim();
-			if (address.Length == 0)
-				return new ResultError.Generic.Parsing { message = "OSC address is required." };
-			if (!address.StartsWith('/'))
-				return new ResultError.Generic.Parsing { message = "OSC address must start with '/'." };
-			if (address.Length == 1)
-				return new ResultError.Generic.Parsing { message = "OSC address must include at least one path part after '/'." };
-			if (address.EndsWith('/'))
-				return new ResultError.Generic.Parsing { message = "OSC address must not end with '/'." };
-			if (address.Contains("//", StringComparison.Ordinal))
-				return new ResultError.Generic.Parsing { message = "OSC address must not contain empty path parts." };
+			var errors = new List<global::Result.Result.Error>();
 
+			if (address.Length == 0) {
+				errors.Add(new ResultError.Generic.Parsing { message = "OSC address is required." });
+				return errors.ToArray();
+			}
+
+			if (!address.StartsWith('/'))
+				errors.Add(new ResultError.Generic.Parsing { message = "OSC address must start with '/'." });
+			if (address.Length == 1)
+				errors.Add(new ResultError.Generic.Parsing { message = "OSC address must include at least one path part after '/'." });
+			if (address.EndsWith('/'))
+				errors.Add(new ResultError.Generic.Parsing { message = "OSC address must not end with '/'." });
+			if (address.Contains("//", StringComparison.Ordinal))
+				errors.Add(new ResultError.Generic.Parsing { message = "OSC address must not contain empty path parts." });
+
+			bool hasNonAsciiPartChar = false;
+			bool hasForbiddenPartChar = false;
 			foreach (char c in address) {
 				if (c == '/')
 					continue;
-				if (c < 0x21 || c > 0x7e)
-					return new ResultError.Generic.Parsing { message = "OSC address parts must use printable ASCII characters." };
 				if (_oscNameForbiddenChars.Contains(c))
-					return new ResultError.Generic.Parsing { message = "OSC address parts must not contain space, #, *, comma, ?, [], or {}." };
+					hasForbiddenPartChar = true;
+				else if (c < 0x21 || c > 0x7e)
+					hasNonAsciiPartChar = true;
 			}
+			if (hasNonAsciiPartChar)
+				errors.Add(new ResultError.Generic.Parsing { message = "OSC address parts must use printable ASCII characters." });
+			if (hasForbiddenPartChar)
+				errors.Add(new ResultError.Generic.Parsing { message = "OSC address parts must not contain space, #, *, comma, ?, [], or {}." });
+
+			if (errors.Count > 0)
+				return errors.ToArray();
 			return address;
 		}
 
