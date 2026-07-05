@@ -15,8 +15,12 @@
 				<!-- Bindings column: hotkey row needs ~800+ dip after 280 dip settings + delete strip + card padding. -->
 				<ColumnDefinition Width="*" MinWidth="820" />
 			</Grid.ColumnDefinitions>
-			<local:SettingsPanelView Grid.Column="0" DataContext="{Binding vm}" />
-			<local:BindingsPanelView Grid.Column="1" DataContext="{Binding vm}" />
+			<local:SettingsPanelView
+				Grid.Column="0"
+				DataContext="{Binding vm, ValidatesOnNotifyDataErrors=False}" />
+			<local:BindingsPanelView
+				Grid.Column="1"
+				DataContext="{Binding vm, ValidatesOnNotifyDataErrors=False}" />
 		</Grid>
 
 		<!-- Footer chrome mirrors a dragged binding card: the drag ghost rasterizes the opaque
@@ -47,7 +51,7 @@
 						x:Name="ApplySaveAndTestButton"
 						DockPanel.Dock="Right"
 						Click="buttonApplySaveAndTest_Click"
-						DataContext="{Binding vm}"
+						DataContext="{Binding vm, ValidatesOnNotifyDataErrors=False}"
 						Style="{StaticResource ConfigApplyButtonStyle}">
 						<StackPanel Orientation="Horizontal">
 							<Ellipse
