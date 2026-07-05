@@ -24,4 +24,4 @@ Root **`.editorconfig`** turns off ReSharper/Rider **Inconsistent Naming** and r
 
 ## Build
 
-- Before building, make sure the app is not running (`taskkill /IM "Windows-OSC-Volume-Control.exe"`) (otherwise the build will fail due to locked exe)
+- Before building, make sure running app instances are stopped (`Windows-OSC-Volume-Control.exe --stop-all`) (otherwise the build will fail due to locked exe)
