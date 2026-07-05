@@ -1,11 +1,11 @@
 namespace WindowsOscVolumeControl.Diagnostics;
 
-public interface IErrorList {
+public interface IErrorRegister {
 	public event Action? changed;
 	public IReadOnlyCollection<Error> getErrors();
 }
 
-public sealed class ErrorList<TError> : IErrorList where TError : Error {
+public sealed class ErrorRegister<TError> : IErrorRegister where TError : Error {
 	readonly object _lock = new();
 	readonly HashSet<TError> _activeErrors = [];
 
@@ -41,7 +41,7 @@ public sealed class ErrorList<TError> : IErrorList where TError : Error {
 			changed?.Invoke();
 	}
 
-	IReadOnlyCollection<Error> IErrorList.getErrors() {
+	IReadOnlyCollection<Error> IErrorRegister.getErrors() {
 		lock (_lock)
 			return _activeErrors.Cast<Error>().ToArray();
 	}

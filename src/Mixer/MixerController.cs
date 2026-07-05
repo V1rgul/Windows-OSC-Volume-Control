@@ -61,7 +61,7 @@ public sealed class MixerController {
 	int _pendingInfoVersion;
 	Config _config;
 
-	public ErrorList<Error.MixerController> errors { get; } = new();
+	public ErrorRegister<Error.MixerController> errors { get; } = new();
 	public event Action<Event>? eventReceived;
 
 	public MixerController(OscTransport transport) : this(transport, new Config()) { }

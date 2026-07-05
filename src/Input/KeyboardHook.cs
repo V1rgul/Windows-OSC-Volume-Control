@@ -110,7 +110,7 @@ public partial class KeyboardHook : IDisposable {
 	bool _configuredHotkeysEnabled = true;
 	volatile bool _disposed;
 
-	public ErrorList<Error.KeyboardHook> errors { get; } = new();
+	public ErrorRegister<Error.KeyboardHook> errors { get; } = new();
 
 	public KeyboardHook() {
 		_proc = HookCallback;

@@ -10,20 +10,20 @@ public sealed class StatusController {
 	}
 
 	readonly object _lock = new();
-	readonly Dictionary<string, IErrorList> _listsByKey = new(StringComparer.Ordinal);
+	readonly Dictionary<string, IErrorRegister> _registersByKey = new(StringComparer.Ordinal);
 	IReadOnlyCollection<Error> _visibleErrors = [];
 	MergedState _mergedState = MergedState.OK;
 
 	public event Action<MergedState>? mergedStateChanged;
 	public event Action? visibleErrorsChanged;
 
-	public void attach<TError>(string controllerKey, ErrorList<TError> errors)
+	public void attach<TError>(string controllerKey, ErrorRegister<TError> errors)
 		where TError : Error {
 		ArgumentException.ThrowIfNullOrWhiteSpace(controllerKey);
 		ArgumentNullException.ThrowIfNull(errors);
 
 		lock (_lock) {
-			if (!_listsByKey.TryAdd(controllerKey, errors))
+			if (!_registersByKey.TryAdd(controllerKey, errors))
 				throw new InvalidOperationException($"StatusController already attached '{controllerKey}'.");
 		}
 
@@ -47,8 +47,8 @@ public sealed class StatusController {
 		IReadOnlyCollection<Error>? visibleSnapshot = null;
 
 		lock (_lock) {
-			Error[] visibleErrors = _listsByKey.Values
-				.SelectMany(static list => list.getErrors())
+			Error[] visibleErrors = _registersByKey.Values
+				.SelectMany(static register => register.getErrors())
 				.ToArray();
 			MergedState mergedState = mergeErrors(visibleErrors);
 

@@ -19,7 +19,7 @@ namespace WindowsOscVolumeControl.App {
 public sealed class AppCoordinator : IDisposable {
 	readonly ConfigStore _configStore = new();
 	readonly BindingManager _oscBindings = new();
-	readonly ErrorList<Error> _applicationErrors = new();
+	readonly ErrorRegister<Error> _applicationErrors = new();
 	readonly StatusController _statusController = new();
 	readonly Dispatcher _dispatcher;
 	TrayController _tray;

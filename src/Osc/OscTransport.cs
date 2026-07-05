@@ -34,7 +34,7 @@ public sealed class OscTransport : IDisposable {
 
 	public event Action<OscMessage>? messageReceived;
 
-	public ErrorList<Error.OscTransport> errors { get; } = new();
+	public ErrorRegister<Error.OscTransport> errors { get; } = new();
 
 	public OscTransport(Config config) {
 		// No receive loop exists yet, so this completes synchronously.
