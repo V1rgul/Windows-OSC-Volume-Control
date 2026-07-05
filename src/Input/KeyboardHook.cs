@@ -3,8 +3,8 @@ using System.Runtime.InteropServices;
 using System.Windows.Input;
 
 namespace WindowsOscVolumeControl.Diagnostics {
-	public abstract partial record Error {
-		public abstract record KeyboardHook : Error {
+	public abstract partial record StatusError {
+		public abstract record KeyboardHook : StatusError {
 			public sealed record InstallFailed : KeyboardHook;
 		}
 	}
@@ -110,7 +110,7 @@ public partial class KeyboardHook : IDisposable {
 	bool _configuredHotkeysEnabled = true;
 	volatile bool _disposed;
 
-	public ErrorRegister<Error.KeyboardHook> errors { get; } = new();
+	public StatusRegister<StatusError.KeyboardHook> statusRegister { get; } = new();
 
 	public KeyboardHook() {
 		_proc = HookCallback;
@@ -123,7 +123,7 @@ public partial class KeyboardHook : IDisposable {
 		_hookThread.Start();
 
 		if (!_hookInstalled.Wait(HOOK_THREAD_WAIT_MS) || _hookId == IntPtr.Zero) {
-			errors.setError(new Error.KeyboardHook.InstallFailed(), true);
+			statusRegister.setStatusError(new StatusError.KeyboardHook.InstallFailed(), true);
 			AppTrace.KeyboardHook.TraceEvent(TraceEventType.Error, 0, "SetWindowsHookEx failed.");
 		}
 	}

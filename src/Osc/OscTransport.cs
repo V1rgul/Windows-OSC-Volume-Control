@@ -4,8 +4,8 @@ using System.Net.Sockets;
 using SharpOSC;
 
 namespace WindowsOscVolumeControl.Diagnostics {
-	public abstract partial record Error {
-		public abstract record OscTransport : Error {
+	public abstract partial record StatusError {
+		public abstract record OscTransport : StatusError {
 			public sealed record BindFailed : OscTransport;
 		}
 	}
@@ -34,7 +34,7 @@ public sealed class OscTransport : IDisposable {
 
 	public event Action<OscMessage>? messageReceived;
 
-	public ErrorRegister<Error.OscTransport> errors { get; } = new();
+	public StatusRegister<StatusError.OscTransport> statusRegister { get; } = new();
 
 	public OscTransport(Config config) {
 		// No receive loop exists yet, so this completes synchronously.
@@ -69,7 +69,7 @@ public sealed class OscTransport : IDisposable {
 		oldUdp?.Dispose();
 
 		(UdpClient nextUdp, bool boundToConfiguredPort) = createUdpClient(nextConfig.endPoint.Port);
-		errors.setError(new Error.OscTransport.BindFailed(), !boundToConfiguredPort);
+		statusRegister.setStatusError(new StatusError.OscTransport.BindFailed(), !boundToConfiguredPort);
 
 		IPEndPoint nextRemote = new(nextConfig.endPoint.Address, nextConfig.endPoint.Port);
 

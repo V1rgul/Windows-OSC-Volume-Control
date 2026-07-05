@@ -4,8 +4,8 @@ using System.Text;
 using SharpOSC;
 
 namespace WindowsOscVolumeControl.Diagnostics {
-	public abstract partial record Error {
-		public abstract record MixerController : Error {
+	public abstract partial record StatusError {
+		public abstract record MixerController : StatusError {
 			public sealed record Network : MixerController;
 			public sealed record InvalidReply : MixerController;
 		}
@@ -61,7 +61,7 @@ public sealed class MixerController {
 	int _pendingInfoVersion;
 	Config _config;
 
-	public ErrorRegister<Error.MixerController> errors { get; } = new();
+	public StatusRegister<StatusError.MixerController> statusRegister { get; } = new();
 	public event Action<Event>? eventReceived;
 
 	public MixerController(OscTransport transport) : this(transport, new Config()) { }
@@ -86,7 +86,7 @@ public sealed class MixerController {
 			_pendingInfoReply = null;
 		}
 		pendingInfoCancellation?.Cancel();
-		errors.clearAll();
+		statusRegister.clearAll();
 	}
 
 	public bool HasFreshContinuousSample(string address) {
@@ -178,14 +178,14 @@ public sealed class MixerController {
 				return null;
 			OscMessage message = await reply.Task.WaitAsync(getTimeout()).ConfigureAwait(false);
 			if (message.Arguments.Count == 0 || message.Arguments[0] is not float f) {
-				errors.setError(new Error.MixerController.InvalidReply(), true);
+				statusRegister.setStatusError(new StatusError.MixerController.InvalidReply(), true);
 				return null;
 			}
 
 			clearMixerErrors();
 			return f;
 		} catch (TimeoutException) {
-			errors.setError(new Error.MixerController.Network(), true);
+			statusRegister.setStatusError(new StatusError.MixerController.Network(), true);
 			return null;
 		} finally {
 			_transport.messageReceived -= handler;
@@ -208,14 +208,14 @@ public sealed class MixerController {
 				return null;
 			OscMessage message = await reply.Task.WaitAsync(getTimeout()).ConfigureAwait(false);
 			if (message.Arguments.Count == 0 || message.Arguments[0] is not int i) {
-				errors.setError(new Error.MixerController.InvalidReply(), true);
+				statusRegister.setStatusError(new StatusError.MixerController.InvalidReply(), true);
 				return null;
 			}
 
 			clearMixerErrors();
 			return i != 0;
 		} catch (TimeoutException) {
-			errors.setError(new Error.MixerController.Network(), true);
+			statusRegister.setStatusError(new StatusError.MixerController.Network(), true);
 			return null;
 		} finally {
 			_transport.messageReceived -= handler;
@@ -253,7 +253,7 @@ public sealed class MixerController {
 		} catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
 			return (false, "Request canceled due to config change.");
 		} catch (TimeoutException) {
-			errors.setError(new Error.MixerController.Network(), true);
+			statusRegister.setStatusError(new StatusError.MixerController.Network(), true);
 			return (false, "No reply to /info within timeout (check IP, port, and network).");
 		} finally {
 			lock (_lock) {
@@ -368,17 +368,17 @@ public sealed class MixerController {
 
 	void executePlan(string address, in ActionPlan plan) {
 		if (plan.clearInvalidReply)
-			errors.setError(new Error.MixerController.InvalidReply(), false);
+			statusRegister.setStatusError(new StatusError.MixerController.InvalidReply(), false);
 
 		switch (plan.effect) {
 			case ActionEffect.NONE:
 				return;
 			case ActionEffect.FAIL_INVALID_REPLY:
-				errors.setError(new Error.MixerController.InvalidReply(), true);
+				statusRegister.setStatusError(new StatusError.MixerController.InvalidReply(), true);
 				emitFailure(address);
 				return;
 			case ActionEffect.FAIL_APPLY:
-				errors.setError(new Error.MixerController.Network(), true);
+				statusRegister.setStatusError(new StatusError.MixerController.Network(), true);
 				emitFailure(address);
 				return;
 			case ActionEffect.SEND_FADER:
@@ -453,14 +453,14 @@ public sealed class MixerController {
 				TraceEventType.Error,
 				0,
 				$"OSC send failed for '{address}': {ex}");
-			errors.setError(new Error.MixerController.Network(), true);
+			statusRegister.setStatusError(new StatusError.MixerController.Network(), true);
 			return false;
 		}
 	}
 
 	void clearMixerErrors() {
-		errors.setError(new Error.MixerController.Network(), false);
-		errors.setError(new Error.MixerController.InvalidReply(), false);
+		statusRegister.setStatusError(new StatusError.MixerController.Network(), false);
+		statusRegister.setStatusError(new StatusError.MixerController.InvalidReply(), false);
 	}
 
 	TaskCompletionSource<OscMessage> createPendingReply() =>

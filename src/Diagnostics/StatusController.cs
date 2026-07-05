@@ -10,24 +10,24 @@ public sealed class StatusController {
 	}
 
 	readonly object _lock = new();
-	readonly Dictionary<string, IErrorRegister> _registersByKey = new(StringComparer.Ordinal);
-	IReadOnlyCollection<Error> _visibleErrors = [];
+	readonly Dictionary<string, IStatusRegister> _registersByKey = new(StringComparer.Ordinal);
+	IReadOnlyCollection<StatusError> _visibleStatusErrors = [];
 	MergedState _mergedState = MergedState.OK;
 
 	public event Action<MergedState>? mergedStateChanged;
-	public event Action? visibleErrorsChanged;
+	public event Action? visibleStatusErrorsChanged;
 
-	public void attach<TError>(string controllerKey, ErrorRegister<TError> errors)
-		where TError : Error {
+	public void attach<TError>(string controllerKey, StatusRegister<TError> statusRegister)
+		where TError : StatusError {
 		ArgumentException.ThrowIfNullOrWhiteSpace(controllerKey);
-		ArgumentNullException.ThrowIfNull(errors);
+		ArgumentNullException.ThrowIfNull(statusRegister);
 
 		lock (_lock) {
-			if (!_registersByKey.TryAdd(controllerKey, errors))
+			if (!_registersByKey.TryAdd(controllerKey, statusRegister))
 				throw new InvalidOperationException($"StatusController already attached '{controllerKey}'.");
 		}
 
-		errors.changed += recomputeState;
+		statusRegister.changed += recomputeState;
 		recomputeState();
 	}
 
@@ -36,26 +36,26 @@ public sealed class StatusController {
 			return _mergedState;
 	}
 
-	public IReadOnlyCollection<Error> getVisibleErrors() {
+	public IReadOnlyCollection<StatusError> getVisibleStatusErrors() {
 		lock (_lock)
-			return _visibleErrors;
+			return _visibleStatusErrors;
 	}
 
 	void recomputeState() {
 		MergedState? mergedChanged = null;
 		bool detailsChanged = false;
-		IReadOnlyCollection<Error>? visibleSnapshot = null;
+		IReadOnlyCollection<StatusError>? visibleSnapshot = null;
 
 		lock (_lock) {
-			Error[] visibleErrors = _registersByKey.Values
-				.SelectMany(static register => register.getErrors())
+			StatusError[] visibleStatusErrors = _registersByKey.Values
+				.SelectMany(static register => register.getStatusErrors())
 				.ToArray();
-			MergedState mergedState = mergeErrors(visibleErrors);
+			MergedState mergedState = mergeStatusErrors(visibleStatusErrors);
 
-			if (!visibleErrors.SequenceEqual(_visibleErrors)) {
-				_visibleErrors = visibleErrors;
+			if (!visibleStatusErrors.SequenceEqual(_visibleStatusErrors)) {
+				_visibleStatusErrors = visibleStatusErrors;
 				detailsChanged = true;
-				visibleSnapshot = _visibleErrors;
+				visibleSnapshot = _visibleStatusErrors;
 			}
 
 			if (mergedState != _mergedState) {
@@ -80,15 +80,15 @@ public sealed class StatusController {
 				AppTrace.StatusController.TraceEvent(
 					TraceEventType.Information,
 					0,
-					$"Visible errors changed ({visibleSnapshot?.Count ?? 0})");
-			visibleErrorsChanged?.Invoke();
+					$"Visible status errors changed ({visibleSnapshot?.Count ?? 0})");
+			visibleStatusErrorsChanged?.Invoke();
 		}
 	}
 
-	static MergedState mergeErrors(IEnumerable<Error> errors) {
-		if (errors.Any(static e => e is Error.MixerController.Network || e is Error.Application.StartupHealthFault))
+	static MergedState mergeStatusErrors(IEnumerable<StatusError> statusErrors) {
+		if (statusErrors.Any(static e => e is StatusError.MixerController.Network || e is StatusError.Application.StartupHealthFault))
 			return MergedState.NETWORK_ERROR;
-		if (errors.Any())
+		if (statusErrors.Any())
 			return MergedState.STARTING_OR_INVALID_CONFIG;
 		return MergedState.OK;
 	}

@@ -15,7 +15,7 @@ public class OscTransportBindConflictTests {
 			endPoint = new IPEndPoint(IPAddress.Loopback, port),
 		});
 
-		Assert.Contains(transport.errors.activeErrors, static e => e is Error.OscTransport.BindFailed);
+		Assert.Contains(transport.statusRegister.activeStatusErrors, static e => e is StatusError.OscTransport.BindFailed);
 		var receiveLoopField = typeof(OscTransport).GetField("_receiveLoop", BindingFlags.Instance | BindingFlags.NonPublic);
 		Assert.Null(receiveLoopField!.GetValue(transport));
 	}
@@ -28,14 +28,14 @@ public class OscTransportBindConflictTests {
 		using var transport = new OscTransport(new OscTransport.Config {
 			endPoint = new IPEndPoint(IPAddress.Loopback, takenPort),
 		});
-		Assert.Contains(transport.errors.activeErrors, static e => e is Error.OscTransport.BindFailed);
+		Assert.Contains(transport.statusRegister.activeStatusErrors, static e => e is StatusError.OscTransport.BindFailed);
 
 		portBlocker.Dispose();
 		await transport.applyConfigAsync(new OscTransport.Config {
 			endPoint = new IPEndPoint(IPAddress.Loopback, takenPort),
 		});
 
-		Assert.DoesNotContain(transport.errors.activeErrors, static e => e is Error.OscTransport.BindFailed);
+		Assert.DoesNotContain(transport.statusRegister.activeStatusErrors, static e => e is StatusError.OscTransport.BindFailed);
 		var receiveLoopField = typeof(OscTransport).GetField("_receiveLoop", BindingFlags.Instance | BindingFlags.NonPublic);
 		Assert.NotNull(receiveLoopField!.GetValue(transport));
 	}

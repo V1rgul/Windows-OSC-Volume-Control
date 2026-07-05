@@ -7,8 +7,8 @@ using WindowsOscVolumeControl.UI.Osd;
 using WindowsOscVolumeControl.UI.Tray;
 
 namespace WindowsOscVolumeControl.Diagnostics {
-	public abstract partial record Error {
-		public abstract record Application : Error {
+	public abstract partial record StatusError {
+		public abstract record Application : StatusError {
 			public sealed record StartupHealthFault : Application;
 		}
 	}
@@ -19,7 +19,7 @@ namespace WindowsOscVolumeControl.App {
 public sealed class AppCoordinator : IDisposable {
 	readonly ConfigStore _configStore = new();
 	readonly BindingManager _oscBindings = new();
-	readonly ErrorRegister<Error> _applicationErrors = new();
+	readonly StatusRegister<StatusError> _applicationStatusRegister = new();
 	readonly StatusController _statusController = new();
 	readonly Dispatcher _dispatcher;
 	TrayController _tray;
@@ -43,23 +43,23 @@ public sealed class AppCoordinator : IDisposable {
 		_mixer = new MixerController(_transport, _configStore.appConfig.mixer);
 		_hook = new KeyboardHook();
 
-		_statusController.attach("startupHealth", _applicationErrors);
-		_statusController.attach("mixerRuntime", _mixer.errors);
-		_statusController.attach("keyboardHook", _hook.errors);
-		_statusController.attach("oscTransport", _transport.errors);
+		_statusController.attach("startupHealth", _applicationStatusRegister);
+		_statusController.attach("mixerRuntime", _mixer.statusRegister);
+		_statusController.attach("keyboardHook", _hook.statusRegister);
+		_statusController.attach("oscTransport", _transport.statusRegister);
 		_statusController.mergedStateChanged += onMergedStateChanged;
-		_statusController.visibleErrorsChanged += onVisibleErrorsChanged;
+		_statusController.visibleStatusErrorsChanged += onVisibleStatusErrorsChanged;
 		_mixer.eventReceived += onMixerEvent;
 
-		_applicationErrors.setError(new Error.Generic.Starting(), true);
+		_applicationStatusRegister.setStatusError(new StatusError.Generic.Starting(), true);
 		rebuildHotkeysFromConfig(_configStore.appConfig.trayApp.bindings);
 		syncStatusUi();
 
 		Task startupTask = runStartupHealthAsync();
 		_ = startupTask.ContinueWith(t => {
 			AppTrace.Application.TraceEvent(TraceEventType.Error, 0, $"Startup health failed: {t.Exception}");
-			_applicationErrors.setError(new Error.Application.StartupHealthFault(), true);
-			_applicationErrors.setError(new Error.Generic.Starting(), false);
+			_applicationStatusRegister.setStatusError(new StatusError.Application.StartupHealthFault(), true);
+			_applicationStatusRegister.setStatusError(new StatusError.Generic.Starting(), false);
 		}, TaskContinuationOptions.OnlyOnFaulted);
 	}
 
@@ -82,12 +82,12 @@ public sealed class AppCoordinator : IDisposable {
 	public void setConfiguredHotkeysEnabled(bool enabled) => _hook.SetConfiguredHotkeysEnabled(enabled);
 
 	public void beginConfigValidation() {
-		_applicationErrors.setError(new Error.Application.StartupHealthFault(), false);
-		_applicationErrors.setError(new Error.Generic.Starting(), true);
+		_applicationStatusRegister.setStatusError(new StatusError.Application.StartupHealthFault(), false);
+		_applicationStatusRegister.setStatusError(new StatusError.Generic.Starting(), true);
 	}
 
 	public void finishConfigValidation() =>
-		_applicationErrors.setError(new Error.Generic.Starting(), false);
+		_applicationStatusRegister.setStatusError(new StatusError.Generic.Starting(), false);
 
 	public async Task applyConfigFromStoreAsync() {
 		AppConfig cfg = _configStore.appConfig;
@@ -109,8 +109,8 @@ public sealed class AppCoordinator : IDisposable {
 
 	async Task runStartupHealthAsync() {
 		await _mixer.TestConnectionAsync().ConfigureAwait(false);
-		_applicationErrors.setError(new Error.Application.StartupHealthFault(), false);
-		_applicationErrors.setError(new Error.Generic.Starting(), false);
+		_applicationStatusRegister.setStatusError(new StatusError.Application.StartupHealthFault(), false);
+		_applicationStatusRegister.setStatusError(new StatusError.Generic.Starting(), false);
 	}
 
 	void onMergedStateChanged(StatusController.MergedState state) {
@@ -125,8 +125,8 @@ public sealed class AppCoordinator : IDisposable {
 		});
 	}
 
-	void onVisibleErrorsChanged() {
-		string summary = VisibleDiagnosticsFormatting.formatVisibleErrors(_statusController.getVisibleErrors());
+	void onVisibleStatusErrorsChanged() {
+		string summary = VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrors());
 		ui(() => {
 			_tray.setStatusText(summary);
 			_configWindow?.syncDiagnosticsFeedback(summary);
@@ -136,7 +136,7 @@ public sealed class AppCoordinator : IDisposable {
 	void syncStatusUi() {
 		_lastMergedState = _statusController.getMergedState();
 		_tray.ApplyState(mapMergedState(_lastMergedState));
-		_tray.setStatusText(VisibleDiagnosticsFormatting.formatVisibleErrors(_statusController.getVisibleErrors()));
+		_tray.setStatusText(VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrors()));
 	}
 
 	static AppTrayIconState mapMergedState(StatusController.MergedState state) => state switch {
@@ -196,7 +196,7 @@ public sealed class AppCoordinator : IDisposable {
 
 			_configWindow = new ConfigWindow(_mixer, _tray, this, _configStore);
 			_configWindow.syncDiagnosticsFeedback(
-				VisibleDiagnosticsFormatting.formatVisibleErrors(_statusController.getVisibleErrors()));
+				VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrors()));
 			_configWindow.Closed += (_, _) => {
 				setConfiguredHotkeysEnabled(true);
 				_configWindow?.syncDiagnosticsFeedback("");
