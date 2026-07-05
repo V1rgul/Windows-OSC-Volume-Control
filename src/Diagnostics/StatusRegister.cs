@@ -2,29 +2,30 @@ namespace WindowsOscVolumeControl.Diagnostics;
 
 public interface IStatusRegister {
 	public event Action? changed;
-	public IReadOnlyCollection<StatusError> getStatusErrors();
+	public IReadOnlyCollection<Type> getActiveStatusErrorTypes();
 }
 
 public sealed class StatusRegister<TError> : IStatusRegister where TError : StatusError {
 	readonly object _lock = new();
-	readonly HashSet<TError> _activeStatusErrors = [];
+	readonly HashSet<Type> _activeStatusErrorTypes = [];
 
 	public event Action? changed;
 
-	public IReadOnlyCollection<TError> activeStatusErrors {
+	public IReadOnlyCollection<Type> activeStatusErrorTypes {
 		get {
 			lock (_lock)
-				return _activeStatusErrors.ToArray();
+				return _activeStatusErrorTypes.ToArray();
 		}
 	}
 
-	public void setStatusError(TError statusError, bool enabled) {
-		ArgumentNullException.ThrowIfNull(statusError);
+	public void setStatusError<TStatusError>(bool enabled)
+		where TStatusError : TError {
+		var statusErrorType = typeof(TStatusError);
 		bool changedState;
 		lock (_lock) {
 			changedState = enabled
-				? _activeStatusErrors.Add(statusError)
-				: _activeStatusErrors.Remove(statusError);
+				? _activeStatusErrorTypes.Add(statusErrorType)
+				: _activeStatusErrorTypes.Remove(statusErrorType);
 		}
 		if (changedState)
 			changed?.Invoke();
@@ -33,16 +34,17 @@ public sealed class StatusRegister<TError> : IStatusRegister where TError : Stat
 	public void clearAll() {
 		bool changedState;
 		lock (_lock) {
-			changedState = _activeStatusErrors.Count > 0;
+			changedState = _activeStatusErrorTypes.Count > 0;
 			if (changedState)
-				_activeStatusErrors.Clear();
+				_activeStatusErrorTypes.Clear();
 		}
 		if (changedState)
 			changed?.Invoke();
 	}
 
-	IReadOnlyCollection<StatusError> IStatusRegister.getStatusErrors() {
+	IReadOnlyCollection<Type> IStatusRegister.getActiveStatusErrorTypes() {
 		lock (_lock)
-			return _activeStatusErrors.Cast<StatusError>().ToArray();
+			return _activeStatusErrorTypes.ToArray();
 	}
 }
+

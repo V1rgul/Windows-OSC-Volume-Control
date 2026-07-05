@@ -69,7 +69,7 @@ public sealed class OscTransport : IDisposable {
 		oldUdp?.Dispose();
 
 		(UdpClient nextUdp, bool boundToConfiguredPort) = createUdpClient(nextConfig.endPoint.Port);
-		statusRegister.setStatusError(new StatusError.OscTransport.BindFailed(), !boundToConfiguredPort);
+		statusRegister.setStatusError<StatusError.OscTransport.BindFailed>(!boundToConfiguredPort);
 
 		IPEndPoint nextRemote = new(nextConfig.endPoint.Address, nextConfig.endPoint.Port);
 

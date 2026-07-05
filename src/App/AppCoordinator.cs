@@ -51,15 +51,15 @@ public sealed class AppCoordinator : IDisposable {
 		_statusController.visibleStatusErrorsChanged += onVisibleStatusErrorsChanged;
 		_mixer.eventReceived += onMixerEvent;
 
-		_applicationStatusRegister.setStatusError(new StatusError.Generic.Starting(), true);
+		_applicationStatusRegister.setStatusError<StatusError.Generic.Starting>(true);
 		rebuildHotkeysFromConfig(_configStore.appConfig.trayApp.bindings);
 		syncStatusUi();
 
 		Task startupTask = runStartupHealthAsync();
 		_ = startupTask.ContinueWith(t => {
 			AppTrace.Application.TraceEvent(TraceEventType.Error, 0, $"Startup health failed: {t.Exception}");
-			_applicationStatusRegister.setStatusError(new StatusError.Application.StartupHealthFault(), true);
-			_applicationStatusRegister.setStatusError(new StatusError.Generic.Starting(), false);
+			_applicationStatusRegister.setStatusError<StatusError.Application.StartupHealthFault>(true);
+			_applicationStatusRegister.setStatusError<StatusError.Generic.Starting>(false);
 		}, TaskContinuationOptions.OnlyOnFaulted);
 	}
 
@@ -82,12 +82,12 @@ public sealed class AppCoordinator : IDisposable {
 	public void setConfiguredHotkeysEnabled(bool enabled) => _hook.SetConfiguredHotkeysEnabled(enabled);
 
 	public void beginConfigValidation() {
-		_applicationStatusRegister.setStatusError(new StatusError.Application.StartupHealthFault(), false);
-		_applicationStatusRegister.setStatusError(new StatusError.Generic.Starting(), true);
+		_applicationStatusRegister.setStatusError<StatusError.Application.StartupHealthFault>(false);
+		_applicationStatusRegister.setStatusError<StatusError.Generic.Starting>(true);
 	}
 
 	public void finishConfigValidation() =>
-		_applicationStatusRegister.setStatusError(new StatusError.Generic.Starting(), false);
+		_applicationStatusRegister.setStatusError<StatusError.Generic.Starting>(false);
 
 	public async Task applyConfigFromStoreAsync() {
 		AppConfig cfg = _configStore.appConfig;
@@ -109,8 +109,8 @@ public sealed class AppCoordinator : IDisposable {
 
 	async Task runStartupHealthAsync() {
 		await _mixer.TestConnectionAsync().ConfigureAwait(false);
-		_applicationStatusRegister.setStatusError(new StatusError.Application.StartupHealthFault(), false);
-		_applicationStatusRegister.setStatusError(new StatusError.Generic.Starting(), false);
+		_applicationStatusRegister.setStatusError<StatusError.Application.StartupHealthFault>(false);
+		_applicationStatusRegister.setStatusError<StatusError.Generic.Starting>(false);
 	}
 
 	void onMergedStateChanged(StatusController.MergedState state) {
@@ -126,7 +126,7 @@ public sealed class AppCoordinator : IDisposable {
 	}
 
 	void onVisibleStatusErrorsChanged() {
-		string summary = VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrors());
+		string summary = VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrorTypes());
 		ui(() => {
 			_tray.setStatusText(summary);
 			_configWindow?.syncDiagnosticsFeedback(summary);
@@ -136,7 +136,7 @@ public sealed class AppCoordinator : IDisposable {
 	void syncStatusUi() {
 		_lastMergedState = _statusController.getMergedState();
 		_tray.ApplyState(mapMergedState(_lastMergedState));
-		_tray.setStatusText(VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrors()));
+		_tray.setStatusText(VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrorTypes()));
 	}
 
 	static AppTrayIconState mapMergedState(StatusController.MergedState state) => state switch {
@@ -196,7 +196,7 @@ public sealed class AppCoordinator : IDisposable {
 
 			_configWindow = new ConfigWindow(_mixer, _tray, this, _configStore);
 			_configWindow.syncDiagnosticsFeedback(
-				VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrors()));
+				VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrorTypes()));
 			_configWindow.Closed += (_, _) => {
 				setConfiguredHotkeysEnabled(true);
 				_configWindow?.syncDiagnosticsFeedback("");

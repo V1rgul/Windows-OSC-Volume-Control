@@ -123,7 +123,7 @@ public partial class KeyboardHook : IDisposable {
 		_hookThread.Start();
 
 		if (!_hookInstalled.Wait(HOOK_THREAD_WAIT_MS) || _hookId == IntPtr.Zero) {
-			statusRegister.setStatusError(new StatusError.KeyboardHook.InstallFailed(), true);
+			statusRegister.setStatusError<StatusError.KeyboardHook.InstallFailed>(true);
 			AppTrace.KeyboardHook.TraceEvent(TraceEventType.Error, 0, "SetWindowsHookEx failed.");
 		}
 	}

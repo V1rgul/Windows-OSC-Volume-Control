@@ -11,7 +11,7 @@ public sealed class StatusController {
 
 	readonly object _lock = new();
 	readonly Dictionary<string, IStatusRegister> _registersByKey = new(StringComparer.Ordinal);
-	IReadOnlyCollection<StatusError> _visibleStatusErrors = [];
+	IReadOnlyCollection<Type> _visibleStatusErrorTypes = [];
 	MergedState _mergedState = MergedState.OK;
 
 	public event Action<MergedState>? mergedStateChanged;
@@ -36,26 +36,26 @@ public sealed class StatusController {
 			return _mergedState;
 	}
 
-	public IReadOnlyCollection<StatusError> getVisibleStatusErrors() {
+	public IReadOnlyCollection<Type> getVisibleStatusErrorTypes() {
 		lock (_lock)
-			return _visibleStatusErrors;
+			return _visibleStatusErrorTypes;
 	}
 
 	void recomputeState() {
 		MergedState? mergedChanged = null;
 		bool detailsChanged = false;
-		IReadOnlyCollection<StatusError>? visibleSnapshot = null;
+		IReadOnlyCollection<Type>? visibleSnapshot = null;
 
 		lock (_lock) {
-			StatusError[] visibleStatusErrors = _registersByKey.Values
-				.SelectMany(static register => register.getStatusErrors())
+			Type[] visibleStatusErrorTypes = _registersByKey.Values
+				.SelectMany(static register => register.getActiveStatusErrorTypes())
 				.ToArray();
-			MergedState mergedState = mergeStatusErrors(visibleStatusErrors);
+			MergedState mergedState = mergeStatusErrors(visibleStatusErrorTypes);
 
-			if (!visibleStatusErrors.SequenceEqual(_visibleStatusErrors)) {
-				_visibleStatusErrors = visibleStatusErrors;
+			if (!visibleStatusErrorTypes.SequenceEqual(_visibleStatusErrorTypes)) {
+				_visibleStatusErrorTypes = visibleStatusErrorTypes;
 				detailsChanged = true;
-				visibleSnapshot = _visibleStatusErrors;
+				visibleSnapshot = _visibleStatusErrorTypes;
 			}
 
 			if (mergedState != _mergedState) {
@@ -85,10 +85,12 @@ public sealed class StatusController {
 		}
 	}
 
-	static MergedState mergeStatusErrors(IEnumerable<StatusError> statusErrors) {
-		if (statusErrors.Any(static e => e is StatusError.MixerController.Network || e is StatusError.Application.StartupHealthFault))
+	static MergedState mergeStatusErrors(IEnumerable<Type> statusErrorTypes) {
+		if (statusErrorTypes.Any(static t =>
+				StatusError.isType<StatusError.MixerController.Network>(t)
+				|| StatusError.isType<StatusError.Application.StartupHealthFault>(t)))
 			return MergedState.NETWORK_ERROR;
-		if (statusErrors.Any())
+		if (statusErrorTypes.Any())
 			return MergedState.STARTING_OR_INVALID_CONFIG;
 		return MergedState.OK;
 	}
