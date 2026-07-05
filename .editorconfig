@@ -32,7 +32,7 @@ resharper_wpf0001_highlighting = none
 resharper_xaml_static_resource_not_resolved_highlighting = none
 resharper_xaml_binding_with_context_not_resolved_highlighting = none
 
-[src/Osc/SharpOSC/**/*.cs]
+[src/lib/SharpOSC/**/*.cs]
 # Vendor subtree: keep source untouched and suppress IDE inspections in Problems.
 generated_code = true
 dotnet_diagnostic.CS0114.severity = none

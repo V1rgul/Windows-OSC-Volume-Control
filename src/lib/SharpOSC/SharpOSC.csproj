@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="SharpOSC\**\*.cs" />
+    <Compile Include="*.cs" />
   </ItemGroup>
 
 </Project>
