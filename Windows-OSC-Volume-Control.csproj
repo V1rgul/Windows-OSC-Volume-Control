@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="src\**\*.cs" Exclude="src\**\obj\**\*;src\**\bin\**\*;src\Osc\SharpOSC\**\*.cs" />
+    <Compile Include="src\**\*.cs" Exclude="src\**\obj\**\*;src\**\bin\**\*;src\Osc\SharpOSC\**\*.cs;src\lib\Result\**\*.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -70,6 +70,7 @@
     </PackageReference>
     <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" PrivateAssets="all" />
     <ProjectReference Include="src\Osc\SharpOSC.csproj" />
+    <ProjectReference Include="src\lib\Result\Result.csproj" />
   </ItemGroup>
 
   <!-- Release: framework-dependent publish → small zip; target PC needs .NET 10 Desktop runtime. -->
