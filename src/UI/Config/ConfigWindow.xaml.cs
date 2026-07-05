@@ -223,6 +223,14 @@ public partial class ConfigWindow {
 			if (!scalarOk)
 				return;
 
+			string bindingErrorsForFooter = vm.formatBindingErrorsForFooter();
+			if (!string.IsNullOrEmpty(bindingErrorsForFooter)) {
+				vm.statusFeedback = new UiTextFeedback(bindingErrorsForFooter, UiTextFeedbackKind.ERROR);
+				refreshStatusBar();
+				flashSuccess = false;
+				return;
+			}
+
 			vm.statusFeedback = new UiTextFeedback("", UiTextFeedbackKind.DEFAULT);
 			refreshStatusBar();
 			(bool okBuild, AppConfig? newConfig, UiTextFeedback? buildErr) = SettingsFormDraft.tryBuild(

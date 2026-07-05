@@ -97,4 +97,51 @@ public class ConfigScalarParserTests {
 		Result<uint> result = KeyboardHook.Config.parseLongPressMs(text);
 		Assert.True(result.isError);
 	}
+
+	[Theory]
+	[InlineData("/main/st/mix/fader")]
+	[InlineData(" /ch/01/mix/on ")]
+	public void parseOscAddressField_valid_returnsTrimmedAddress(string text) {
+		Result<string> result = BindingManager.Config.parseOscAddressField(text);
+		Assert.True(result.isSuccess);
+		Assert.StartsWith("/", result.value);
+		Assert.Equal(result.value.Trim(), result.value);
+	}
+
+	[Theory]
+	[InlineData("")]
+	[InlineData("main/st/mix/fader")]
+	[InlineData("/")]
+	[InlineData("/main//fader")]
+	[InlineData("/main/fader/")]
+	[InlineData("/main/st mix/fader")]
+	[InlineData("/main/{st,mono}/mix/fader")]
+	[InlineData("/main/*/mix/fader")]
+	public void parseOscAddressField_invalid_returnsParsingError(string text) {
+		Result<string> result = BindingManager.Config.parseOscAddressField(text);
+		Assert.True(result.isError);
+		Assert.IsType<ResultError.Generic.Parsing>(result.errors[0]);
+	}
+
+	[Theory]
+	[InlineData("0", 0f, 0)]
+	[InlineData("-0.25", -0.25f, 2)]
+	[InlineData("1.234", 1.234f, 3)]
+	public void parseContinuousFloatField_valid_returnsValueAndFractionalDigits(string text, float expected, int expectedDigits) {
+		Result<BindingManager.Config.FloatFieldValue> result = BindingManager.Config.parseContinuousFloatField(text);
+		Assert.True(result.isSuccess);
+		Assert.Equal(expected, result.value.value);
+		Assert.Equal(expectedDigits, result.value.fractionalDigits);
+	}
+
+	[Theory]
+	[InlineData("")]
+	[InlineData("NaN")]
+	[InlineData("Infinity")]
+	[InlineData("abc")]
+	public void parseContinuousFloatField_invalid_returnsParsingError(string text) {
+		Result<BindingManager.Config.FloatFieldValue> result = BindingManager.Config.parseContinuousFloatField(text);
+		Assert.True(result.isError);
+		Assert.IsType<ResultError.Generic.Parsing>(result.errors[0]);
+	}
 }

@@ -232,6 +232,27 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 		return string.Join(Environment.NewLine, lines);
 	}
 
+	public string formatBindingErrorsForFooter() {
+		var lines = new List<string>();
+		for (int i = 0; i < bindings.Count; i++) {
+			BindingEditor binding = bindings[i];
+			if (binding.isDeleted || isBindingBlank(binding))
+				continue;
+			foreach (ValidationFieldDescriptor field in binding.footerValidationFields)
+				appendBindingFieldErrors(lines, i + 1, binding, field);
+			for (int h = 0; h < binding.actions.Count; h++) {
+				ControlActionEditor action = binding.actions[h];
+				if (action.isDeleted)
+					continue;
+				foreach (ValidationFieldDescriptor field in action.footerValidationFields) {
+					foreach (string message in validationErrorsFor(action, field.propertyName))
+						lines.Add($"Binding {i + 1}, hotkey {h + 1}, {field.label}: {message}");
+				}
+			}
+		}
+		return string.Join(Environment.NewLine, lines);
+	}
+
 	readonly AppCoordinator _appCoordinator;
 	readonly ConfigStore _configStore;
 
@@ -536,6 +557,24 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 		nameof(hotkeyLongPressMsText) => _hotkeyLongPressMsResult,
 		_ => _scalarsResult,
 	};
+
+	static void appendBindingFieldErrors(List<string> lines, int bindingNumberOneBased, BindingEditor binding, ValidationFieldDescriptor field) {
+		foreach (string message in validationErrorsFor(binding, field.propertyName))
+			lines.Add($"Binding {bindingNumberOneBased}, {field.label}: {message}");
+	}
+
+	static IEnumerable<string> validationErrorsFor(INotifyDataErrorInfo source, string propertyName) =>
+		source.GetErrors(propertyName).Cast<string>();
+
+	static bool isBindingBlank(BindingEditor editor) =>
+		string.IsNullOrWhiteSpace(editor.name)
+		&& string.IsNullOrWhiteSpace(editor.address)
+		&& string.IsNullOrWhiteSpace(editor.minimum)
+		&& string.IsNullOrWhiteSpace(editor.maximum)
+		&& string.IsNullOrWhiteSpace(editor.rangeMinimum)
+		&& string.IsNullOrWhiteSpace(editor.rangeMaximum)
+		&& string.IsNullOrWhiteSpace(editor.unit)
+		&& editor.actions.Count == 0;
 
 	IEnumerable<string> errorMessagesForProperty(string propertyName) => propertyName switch {
 		nameof(oscIpText) => _oscIpResult.match(_ => [], errors => errors.Select(parsingMessage)),

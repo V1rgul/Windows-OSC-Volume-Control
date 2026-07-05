@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
@@ -5,6 +6,9 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows.Data;
 using JetBrains.Annotations;
+using Result;
+using WindowsOscVolumeControl.Binding;
+using WindowsOscVolumeControl.Diagnostics;
 using WindowsOscVolumeControl.UI.Osd;
 
 namespace WindowsOscVolumeControl.UI.Config;
@@ -51,6 +55,8 @@ public sealed class ControlActionChoice(Type actionType, string displayName) {
 	public string displayName { get; } = displayName;
 }
 
+public readonly record struct ValidationFieldDescriptor(string propertyName, string label);
+
 public abstract class ObservableObject : INotifyPropertyChanged {
 	public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -70,7 +76,56 @@ public abstract class ObservableObject : INotifyPropertyChanged {
 		PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
-public sealed class BindingEditor : ObservableObject {
+public abstract class ObservableValidationObject : ObservableObject, INotifyDataErrorInfo {
+	readonly Dictionary<string, string[]> _validationErrors = new(StringComparer.Ordinal);
+
+	public event EventHandler<DataErrorsChangedEventArgs>? ErrorsChanged;
+
+	public bool HasErrors => _validationErrors.Count > 0;
+
+	public IEnumerable GetErrors(string? propertyName) {
+		if (string.IsNullOrEmpty(propertyName))
+			return _validationErrors.Values.SelectMany(static e => e).ToArray();
+		return _validationErrors.TryGetValue(propertyName, out string[]? errors)
+			? errors
+			: Array.Empty<string>();
+	}
+
+	protected void setValidationErrors(string propertyName, IEnumerable<string> errors) {
+		string[] next = errors.Where(static e => !string.IsNullOrWhiteSpace(e)).Distinct(StringComparer.Ordinal).ToArray();
+		bool hadCurrent = _validationErrors.TryGetValue(propertyName, out string[]? current);
+		if (hadCurrent && current.SequenceEqual(next, StringComparer.Ordinal))
+			return;
+
+		if (next.Length == 0)
+			_validationErrors.Remove(propertyName);
+		else
+			_validationErrors[propertyName] = next;
+
+		ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(propertyName));
+		raisePropertyChanged(nameof(HasErrors));
+	}
+
+	protected void clearValidationErrors() {
+		if (_validationErrors.Count == 0)
+			return;
+		string[] names = _validationErrors.Keys.ToArray();
+		_validationErrors.Clear();
+		foreach (string name in names)
+			ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(name));
+		raisePropertyChanged(nameof(HasErrors));
+	}
+
+	protected static string[] validationMessages(IResult result) =>
+		result.isError
+			? result.errors.Select(parsingMessage).ToArray()
+			: [];
+
+	static string parsingMessage(global::Result.Result.Error error) =>
+		error is ResultErrorWithMsg withMsg ? withMsg.message : "Invalid value.";
+}
+
+public sealed class BindingEditor : ObservableValidationObject {
 	static readonly List<BindingTypeUiChoice> _typeChoiceList = [
 		new(BindingEditorType.LINEAR, "Linear", ""),
 		new(BindingEditorType.TOGGLE, "Toggle", ""),
@@ -95,6 +150,14 @@ public sealed class BindingEditor : ObservableObject {
 	bool _bindingExpanded;
 	IReadOnlyList<ControlActionChoice>? _actionChoices;
 
+	Result<string> _nameResult = BindingManager.Config.parseBindingNameField("");
+	Result<string> _addressResult = BindingManager.Config.parseOscAddressField("");
+	Result<BindingManager.Config.FloatFieldValue> _minimumResult = BindingManager.Config.parseContinuousFloatField("0");
+	Result<BindingManager.Config.FloatFieldValue> _maximumResult = BindingManager.Config.parseContinuousFloatField("1");
+	Result<BindingManager.Config.FloatFieldValue> _rangeMinimumResult = BindingManager.Config.parseContinuousFloatField("");
+	Result<BindingManager.Config.FloatFieldValue> _rangeMaximumResult = BindingManager.Config.parseContinuousFloatField("");
+	Result<string?> _unitResult = BindingManager.Config.parseUnitField("");
+
 	readonly ObservableCollection<string> _addressSuggestions = [];
 
 	public BindingEditor() {
@@ -106,13 +169,17 @@ public sealed class BindingEditor : ObservableObject {
 		X32Catalog.ensureLoaded();
 		rebuildAddressSuggestions();
 		refreshX32CatalogMatch();
+		recomputeValidation();
 	}
 
 	public ICollectionView groupedTypeChoices { get; }
 
 	public string name {
 		get => _name;
-		set => setTextProperty(ref _name, value);
+		set {
+			if (setTextProperty(ref _name, value))
+				recomputeValidation();
+		}
 	}
 
 	public string address {
@@ -127,6 +194,7 @@ public sealed class BindingEditor : ObservableObject {
 				if (!_suppressAddressSuggestionRebuild)
 					rebuildAddressSuggestions();
 				refreshX32CatalogMatch();
+				recomputeValidation();
 			}
 		}
 	}
@@ -216,27 +284,40 @@ public sealed class BindingEditor : ObservableObject {
 			pruneActionsForType();
 			foreach (ControlActionEditor h in actions)
 				h.refreshChoiceFromOwner();
+			recomputeValidation();
 		}
 	}
 
 	public string minimum {
 		get => _minimum;
-		set => setTextProperty(ref _minimum, value);
+		set {
+			if (setTextProperty(ref _minimum, value))
+				recomputeValidation();
+		}
 	}
 
 	public string maximum {
 		get => _maximum;
-		set => setTextProperty(ref _maximum, value);
+		set {
+			if (setTextProperty(ref _maximum, value))
+				recomputeValidation();
+		}
 	}
 
 	public string rangeMinimum {
 		get => _rangeMinimum;
-		set => setTextProperty(ref _rangeMinimum, value);
+		set {
+			if (setTextProperty(ref _rangeMinimum, value))
+				recomputeValidation();
+		}
 	}
 
 	public string rangeMaximum {
 		get => _rangeMaximum;
-		set => setTextProperty(ref _rangeMaximum, value);
+		set {
+			if (setTextProperty(ref _rangeMaximum, value))
+				recomputeValidation();
+		}
 	}
 
 	public string unit {
@@ -246,6 +327,7 @@ public sealed class BindingEditor : ObservableObject {
 				return;
 			foreach (ControlActionEditor h in actions)
 				h.raiseFloatValueLabelChanged();
+			recomputeValidation();
 		}
 	}
 
@@ -256,6 +338,7 @@ public sealed class BindingEditor : ObservableObject {
 				return;
 			raisePropertyChanged(nameof(isNotDeleted));
 			bindingExpanded = !value;
+			recomputeValidation();
 		}
 	}
 
@@ -272,6 +355,23 @@ public sealed class BindingEditor : ObservableObject {
 	public bool showsMinMax => type is BindingEditorType.LINEAR or BindingEditorType.LINF or BindingEditorType.LOGF or BindingEditorType.LEVEL;
 	public bool showsRange => type is BindingEditorType.LINF or BindingEditorType.LOGF;
 	public bool showsUnit => type is BindingEditorType.LINF or BindingEditorType.LOGF;
+
+	public IEnumerable<ValidationFieldDescriptor> footerValidationFields {
+		get {
+			yield return new(nameof(name), "Name");
+			yield return new(nameof(address), "OSC address");
+			if (showsMinMax) {
+				yield return new(nameof(minimum), "Minimum");
+				yield return new(nameof(maximum), "Maximum");
+			}
+			if (showsRange) {
+				yield return new(nameof(rangeMinimum), "Range min");
+				yield return new(nameof(rangeMaximum), "Range max");
+			}
+			if (showsUnit)
+				yield return new(nameof(unit), "Unit");
+		}
+	}
 
 	public string typeDisplayLabel => type switch {
 		BindingEditorType.LINEAR => "Linear",
@@ -420,6 +520,101 @@ public sealed class BindingEditor : ObservableObject {
 			he.selectedChoice = actionChoices[0];
 		return he;
 	}
+
+	void recomputeValidation() {
+		if (_isDeleted) {
+			clearValidationErrors();
+			return;
+		}
+
+		_nameResult = BindingManager.Config.parseBindingNameField(_name);
+		_addressResult = BindingManager.Config.parseOscAddressField(_address);
+		setValidationErrors(nameof(name), validationMessages(_nameResult));
+		setValidationErrors(nameof(address), validationMessages(_addressResult));
+
+		if (showsMinMax)
+			validateMinMaxFields();
+		else {
+			setValidationErrors(nameof(minimum), []);
+			setValidationErrors(nameof(maximum), []);
+		}
+
+		if (showsRange)
+			validateRangeFields();
+		else {
+			setValidationErrors(nameof(rangeMinimum), []);
+			setValidationErrors(nameof(rangeMaximum), []);
+		}
+
+		_unitResult = BindingManager.Config.parseUnitField(_unit);
+		setValidationErrors(nameof(unit), showsUnit ? validationMessages(_unitResult) : []);
+	}
+
+	void validateMinMaxFields() {
+		_minimumResult = BindingManager.Config.parseContinuousFloatField(_minimum);
+		_maximumResult = BindingManager.Config.parseContinuousFloatField(_maximum);
+		var minErrors = validationMessages(_minimumResult).ToList();
+		var maxErrors = validationMessages(_maximumResult).ToList();
+
+		if (_minimumResult.isSuccess && _maximumResult.isSuccess) {
+			float min = _minimumResult.value.value;
+			float max = _maximumResult.value.value;
+			if (min > max)
+				maxErrors.Add("Maximum must be greater than or equal to minimum.");
+			if (type == BindingEditorType.LOGF) {
+				if (min <= 0f)
+					minErrors.Add("logf minimum must be positive.");
+				if (max <= 0f)
+					maxErrors.Add("logf maximum must be positive.");
+			}
+		}
+
+		setValidationErrors(nameof(minimum), minErrors);
+		setValidationErrors(nameof(maximum), maxErrors);
+	}
+
+	void validateRangeFields() {
+		bool rangeMinBlank = string.IsNullOrWhiteSpace(_rangeMinimum);
+		bool rangeMaxBlank = string.IsNullOrWhiteSpace(_rangeMaximum);
+		var rangeMinErrors = new List<string>();
+		var rangeMaxErrors = new List<string>();
+
+		if (rangeMinBlank && rangeMaxBlank) {
+			setValidationErrors(nameof(rangeMinimum), []);
+			setValidationErrors(nameof(rangeMaximum), []);
+			return;
+		}
+		if (rangeMinBlank || rangeMaxBlank) {
+			string message = "Range min and range max must both be set, or both blank.";
+			if (rangeMinBlank)
+				rangeMinErrors.Add(message);
+			if (rangeMaxBlank)
+				rangeMaxErrors.Add(message);
+		}
+
+		_rangeMinimumResult = BindingManager.Config.parseContinuousFloatField(_rangeMinimum);
+		_rangeMaximumResult = BindingManager.Config.parseContinuousFloatField(_rangeMaximum);
+		if (!rangeMinBlank)
+			rangeMinErrors.AddRange(validationMessages(_rangeMinimumResult));
+		if (!rangeMaxBlank)
+			rangeMaxErrors.AddRange(validationMessages(_rangeMaximumResult));
+
+		if (_rangeMinimumResult.isSuccess && _rangeMaximumResult.isSuccess) {
+			float rangeMin = _rangeMinimumResult.value.value;
+			float rangeMax = _rangeMaximumResult.value.value;
+			if (rangeMin > rangeMax)
+				rangeMaxErrors.Add("Range max must be greater than or equal to range min.");
+			if (type == BindingEditorType.LOGF) {
+				if (rangeMin <= 0f)
+					rangeMinErrors.Add("logf range min must be positive.");
+				if (rangeMax <= 0f)
+					rangeMaxErrors.Add("logf range max must be positive.");
+			}
+		}
+
+		setValidationErrors(nameof(rangeMinimum), rangeMinErrors);
+		setValidationErrors(nameof(rangeMaximum), rangeMaxErrors);
+	}
 }
 
 file static class BindingEditorStatics {
@@ -428,7 +623,7 @@ file static class BindingEditorStatics {
 	internal static readonly IReadOnlyList<ControlAction> togglePrototypes = new BindingToggle().availableActionPrototypes;
 }
 
-public sealed class ControlActionEditor : ObservableObject {
+public sealed class ControlActionEditor : ObservableValidationObject {
 	Type _selectedActionType = typeof(ControlActionContinuousDelta);
 	HotkeyGesture _hotkey = HotkeyGesture.None;
 	bool _isHotkeyCaptureActive;
@@ -438,6 +633,7 @@ public sealed class ControlActionEditor : ObservableObject {
 	bool _longPress;
 	ControlActionChoice? _selectedChoice;
 	BindingEditor? _owner;
+	Result<BindingManager.Config.FloatFieldValue> _floatValueResult = BindingManager.Config.parseContinuousFloatField("0");
 
 	public BindingEditor? owner {
 		get => _owner;
@@ -445,6 +641,7 @@ public sealed class ControlActionEditor : ObservableObject {
 			if (setProperty(ref _owner, value)) {
 				raisePropertyChanged(nameof(choiceList));
 				refreshChoiceFromOwner();
+				recomputeValidation();
 			}
 		}
 	}
@@ -462,6 +659,7 @@ public sealed class ControlActionEditor : ObservableObject {
 				raisePropertyChanged(nameof(showsFloatInput));
 				raisePropertyChanged(nameof(floatValueLabel));
 				raisePropertyChanged(nameof(showsBoolInput));
+				recomputeValidation();
 			}
 		}
 	}
@@ -474,6 +672,7 @@ public sealed class ControlActionEditor : ObservableObject {
 			raisePropertyChanged(nameof(showsFloatInput));
 			raisePropertyChanged(nameof(floatValueLabel));
 			raisePropertyChanged(nameof(showsBoolInput));
+			recomputeValidation();
 		}
 	}
 
@@ -500,8 +699,10 @@ public sealed class ControlActionEditor : ObservableObject {
 	public string floatValue {
 		get => _floatValue;
 		set {
-			if (setTextProperty(ref _floatValue, value))
+			if (setTextProperty(ref _floatValue, value)) {
 				raisePropertyChanged(nameof(floatValueLabel));
+				recomputeValidation();
+			}
 		}
 	}
 
@@ -531,6 +732,7 @@ public sealed class ControlActionEditor : ObservableObject {
 			if (!setProperty(ref _isDeleted, value))
 				return;
 			raisePropertyChanged(nameof(isNotDeleted));
+			recomputeValidation();
 		}
 	}
 
@@ -555,6 +757,13 @@ public sealed class ControlActionEditor : ObservableObject {
 
 	public bool showsBoolInput => valueKindForActionType(selectedActionType) == ControlActionValueKind.BOOL;
 
+	public IEnumerable<ValidationFieldDescriptor> footerValidationFields {
+		get {
+			if (showsFloatInput)
+				yield return new(nameof(floatValue), "Value");
+		}
+	}
+
 	public void refreshChoiceFromOwner() {
 		if (owner == null) {
 			_selectedChoice = null;
@@ -571,6 +780,7 @@ public sealed class ControlActionEditor : ObservableObject {
 		raisePropertyChanged(nameof(floatValueLabel));
 		raisePropertyChanged(nameof(showsBoolInput));
 		raisePropertyChanged(nameof(choiceList));
+		recomputeValidation();
 	}
 
 	public bool isCompatibleWithBindingType(BindingEditorType bindingType) {
@@ -684,5 +894,15 @@ public sealed class ControlActionEditor : ObservableObject {
 				error = "Unknown action type.";
 				return false;
 		}
+	}
+
+	void recomputeValidation() {
+		if (_isDeleted || !showsFloatInput) {
+			setValidationErrors(nameof(floatValue), []);
+			return;
+		}
+
+		_floatValueResult = BindingManager.Config.parseContinuousFloatField(_floatValue);
+		setValidationErrors(nameof(floatValue), validationMessages(_floatValueResult));
 	}
 }

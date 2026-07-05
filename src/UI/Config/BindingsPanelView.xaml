@@ -120,9 +120,16 @@
 															</ControlTemplate>
 														</Thumb.Template>
 													</Thumb>
-													<TextBox Grid.Column="1" Margin="8,0,8,0" VerticalAlignment="Center" Text="{Binding name, UpdateSourceTrigger=PropertyChanged}">
+													<TextBox
+														Grid.Column="1"
+														Margin="8,0,8,0"
+														VerticalAlignment="Center"
+														Text="{Binding name, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}">
+														<TextBox.ToolTip>
+															<local:ScalarFieldToolTip helpText="Display name for this binding" />
+														</TextBox.ToolTip>
 														<TextBox.Style>
-															<Style BasedOn="{StaticResource {x:Type TextBox}}" TargetType="TextBox">
+															<Style BasedOn="{StaticResource ConfigTextBoxValidationStyle}" TargetType="TextBox">
 																<Style.Triggers>
 																	<DataTrigger Binding="{Binding isDeleted}" Value="True">
 																		<Setter Property="IsEnabled" Value="False" />
@@ -198,7 +205,7 @@
 															Margin="0,0,8,0"
 															Padding="10,6"
 															Command="{Binding DataContext.softDeleteBindingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-															CommandParameter="{Binding}"
+															CommandParameter="{Binding ValidatesOnNotifyDataErrors=False}"
 															Style="{StaticResource OscBindingSoftDeleteButtonStyle}"
 															ToolTip="Delete">
 															<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE74D;" />
@@ -206,7 +213,7 @@
 														<Button
 															Padding="10,6"
 															Command="{Binding DataContext.restoreBindingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-															CommandParameter="{Binding}"
+															CommandParameter="{Binding ValidatesOnNotifyDataErrors=False}"
 															Style="{StaticResource OscRestoreButtonStyle}"
 													Tag="{x:Static local:ConfigWindow.BindingCardRestoreTag}"
 															ToolTip="Restore">
@@ -249,7 +256,7 @@
 																Style="{DynamicResource AccentButtonStyle}"
 																IsEnabled="{Binding hasX32CatalogMatch}"
 																Command="{Binding DataContext.fillFromX32CatalogCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-																CommandParameter="{Binding}"
+																CommandParameter="{Binding ValidatesOnNotifyDataErrors=False}"
 																ToolTip="{Binding x32CatalogTooltip}">
 																<StackPanel Orientation="Horizontal" VerticalAlignment="Center">
 																	<TextBlock
@@ -265,20 +272,55 @@
 																IsTextSearchEnabled="False"
 																IsSynchronizedWithCurrentItem="False"
 																StaysOpenOnEdit="True"
+																Validation.ErrorTemplate="{StaticResource ConfigSuppressValidationAdornerTemplate}"
 																ItemsSource="{Binding addressSuggestions}"
 																SelectedItem="{Binding selectedAddressSuggestion, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-																Text="{Binding address, UpdateSourceTrigger=PropertyChanged}" />
+																Text="{Binding address, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}"
+																Loaded="oscAddressComboBox_Loaded">
+																<ComboBox.ToolTip>
+																	<local:ScalarFieldToolTip helpText="Concrete OSC address, e.g. /ch/01/mix/fader" />
+																</ComboBox.ToolTip>
+																<ComboBox.Style>
+																	<Style BasedOn="{StaticResource {x:Type ComboBox}}" TargetType="ComboBox">
+																		<Style.Triggers>
+																			<Trigger Property="Validation.HasError" Value="True">
+																				<Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+																			</Trigger>
+																		</Style.Triggers>
+																	</Style>
+																</ComboBox.Style>
+															</ComboBox>
 														</DockPanel>
 														<TextBlock Grid.Row="1" Grid.Column="0" Margin="0,8,8,4" VerticalAlignment="Center" Text="Range min" Visibility="{Binding showsRange, Converter={StaticResource BoolToVisibility}}" />
-														<TextBox Grid.Row="1" Grid.Column="1" Margin="0,8,8,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding rangeMinimum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsRange, Converter={StaticResource BoolToVisibility}}" />
+														<TextBox Grid.Row="1" Grid.Column="1" Margin="0,8,8,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding rangeMinimum, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" Visibility="{Binding showsRange, Converter={StaticResource BoolToVisibility}}">
+															<TextBox.ToolTip>
+																<local:ScalarFieldToolTip helpText="Optional finite decimal range minimum" />
+															</TextBox.ToolTip>
+														</TextBox>
 														<TextBlock Grid.Row="1" Grid.Column="2" Margin="0,8,8,4" VerticalAlignment="Center" Text="Range max" Visibility="{Binding showsRange, Converter={StaticResource BoolToVisibility}}" />
-														<TextBox Grid.Row="1" Grid.Column="3" Margin="0,8,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding rangeMaximum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsRange, Converter={StaticResource BoolToVisibility}}" />
+														<TextBox Grid.Row="1" Grid.Column="3" Margin="0,8,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding rangeMaximum, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" Visibility="{Binding showsRange, Converter={StaticResource BoolToVisibility}}">
+															<TextBox.ToolTip>
+																<local:ScalarFieldToolTip helpText="Optional finite decimal range maximum" />
+															</TextBox.ToolTip>
+														</TextBox>
 														<TextBlock Grid.Row="2" Grid.Column="0" Margin="0,8,8,4" VerticalAlignment="Center" Text="Minimum" Visibility="{Binding showsMinMax, Converter={StaticResource BoolToVisibility}}" />
-														<TextBox Grid.Row="2" Grid.Column="1" Margin="0,8,8,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding minimum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsMinMax, Converter={StaticResource BoolToVisibility}}" />
+														<TextBox Grid.Row="2" Grid.Column="1" Margin="0,8,8,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding minimum, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" Visibility="{Binding showsMinMax, Converter={StaticResource BoolToVisibility}}">
+															<TextBox.ToolTip>
+																<local:ScalarFieldToolTip helpText="Finite decimal minimum" />
+															</TextBox.ToolTip>
+														</TextBox>
 														<TextBlock Grid.Row="2" Grid.Column="2" Margin="0,8,8,4" VerticalAlignment="Center" Text="Maximum" Visibility="{Binding showsMinMax, Converter={StaticResource BoolToVisibility}}" />
-														<TextBox Grid.Row="2" Grid.Column="3" Margin="0,8,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding maximum, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsMinMax, Converter={StaticResource BoolToVisibility}}" />
+														<TextBox Grid.Row="2" Grid.Column="3" Margin="0,8,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding maximum, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" Visibility="{Binding showsMinMax, Converter={StaticResource BoolToVisibility}}">
+															<TextBox.ToolTip>
+																<local:ScalarFieldToolTip helpText="Finite decimal maximum" />
+															</TextBox.ToolTip>
+														</TextBox>
 														<TextBlock Grid.Row="3" Grid.Column="0" Margin="0,8,8,4" VerticalAlignment="Center" Text="Unit" Visibility="{Binding showsUnit, Converter={StaticResource BoolToVisibility}}" />
-														<TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,8,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding unit, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsUnit, Converter={StaticResource BoolToVisibility}}" />
+														<TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,8,0,4" Style="{DynamicResource ConfigTextBoxValidationStyle}" Text="{Binding unit, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" Visibility="{Binding showsUnit, Converter={StaticResource BoolToVisibility}}">
+															<TextBox.ToolTip>
+																<local:ScalarFieldToolTip helpText="Optional display unit" />
+															</TextBox.ToolTip>
+														</TextBox>
 													</Grid>
 													<Border Height="1" Margin="0,10,0,10" Background="{DynamicResource ControlStrokeColorDefaultBrush}" />
 													<DockPanel Margin="0,0,0,8" LastChildFill="True">
@@ -288,7 +330,7 @@
 															Padding="12,6"
 															VerticalAlignment="Center"
 															Command="{Binding DataContext.addHotkeyToBindingCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-															CommandParameter="{Binding}"
+															CommandParameter="{Binding ValidatesOnNotifyDataErrors=False}"
 															Style="{DynamicResource AccentButtonStyle}"
 															ToolTip="Add hotkey">
 															<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE710;" />
@@ -442,7 +484,11 @@
 																							DisplayMemberPath="displayName"
 																							ItemsSource="{Binding choiceList}"
 																							SelectedItem="{Binding selectedChoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-																						<TextBox Width="72" Margin="4,0,4,0" VerticalAlignment="Center" HorizontalAlignment="Left" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding floatValue, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
+																						<TextBox Width="72" Margin="4,0,4,0" VerticalAlignment="Center" HorizontalAlignment="Left" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding floatValue, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}">
+																							<TextBox.ToolTip>
+																								<local:ScalarFieldToolTip helpText="Finite decimal action value" />
+																							</TextBox.ToolTip>
+																						</TextBox>
 																						<TextBlock Margin="0,0,4,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Text="{Binding floatValueLabel}" Visibility="{Binding showsFloatInput, Converter={StaticResource BoolToVisibility}}" />
 																						<CheckBox MinWidth="0" VerticalAlignment="Center" HorizontalAlignment="Left" HorizontalContentAlignment="Left" VerticalContentAlignment="Center" IsChecked="{Binding boolValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding showsBoolInput, Converter={StaticResource BoolToVisibility}}">
 																							<TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Text="On" />
@@ -451,10 +497,10 @@
 																				</Grid>
 																			</Border>
 																			<StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
-																				<Button Margin="0,0,8,0" Padding="10,6" Command="{Binding DataContext.restoreHotkeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{DynamicResource OscRestoreButtonStyle}" ToolTip="Restore">
+																				<Button Margin="0,0,8,0" Padding="10,6" Command="{Binding DataContext.restoreHotkeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding ValidatesOnNotifyDataErrors=False}" Style="{DynamicResource OscRestoreButtonStyle}" ToolTip="Restore">
 																					<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE7A7;" />
 																				</Button>
-																				<Button Margin="0" Padding="10,6" Command="{Binding DataContext.softDeleteHotkeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{DynamicResource OscSoftDeleteButtonStyle}" ToolTip="Delete">
+																				<Button Margin="0" Padding="10,6" Command="{Binding DataContext.softDeleteHotkeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding ValidatesOnNotifyDataErrors=False}" Style="{DynamicResource OscSoftDeleteButtonStyle}" ToolTip="Delete">
 																					<TextBlock FontFamily="{DynamicResource SymbolThemeFontFamily}" Text="&#xE74D;" />
 																				</Button>
 																			</StackPanel>
@@ -477,7 +523,7 @@
 																	<DataTrigger Value="True">
 																		<DataTrigger.Binding>
 																			<MultiBinding Converter="{StaticResource DragActivePlaceholderMultiConverter}">
-																				<Binding />
+																				<Binding ValidatesOnNotifyDataErrors="False" />
 																				<Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="DataContext.dragItem" />
 																				<Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="DataContext.isDragInProgress" />
 																				<Binding RelativeSource="{RelativeSource AncestorType=ListBox}" />
@@ -513,7 +559,7 @@
 									<DataTrigger Value="True">
 										<DataTrigger.Binding>
 											<MultiBinding Converter="{StaticResource DragActivePlaceholderMultiConverter}">
-												<Binding />
+												<Binding ValidatesOnNotifyDataErrors="False" />
 												<Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="DataContext.dragItem" />
 												<Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="DataContext.isDragInProgress" />
 												<Binding RelativeSource="{RelativeSource AncestorType=ListBox}" />

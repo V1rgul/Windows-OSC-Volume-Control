@@ -1,4 +1,5 @@
-using System.Globalization;
+using Result;
+using WindowsOscVolumeControl.Diagnostics;
 using WindowsOscVolumeControl.Input;
 using WindowsOscVolumeControl.UI.Osd;
 
@@ -19,22 +20,24 @@ static class SettingsFormDraft {
 			if (editor.isDeleted || isBindingBlank(editor))
 				continue;
 
-			if (string.IsNullOrWhiteSpace(editor.name) || string.IsNullOrWhiteSpace(editor.address))
-				return (false, null, new UiTextFeedback($"Binding {i + 1} requires name and OSC address.", UiTextFeedbackKind.ERROR));
+			if (!tryParseRequiredText(editor.name, i + 1, out string name, out UiTextFeedback? nameError))
+				return (false, null, nameError);
+			if (!tryParseOscAddress(editor.address, i + 1, out string address, out UiTextFeedback? addressError))
+				return (false, null, addressError);
 
 			switch (editor.type) {
 				case BindingEditorType.LINEAR:
-					if (!tryParseFloatWithDigits(editor.minimum, "Minimum", out float min, out int minDig, out string? emin))
+					if (!tryParseFloatWithDigits(editor.minimum, out float min, out int minDig, out string? emin))
 						return (false, null, feedback(emin));
-					if (!tryParseFloatWithDigits(editor.maximum, "Maximum", out float max, out int maxDig, out string? emax))
+					if (!tryParseFloatWithDigits(editor.maximum, out float max, out int maxDig, out string? emax))
 						return (false, null, feedback(emax));
 					if (min > max)
 						return (false, null, new UiTextFeedback($"Binding {i + 1}: minimum must be less than or equal to maximum.", UiTextFeedbackKind.ERROR));
 					min = ContinuousFloatUtil.RoundToBindingDecimals(min);
 					max = ContinuousFloatUtil.RoundToBindingDecimals(max);
 					var linear = new BindingLinear {
-						name = editor.name.Trim(),
-						address = editor.address.Trim(),
+						name = name,
+						address = address,
 						minimum = min,
 						maximum = max,
 						minimumFractionalDigits = minDig,
@@ -46,9 +49,9 @@ static class SettingsFormDraft {
 					built.Add(linear);
 					break;
 				case BindingEditorType.LINF:
-					if (!tryParseFloatWithDigits(editor.minimum, "Minimum", out float lmin, out int lminDig, out string? elmin))
+					if (!tryParseFloatWithDigits(editor.minimum, out float lmin, out int lminDig, out string? elmin))
 						return (false, null, feedback(elmin));
-					if (!tryParseFloatWithDigits(editor.maximum, "Maximum", out float lmax, out int lmaxDig, out string? elmax))
+					if (!tryParseFloatWithDigits(editor.maximum, out float lmax, out int lmaxDig, out string? elmax))
 						return (false, null, feedback(elmax));
 					if (lmin > lmax)
 						return (false, null, new UiTextFeedback($"Binding {i + 1}: minimum must be less than or equal to maximum.", UiTextFeedbackKind.ERROR));
@@ -57,8 +60,8 @@ static class SettingsFormDraft {
 					if (lrMin > lrMax)
 						return (false, null, new UiTextFeedback($"Binding {i + 1}: range min must be less than or equal to range max.", UiTextFeedbackKind.ERROR));
 					var linf = new BindingLinf {
-						name = editor.name.Trim(),
-						address = editor.address.Trim(),
+						name = name,
+						address = address,
 						minimum = ContinuousFloatUtil.RoundToBindingDecimals(lmin),
 						maximum = ContinuousFloatUtil.RoundToBindingDecimals(lmax),
 						rangeMinimum = ContinuousFloatUtil.RoundToBindingDecimals(lrMin),
@@ -72,9 +75,9 @@ static class SettingsFormDraft {
 					built.Add(linf);
 					break;
 				case BindingEditorType.LOGF:
-					if (!tryParseFloatWithDigits(editor.minimum, "Minimum", out float gmin, out int gminDig, out string? egmin))
+					if (!tryParseFloatWithDigits(editor.minimum, out float gmin, out int gminDig, out string? egmin))
 						return (false, null, feedback(egmin));
-					if (!tryParseFloatWithDigits(editor.maximum, "Maximum", out float gmax, out int gmaxDig, out string? egmax))
+					if (!tryParseFloatWithDigits(editor.maximum, out float gmax, out int gmaxDig, out string? egmax))
 						return (false, null, feedback(egmax));
 					if (gmin > gmax || gmin <= 0f || gmax <= 0f)
 						return (false, null, new UiTextFeedback($"Binding {i + 1}: logf requires positive minimum and maximum.", UiTextFeedbackKind.ERROR));
@@ -83,8 +86,8 @@ static class SettingsFormDraft {
 					if (grMin > grMax || grMin <= 0f || grMax <= 0f)
 						return (false, null, new UiTextFeedback($"Binding {i + 1}: logf range requires positive range min and range max.", UiTextFeedbackKind.ERROR));
 					var logf = new BindingLogf {
-						name = editor.name.Trim(),
-						address = editor.address.Trim(),
+						name = name,
+						address = address,
 						minimum = ContinuousFloatUtil.RoundToBindingDecimals(gmin),
 						maximum = ContinuousFloatUtil.RoundToBindingDecimals(gmax),
 						rangeMinimum = ContinuousFloatUtil.RoundToBindingDecimals(grMin),
@@ -98,15 +101,15 @@ static class SettingsFormDraft {
 					built.Add(logf);
 					break;
 				case BindingEditorType.LEVEL:
-					if (!tryParseFloatWithDigits(editor.minimum, "Minimum", out float lvmin, out int lvminDig, out string? elvmin))
+					if (!tryParseFloatWithDigits(editor.minimum, out float lvmin, out int lvminDig, out string? elvmin))
 						return (false, null, feedback(elvmin));
-					if (!tryParseFloatWithDigits(editor.maximum, "Maximum", out float lvmax, out int lvmaxDig, out string? elvmax))
+					if (!tryParseFloatWithDigits(editor.maximum, out float lvmax, out int lvmaxDig, out string? elvmax))
 						return (false, null, feedback(elvmax));
 					if (lvmin > lvmax)
 						return (false, null, new UiTextFeedback($"Binding {i + 1}: minimum must be less than or equal to maximum.", UiTextFeedbackKind.ERROR));
 					var level = new BindingLevel {
-						name = editor.name.Trim(),
-						address = editor.address.Trim(),
+						name = name,
+						address = address,
 						minimum = ContinuousFloatUtil.RoundToBindingDecimals(lvmin),
 						maximum = ContinuousFloatUtil.RoundToBindingDecimals(lvmax),
 						minimumFractionalDigits = lvminDig,
@@ -118,8 +121,8 @@ static class SettingsFormDraft {
 					break;
 				case BindingEditorType.TOGGLE: {
 					var toggle = new BindingToggle {
-						name = editor.name.Trim(),
-						address = editor.address.Trim(),
+						name = name,
+						address = address,
 					};
 					if (!appendActions(editor, i, toggle.actions, out UiTextFeedback? hkErr5))
 						return (false, null, hkErr5);
@@ -175,18 +178,49 @@ static class SettingsFormDraft {
 	static UiTextFeedback feedback(string? message) =>
 		new(message ?? "Invalid configuration.", UiTextFeedbackKind.ERROR);
 
-	static bool tryParseFloatWithDigits(string text, string label, out float value, out int fractionalDigits, out string? error) {
+	static bool tryParseRequiredText(string text, int bindingNumberOneBased, out string value, out UiTextFeedback? error) {
+		Result<string> result = BindingManager.Config.parseBindingNameField(text);
+		if (result.isSuccess) {
+			value = result.value;
+			error = null;
+			return true;
+		}
+		value = "";
+		error = new UiTextFeedback($"Binding {bindingNumberOneBased}: {firstParsingMessage(result)}", UiTextFeedbackKind.ERROR);
+		return false;
+	}
+
+	static bool tryParseOscAddress(string text, int bindingNumberOneBased, out string value, out UiTextFeedback? error) {
+		Result<string> result = BindingManager.Config.parseOscAddressField(text);
+		if (result.isSuccess) {
+			value = result.value;
+			error = null;
+			return true;
+		}
+		value = "";
+		error = new UiTextFeedback($"Binding {bindingNumberOneBased}: {firstParsingMessage(result)}", UiTextFeedbackKind.ERROR);
+		return false;
+	}
+
+	static bool tryParseFloatWithDigits(string text, out float value, out int fractionalDigits, out string? error) {
 		value = 0;
 		fractionalDigits = 0;
 		error = null;
-		if (!float.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed) || !float.IsFinite(parsed)) {
-			error = $"{label} must be a finite number.";
+		Result<BindingManager.Config.FloatFieldValue> result = BindingManager.Config.parseContinuousFloatField(text);
+		if (result.isError) {
+			error = firstParsingMessage(result);
 			return false;
 		}
-		value = parsed;
-		fractionalDigits = ContinuousFloatUtil.fractionalDigitsOfTypedString(text);
+		value = result.value.value;
+		fractionalDigits = result.value.fractionalDigits;
 		return true;
 	}
+
+	static string firstParsingMessage(IResult result) =>
+		result.errors.Length > 0 ? parsingMessage(result.errors[0]) : "Invalid value.";
+
+	static string parsingMessage(global::Result.Result.Error error) =>
+		error is ResultErrorWithMsg withMsg ? withMsg.message : "Invalid value.";
 
 	/// <summary>Both range fields blank → use limit; otherwise both must be valid numbers.</summary>
 	static bool tryParseOptionalRange(
@@ -210,9 +244,9 @@ static class SettingsFormDraft {
 			error = $"Binding {bindingNumberOneBased}: {kindLabel} requires both range min and range max, or leave both empty to match minimum/maximum.";
 			return false;
 		}
-		if (!tryParseFloatWithDigits(rangeMinText, "Range min", out rangeMin, out _, out error))
+		if (!tryParseFloatWithDigits(rangeMinText, out rangeMin, out _, out error))
 			return false;
-		if (!tryParseFloatWithDigits(rangeMaxText, "Range max", out rangeMax, out _, out error))
+		if (!tryParseFloatWithDigits(rangeMaxText, out rangeMax, out _, out error))
 			return false;
 		return true;
 	}

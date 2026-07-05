@@ -13,10 +13,12 @@ using WindowsOscVolumeControl.UI.Wpf.Behaviors;
 using Button = System.Windows.Controls.Button;
 using Border = System.Windows.Controls.Border;
 using ContentPresenter = System.Windows.Controls.ContentPresenter;
+using ComboBox = System.Windows.Controls.ComboBox;
 using Expander = System.Windows.Controls.Expander;
 using FrameworkElement = System.Windows.FrameworkElement;
 using ItemsControl = System.Windows.Controls.ItemsControl;
 using ListBox = System.Windows.Controls.ListBox;
+using TextBox = System.Windows.Controls.TextBox;
 using Thumb = System.Windows.Controls.Primitives.Thumb;
 using ToggleButton = System.Windows.Controls.Primitives.ToggleButton;
 using Brush = System.Windows.Media.Brush;
@@ -177,6 +179,22 @@ public partial class BindingsPanelView {
 		if (isUnderBindingCardRestore(e.OriginalSource as DependencyObject))
 			return;
 		e.Handled = true;
+	}
+
+	static void bindEditableComboBoxTextForeground(ComboBox combo) {
+		combo.ApplyTemplate();
+		if (combo.Template?.FindName("PART_EditableTextBox", combo) is not TextBox textBox)
+			return;
+		BindingOperations.SetBinding(textBox, TextBox.ForegroundProperty, new System.Windows.Data.Binding(nameof(ComboBox.Foreground)) {
+			Source = combo,
+			Mode = BindingMode.OneWay,
+		});
+	}
+
+	void oscAddressComboBox_Loaded(object sender, RoutedEventArgs e) {
+		if (sender is not ComboBox combo)
+			return;
+		combo.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => bindEditableComboBoxTextForeground(combo)));
 	}
 
 	void bindingCard_Expander_PreviewKeyDown(object sender, KeyEventArgs e) {

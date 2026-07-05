@@ -1,5 +1,8 @@
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
+using Result;
+using WindowsOscVolumeControl.Diagnostics;
+using WindowsOscVolumeControl.Config;
 
 namespace WindowsOscVolumeControl.Binding;
 
@@ -24,6 +27,10 @@ public sealed class BindingManager {
 
 	/// <summary>OSC bindings; persisted via <see cref="ConfigStore"/>.</summary>
 	public sealed class Config {
+		static readonly char[] _oscNameForbiddenChars = [' ', '#', '*', ',', '?', '[', ']', '{', '}'];
+
+		public readonly record struct FloatFieldValue(float value, int fractionalDigits);
+
 		public Config() { }
 
 		public Config(Config from) {
@@ -59,6 +66,45 @@ public sealed class BindingManager {
 		};
 
 		public List<BindingAbstract> bindings { get; set; } = [createDefaultLinearBinding(), createDefaultToggleBinding()];
+
+		public static Result<string> parseBindingNameField(string? text) {
+			return ConfigParseUtil.parseRequiredText(text);
+		}
+
+		public static Result<string> parseOscAddressField(string? text) {
+			string address = (text ?? "").Trim();
+			if (address.Length == 0)
+				return new ResultError.Generic.Parsing { message = "OSC address is required." };
+			if (!address.StartsWith('/'))
+				return new ResultError.Generic.Parsing { message = "OSC address must start with '/'." };
+			if (address.Length == 1)
+				return new ResultError.Generic.Parsing { message = "OSC address must include at least one path part after '/'." };
+			if (address.EndsWith('/'))
+				return new ResultError.Generic.Parsing { message = "OSC address must not end with '/'." };
+			if (address.Contains("//", StringComparison.Ordinal))
+				return new ResultError.Generic.Parsing { message = "OSC address must not contain empty path parts." };
+
+			foreach (char c in address) {
+				if (c == '/')
+					continue;
+				if (c < 0x21 || c > 0x7e)
+					return new ResultError.Generic.Parsing { message = "OSC address parts must use printable ASCII characters." };
+				if (_oscNameForbiddenChars.Contains(c))
+					return new ResultError.Generic.Parsing { message = "OSC address parts must not contain space, #, *, comma, ?, [], or {}." };
+			}
+			return address;
+		}
+
+		public static Result<string?> parseUnitField(string? text) {
+			return ConfigParseUtil.parseOptionalText(text);
+		}
+
+		public static Result<FloatFieldValue> parseContinuousFloatField(string? text) {
+			Result<ConfigFloatParseValue> parsed = ConfigParseUtil.parseFiniteFloatWithDigits(text);
+			if (parsed.isError)
+				return parsed.errors;
+			return new FloatFieldValue(parsed.value.value, parsed.value.fractionalDigits);
+		}
 	}
 
 	/// <summary>One hotkey’s target binding and action.</summary>
