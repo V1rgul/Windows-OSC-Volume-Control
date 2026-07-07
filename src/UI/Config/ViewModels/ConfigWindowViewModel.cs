@@ -240,8 +240,6 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 
 		softDeleteHotkeyCommand = new RelayCommand<ControlActionEditor>(softDeleteHotkey);
 		restoreHotkeyCommand = new RelayCommand<ControlActionEditor>(restoreHotkey);
-
-		loadFromConfigStore();
 	}
 
 	public void setConfiguredHotkeysEnabled(bool enabled) => _appCoordinator.setConfiguredHotkeysEnabled(enabled);
