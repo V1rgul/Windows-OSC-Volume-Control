@@ -76,4 +76,43 @@ public class SettingsFormDraftScalarTests {
 		Assert.Equal(80, config.osd.heightDip);
 		Assert.Equal(450u, config.keyboardHook.longPressDurationMs);
 	}
+
+	[Fact]
+	public void tryBuild_materializedBinding_buildsFromCachedParseResults() {
+		var editor = new BindingEditor {
+			name = "Gain",
+			address = "/gain",
+			minimum = "0",
+			maximum = "1",
+		};
+		ControlActionEditor action = editor.createActionEditor();
+		action.hotkey = HotkeyUtil.normalize(new HotkeyGesture { keyCode = 0x70, modifiers = HotkeyModifiers.NONE });
+		action.floatValue = "0.1";
+		editor.actions.Add(action);
+
+		Assert.False(editor.HasErrors);
+		Assert.False(action.HasErrors);
+
+		var scalars = new SettingsScalarsMaterialized(
+			new IPEndPoint(IPAddress.Loopback, 10023),
+			200,
+			1000,
+			80,
+			1000,
+			450);
+		(bool ok, AppConfig? config, UiTextFeedback? error) = SettingsFormDraft.tryBuild(
+			scalars,
+			OSDController.Config.OsdScreenAnchor.BOTTOM_CENTER,
+			true,
+			false,
+			true,
+			[editor]);
+		Assert.True(ok);
+		Assert.Null(error);
+		Assert.NotNull(config);
+		BindingLinear linear = Assert.IsType<BindingLinear>(Assert.Single(config!.trayApp.bindings));
+		Assert.Equal("Gain", linear.name);
+		Assert.Equal("/gain", linear.address);
+		Assert.Equal(0.1f, Assert.IsType<ControlActionContinuousDelta>(linear.actions[0]).delta);
+	}
 }

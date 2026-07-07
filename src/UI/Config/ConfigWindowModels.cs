@@ -2,7 +2,6 @@ using System.Collections;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows.Data;
 using JetBrains.Annotations;
@@ -500,6 +499,119 @@ public sealed class BindingEditor : ObservableValidationObject {
 		return he;
 	}
 
+	public bool isBlank =>
+		string.IsNullOrWhiteSpace(_name)
+		&& string.IsNullOrWhiteSpace(_address)
+		&& string.IsNullOrWhiteSpace(_minimum)
+		&& string.IsNullOrWhiteSpace(_maximum)
+		&& string.IsNullOrWhiteSpace(_rangeMinimum)
+		&& string.IsNullOrWhiteSpace(_rangeMaximum)
+		&& string.IsNullOrWhiteSpace(_unit)
+		&& actions.Count == 0;
+
+	public bool tryBuildMaterialized([NotNullWhen(true)] out BindingAbstract? binding, out string? error) {
+		binding = null;
+		error = null;
+		if (_isDeleted || isBlank) {
+			error = "Binding is empty.";
+			return false;
+		}
+		if (!_nameResult.isSuccess || !_addressResult.isSuccess) {
+			error = "Binding has invalid name or address.";
+			return false;
+		}
+
+		BindingAbstract? shell = _type switch {
+			BindingEditorType.LINEAR => new BindingLinear(),
+			BindingEditorType.LINF => new BindingLinf(),
+			BindingEditorType.LOGF => new BindingLogf(),
+			BindingEditorType.LEVEL => new BindingLevel(),
+			BindingEditorType.TOGGLE => new BindingToggle(),
+			_ => null,
+		};
+		if (shell == null) {
+			error = "Unknown binding type.";
+			return false;
+		}
+
+		shell.name = _nameResult.value;
+		shell.address = _addressResult.value;
+
+		if (shell is BindingFloatAbstract f) {
+			if (!applyMaterializedMinMax(f, out error))
+				return false;
+			f.unit = materializedUnit();
+		}
+		if (shell is BindingFloatNormalizedAbstract n && showsRange && !applyMaterializedRange(n, out error))
+			return false;
+		if (!appendMaterializedActions(shell.actions, out error))
+			return false;
+		binding = shell;
+		return true;
+	}
+
+	string? materializedUnit() {
+		if (!showsUnit)
+			return null;
+		return _unitResult.match(static v => v, static _ => null);
+	}
+
+	bool applyMaterializedMinMax(BindingFloatAbstract target, out string? error) {
+		error = null;
+		if (!_minimumResult.isSuccess || !_maximumResult.isSuccess) {
+			error = "Binding has invalid minimum or maximum.";
+			return false;
+		}
+		target.minimum = ContinuousFloatUtil.RoundToBindingDecimals(_minimumResult.value.value);
+		target.maximum = ContinuousFloatUtil.RoundToBindingDecimals(_maximumResult.value.value);
+		target.minimumFractionalDigits = _minimumResult.value.fractionalDigits;
+		target.maximumFractionalDigits = _maximumResult.value.fractionalDigits;
+		return true;
+	}
+
+	bool applyMaterializedRange(BindingFloatNormalizedAbstract target, out string? error) {
+		if (!tryResolveMaterializedRange(out float rangeMin, out float rangeMax, out error))
+			return false;
+		target.rangeMinimum = ContinuousFloatUtil.RoundToBindingDecimals(rangeMin);
+		target.rangeMaximum = ContinuousFloatUtil.RoundToBindingDecimals(rangeMax);
+		return true;
+	}
+
+	bool tryResolveMaterializedRange(out float rangeMin, out float rangeMax, out string? error) {
+		rangeMin = 0;
+		rangeMax = 0;
+		error = null;
+		bool rangeMinBlank = string.IsNullOrWhiteSpace(_rangeMinimum);
+		bool rangeMaxBlank = string.IsNullOrWhiteSpace(_rangeMaximum);
+		if (rangeMinBlank && rangeMaxBlank) {
+			rangeMin = _minimumResult.value.value;
+			rangeMax = _maximumResult.value.value;
+			return true;
+		}
+		if (!_rangeMinimumResult.isSuccess || !_rangeMaximumResult.isSuccess) {
+			error = "Binding has invalid range min or range max.";
+			return false;
+		}
+		rangeMin = _rangeMinimumResult.value.value;
+		rangeMax = _rangeMaximumResult.value.value;
+		return true;
+	}
+
+	bool appendMaterializedActions(List<ControlAction> target, out string? error) {
+		for (int h = 0; h < actions.Count; h++) {
+			ControlActionEditor hk = actions[h];
+			if (hk.isDeleted || hk.isBlank)
+				continue;
+			if (!hk.tryBuildMaterialized(out ControlAction? action, out string? hkErr)) {
+				error = $"hotkey {h + 1}: {hkErr}";
+				return false;
+			}
+			target.Add(action);
+		}
+		error = null;
+		return true;
+	}
+
 	void recomputeValidation() {
 		if (_isDeleted) {
 			clearValidationErrors();
@@ -736,6 +848,7 @@ public sealed class ControlActionEditor : ObservableValidationObject {
 			if (setProperty(ref _hotkey, HotkeyUtil.normalize(value))) {
 				raisePropertyChanged(nameof(hotkeyText));
 				raisePropertyChanged(nameof(isHotkeyIdlePlaceholder));
+				recomputeValidation();
 			}
 		}
 	}
@@ -811,8 +924,15 @@ public sealed class ControlActionEditor : ObservableValidationObject {
 
 	public bool showsBoolInput => valueKindForActionType(selectedActionType) == ControlActionValueKind.BOOL;
 
+	public bool isBlank => hotkey.isNone;
+
 	public IEnumerable<ValidationFieldDescriptor> footerValidationFields {
 		get {
+			if (_isDeleted || isBlank)
+				yield break;
+			yield return new(nameof(hotkey), "Hotkey");
+			if (owner != null && !isCompatibleWithBindingType(owner.type))
+				yield return new(nameof(selectedActionType), "Action");
 			if (showsFloatInput)
 				yield return new(nameof(floatValue), "Value");
 		}
@@ -880,78 +1000,74 @@ public sealed class ControlActionEditor : ObservableValidationObject {
 		return ed;
 	}
 
-	public bool tryBuildModel(BindingEditorType bindingType, [NotNullWhen(true)] out ControlAction? action, out string? error) {
+	public bool tryBuildMaterialized([NotNullWhen(true)] out ControlAction? action, out string? error) {
 		action = null;
 		error = null;
-		if (!isCompatibleWithBindingType(bindingType)) {
-			error = "Action type does not match binding type.";
-			return false;
-		}
-		if (hotkey.isNone) {
-			error = "Hotkey is required.";
-			return false;
-		}
-		if (!HotkeyUtil.tryValidate(hotkey, out UiTextFeedback hkFb)) {
-			error = hkFb.text;
+		if (HasErrors) {
+			error = "Hotkey row is invalid.";
 			return false;
 		}
 
-		string floatText = floatValue.Trim();
-		int frac = ContinuousFloatUtil.fractionalDigitsOfTypedString(floatText);
-
-		switch (Activator.CreateInstance(selectedActionType)) {
-			case ControlActionContinuousSet fs:
-				if (!float.TryParse(floatText, NumberStyles.Float, CultureInfo.InvariantCulture, out float v) || !float.IsFinite(v)) {
-					error = "Set value must be a finite number.";
-					return false;
-				}
-				fs.value = ContinuousFloatUtil.RoundToBindingDecimals(v);
-				fs.fractionalDigits = frac;
-				fs.hotkey = HotkeyUtil.normalize(hotkey);
-				fs.longPress = longPress;
-				action = fs;
-				return true;
-			case ControlActionContinuousDelta fd:
-				if (!float.TryParse(floatText, NumberStyles.Float, CultureInfo.InvariantCulture, out float d) || !float.IsFinite(d)) {
-					error = "Delta must be a finite number.";
-					return false;
-				}
-				fd.delta = ContinuousFloatUtil.RoundToBindingDecimals(d);
-				fd.fractionalDigits = frac;
-				fd.hotkey = HotkeyUtil.normalize(hotkey);
-				fd.longPress = longPress;
-				action = fd;
-				return true;
-			case ControlActionContinuousRawDelta fr:
-				if (!float.TryParse(floatText, NumberStyles.Float, CultureInfo.InvariantCulture, out float r) || !float.IsFinite(r)) {
-					error = "Raw delta must be a finite number.";
-					return false;
-				}
-				fr.delta = ContinuousFloatUtil.RoundToBindingDecimals(r);
-				fr.fractionalDigits = frac;
-				fr.hotkey = HotkeyUtil.normalize(hotkey);
-				fr.longPress = longPress;
-				action = fr;
-				return true;
+		ControlAction built = (ControlAction)Activator.CreateInstance(selectedActionType)!;
+		switch (built) {
+			case ControlActionContinuousAbstract ca when showsFloatInput:
+				applyMaterializedContinuousFloat(ca);
+				break;
 			case ControlActionToggleSet ts:
 				ts.on = boolValue;
-				ts.hotkey = HotkeyUtil.normalize(hotkey);
-				ts.longPress = longPress;
-				action = ts;
-				return true;
-			case ControlActionToggleFlip tf:
-				tf.hotkey = HotkeyUtil.normalize(hotkey);
-				tf.longPress = longPress;
-				action = tf;
-				return true;
+				break;
+			case ControlActionToggleFlip:
+				break;
 			default:
 				error = "Unknown action type.";
 				return false;
 		}
+		built.hotkey = HotkeyUtil.normalize(hotkey);
+		built.longPress = longPress;
+		action = built;
+		return true;
+	}
+
+	void applyMaterializedContinuousFloat(ControlActionContinuousAbstract target) {
+		float rounded = ContinuousFloatUtil.RoundToBindingDecimals(_floatValueResult.value.value);
+		int frac = _floatValueResult.value.fractionalDigits;
+		switch (target) {
+			case ControlActionContinuousSet s:
+				s.value = rounded;
+				s.fractionalDigits = frac;
+				break;
+			case ControlActionContinuousDelta d:
+				d.delta = rounded;
+				d.fractionalDigits = frac;
+				break;
+			case ControlActionContinuousRawDelta r:
+				r.delta = rounded;
+				r.fractionalDigits = frac;
+				break;
+		}
 	}
 
 	void recomputeValidation() {
-		if (_isDeleted || !showsFloatInput) {
+		if (_isDeleted) {
+			clearValidationErrors();
+			return;
+		}
+
+		if (hotkey.isNone) {
+			setValidationErrors(nameof(hotkey), []);
+			setValidationErrors(nameof(selectedActionType), []);
+		} else {
+			if (!HotkeyUtil.tryValidate(hotkey, out UiTextFeedback hkFb))
+				setValidationErrors(nameof(hotkey), [hkFb.text]);
+			else
+				setValidationErrors(nameof(hotkey), []);
+			if (owner == null || isCompatibleWithBindingType(owner.type))
+				setValidationErrors(nameof(selectedActionType), []);
+			else
+				setValidationErrors(nameof(selectedActionType), ["Action type does not match binding type."]);
+		}
+
+		if (!showsFloatInput) {
 			setValidationErrors(nameof(floatValue), []);
 			return;
 		}

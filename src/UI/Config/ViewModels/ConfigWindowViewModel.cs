@@ -204,7 +204,7 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 		var lines = new List<string>();
 		for (int i = 0; i < bindings.Count; i++) {
 			BindingEditor binding = bindings[i];
-			if (binding.isDeleted || isBindingBlank(binding))
+			if (binding.isDeleted || binding.isBlank)
 				continue;
 			foreach (ValidationFieldDescriptor field in binding.footerValidationFields)
 				appendBindingFieldErrors(lines, i + 1, binding, field);
@@ -541,16 +541,6 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 
 	static IEnumerable<string> validationErrorsFor(INotifyDataErrorInfo source, string propertyName) =>
 		source.GetErrors(propertyName).Cast<string>();
-
-	static bool isBindingBlank(BindingEditor editor) =>
-		string.IsNullOrWhiteSpace(editor.name)
-		&& string.IsNullOrWhiteSpace(editor.address)
-		&& string.IsNullOrWhiteSpace(editor.minimum)
-		&& string.IsNullOrWhiteSpace(editor.maximum)
-		&& string.IsNullOrWhiteSpace(editor.rangeMinimum)
-		&& string.IsNullOrWhiteSpace(editor.rangeMaximum)
-		&& string.IsNullOrWhiteSpace(editor.unit)
-		&& editor.actions.Count == 0;
 
 	IEnumerable<string> errorMessagesForProperty(string propertyName) => propertyName switch {
 		nameof(oscIpText) => _oscIpResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
