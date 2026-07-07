@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Windows.Controls;
 using Result;
 using WindowsOscVolumeControl.Diagnostics;
@@ -89,73 +90,38 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 
 	public string oscIpText {
 		get => _oscIpText;
-		set {
-			if (!setTextProperty(ref _oscIpText, value))
-				return;
-			if (!_loadingScalars)
-				parseScalarField(nameof(oscIpText));
-		}
+		set => setScalarTextProperty(ref _oscIpText, value, ref _oscIpResult, OscTransport.Config.parseIpField);
 	}
 
 	public string oscPortText {
 		get => _oscPortText;
-		set {
-			if (!setTextProperty(ref _oscPortText, value))
-				return;
-			if (!_loadingScalars)
-				parseScalarField(nameof(oscPortText));
-		}
+		set => setScalarTextProperty(ref _oscPortText, value, ref _oscPortResult, OscTransport.Config.parsePortField);
 	}
 
 	public string queryTimeoutText {
 		get => _queryTimeoutText;
-		set {
-			if (!setTextProperty(ref _queryTimeoutText, value))
-				return;
-			if (!_loadingScalars)
-				parseScalarField(nameof(queryTimeoutText));
-		}
+		set => setScalarTextProperty(ref _queryTimeoutText, value, ref _queryTimeoutResult, MixerController.Config.parseTimeoutMs);
 	}
 
 	public string valueCacheTtlText {
 		get => _valueCacheTtlText;
-		set {
-			if (!setTextProperty(ref _valueCacheTtlText, value))
-				return;
-			if (!_loadingScalars)
-				parseScalarField(nameof(valueCacheTtlText));
-		}
+		set => setScalarTextProperty(ref _valueCacheTtlText, value, ref _valueCacheTtlResult, MixerController.Config.parseValueCacheTtlMs);
 	}
 
 	public string osdHeightText {
 		get => _osdHeightText;
-		set {
-			if (!setTextProperty(ref _osdHeightText, value))
-				return;
-			if (!_loadingScalars)
-				parseScalarField(nameof(osdHeightText));
-		}
+		set => setScalarTextProperty(ref _osdHeightText, value, ref _osdHeightResult, OSDController.Config.parseHeightDip);
 	}
 
 	public string osdDurationText {
 		get => _osdDurationText;
-		set {
-			if (!setTextProperty(ref _osdDurationText, value))
-				return;
-			if (!_loadingScalars)
-				parseScalarField(nameof(osdDurationText));
-		}
+		set => setScalarTextProperty(ref _osdDurationText, value, ref _osdDurationResult, OSDController.Config.parseDisplayDurationMs);
 	}
 	public OSDController.Config.OsdScreenAnchor osdPosition { get => _osdPosition; set => setProperty(ref _osdPosition, value); }
 
 	public string hotkeyLongPressMsText {
 		get => _hotkeyLongPressMsText;
-		set {
-			if (!setTextProperty(ref _hotkeyLongPressMsText, value))
-				return;
-			if (!_loadingScalars)
-				parseScalarField(nameof(hotkeyLongPressMsText));
-		}
+		set => setScalarTextProperty(ref _hotkeyLongPressMsText, value, ref _hotkeyLongPressMsResult, KeyboardHook.Config.parseLongPressMs);
 	}
 	public bool hotkeyOptimizeNonLongPress { get => _hotkeyOptimizeNonLongPress; set => setProperty(ref _hotkeyOptimizeNonLongPress, value); }
 	public bool hotkeySuppressLongPressOnly { get => _hotkeySuppressLongPressOnly; set => setProperty(ref _hotkeySuppressLongPressOnly, value); }
@@ -310,9 +276,9 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 			_loadingScalars = false;
 		}
 
-		foreach (string propertyName in ScalarPropertyNames.all)
-			parseScalarField(propertyName, recomputeAggregate: false);
+		materializeScalarResultsFromConfig(cfg);
 		recomputeScalarsResult();
+		notifyScalarValidationChanged();
 
 		configPathText = _configStore.configPathForUi;
 		traceLogPathText = AppTrace.traceLogFilePathForUi;
@@ -490,39 +456,41 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 		return LatencyPanelUiStatus.CRITICAL;
 	}
 
-	void parseScalarField(string propertyName, bool recomputeAggregate = true) {
-		switch (propertyName) {
-			case nameof(oscIpText):
-				_oscIpResult = OscTransport.Config.parseIpField(_oscIpText);
-				break;
-			case nameof(oscPortText):
-				_oscPortResult = OscTransport.Config.parsePortField(_oscPortText);
-				break;
-			case nameof(queryTimeoutText):
-				_queryTimeoutResult = MixerController.Config.parseTimeoutMs(_queryTimeoutText);
-				break;
-			case nameof(valueCacheTtlText):
-				_valueCacheTtlResult = MixerController.Config.parseValueCacheTtlMs(_valueCacheTtlText);
-				break;
-			case nameof(osdHeightText):
-				_osdHeightResult = OSDController.Config.parseHeightDip(_osdHeightText);
-				break;
-			case nameof(osdDurationText):
-				_osdDurationResult = OSDController.Config.parseDisplayDurationMs(_osdDurationText);
-				break;
-			case nameof(hotkeyLongPressMsText):
-				_hotkeyLongPressMsResult = KeyboardHook.Config.parseLongPressMs(_hotkeyLongPressMsText);
-				break;
-			default:
-				return;
-		}
+	void materializeScalarResultsFromConfig(AppConfig cfg) {
+		_oscIpResult = cfg.oscTransport.endPoint.Address;
+		_oscPortResult = cfg.oscTransport.endPoint.Port;
+		_queryTimeoutResult = cfg.mixer.timeoutMs;
+		_valueCacheTtlResult = cfg.mixer.ValueCacheTtlMs;
+		_osdHeightResult = cfg.osd.heightDip;
+		_osdDurationResult = cfg.osd.DisplayDurationMs;
+		_hotkeyLongPressMsResult = cfg.keyboardHook.longPressDurationMs;
+	}
 
+	void notifyScalarValidationChanged() {
+		foreach (string propertyName in ScalarPropertyNames.all)
+			ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(propertyName));
+		raisePropertyChanged(nameof(hotkeyLongPressMsResult));
+	}
+
+	void setScalarTextProperty<T>(
+		ref string field,
+		string? value,
+		ref Result<T> result,
+		Func<string?, Result<T>> parse,
+		[CallerMemberName] string propertyName = "") {
+		if (!setTextProperty(ref field, value, propertyName))
+			return;
+		if (!_loadingScalars) {
+			result = parse(field);
+			onScalarFieldParsed(propertyName);
+		}
+	}
+
+	void onScalarFieldParsed(string propertyName) {
 		ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(propertyName));
 		if (propertyName == nameof(hotkeyLongPressMsText))
 			raisePropertyChanged(nameof(hotkeyLongPressMsResult));
-
-		if (recomputeAggregate && !_loadingScalars)
-			recomputeScalarsResult();
+		recomputeScalarsResult();
 	}
 
 	void recomputeScalarsResult() {
