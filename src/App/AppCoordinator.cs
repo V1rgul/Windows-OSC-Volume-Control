@@ -29,6 +29,7 @@ public sealed class AppCoordinator : IDisposable {
 	MixerController _mixer;
 	ConfigWindow? _configWindow;
 	StatusController.MergedState _lastMergedState = StatusController.MergedState.STARTING_OR_INVALID_CONFIG;
+	string _visibleDiagnosticsSummary = "";
 	bool _disposed;
 
 	public AppCoordinator() {
@@ -89,9 +90,6 @@ public sealed class AppCoordinator : IDisposable {
 	public void finishConfigValidation() =>
 		_applicationStatusRegister.setStatusError<StatusError.Generic.Starting>(false);
 
-	internal string visibleDiagnosticsSummaryForConfigUi() =>
-		VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrorTypes());
-
 	public async Task applyConfigFromStoreAsync() {
 		AppConfig cfg = _configStore.appConfig;
 		// Socket teardown/rebind may briefly block on the old receive loop; await keeps the UI thread responsive.
@@ -129,17 +127,18 @@ public sealed class AppCoordinator : IDisposable {
 	}
 
 	void onVisibleStatusErrorsChanged() {
-		string summary = VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrorTypes());
+		_visibleDiagnosticsSummary = VisibleDiagnosticsFormatting.formatVisibleStatusErrors(
+			_statusController.getVisibleStatusErrorTypes());
 		ui(() => {
-			_tray.setStatusText(summary);
-			_configWindow?.syncDiagnosticsFeedback(summary);
+			_tray.setStatusText(_visibleDiagnosticsSummary);
+			_configWindow?.syncDiagnosticsFeedback(_visibleDiagnosticsSummary);
 		});
 	}
 
 	void syncStatusUi() {
 		_lastMergedState = _statusController.getMergedState();
 		_tray.ApplyState(mapMergedState(_lastMergedState));
-		_tray.setStatusText(VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrorTypes()));
+		_tray.setStatusText(_visibleDiagnosticsSummary);
 	}
 
 	static AppTrayIconState mapMergedState(StatusController.MergedState state) => state switch {
@@ -198,8 +197,7 @@ public sealed class AppCoordinator : IDisposable {
 			}
 
 			_configWindow = new ConfigWindow(_mixer, _tray, this, _configStore);
-			_configWindow.syncDiagnosticsFeedback(
-				VisibleDiagnosticsFormatting.formatVisibleStatusErrors(_statusController.getVisibleStatusErrorTypes()));
+			_configWindow.syncDiagnosticsFeedback(_visibleDiagnosticsSummary);
 			_configWindow.Closed += (_, _) => {
 				setConfiguredHotkeysEnabled(true);
 				_configWindow?.syncDiagnosticsFeedback("");

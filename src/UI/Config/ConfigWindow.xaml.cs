@@ -333,8 +333,6 @@ public partial class ConfigWindow {
 				_appCoordinator.finishConfigValidation();
 			}
 
-			syncDiagnosticsFeedback(_appCoordinator.visibleDiagnosticsSummaryForConfigUi());
-
 			bool diskClean = vm.configFeedback.kind is UiTextFeedbackKind.SUCCESS or UiTextFeedbackKind.DEFAULT;
 			bool diagnosticsClean = vm.diagnosticsFeedback.kind is UiTextFeedbackKind.SUCCESS or UiTextFeedbackKind.DEFAULT;
 			flashSuccess = lastInfoOk && diskClean && diagnosticsClean;
