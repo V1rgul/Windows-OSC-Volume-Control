@@ -173,7 +173,7 @@ public sealed class BindingEditor : ObservableValidationObject {
 		get => _name;
 		set {
 			if (setTextProperty(ref _name, value))
-				recomputeValidation();
+				validateName();
 		}
 	}
 
@@ -189,7 +189,7 @@ public sealed class BindingEditor : ObservableValidationObject {
 				if (!_suppressAddressSuggestionRebuild)
 					rebuildAddressSuggestions();
 				refreshX32CatalogMatch();
-				recomputeValidation();
+				validateAddress();
 			}
 		}
 	}
@@ -287,7 +287,7 @@ public sealed class BindingEditor : ObservableValidationObject {
 		get => _minimum;
 		set {
 			if (setTextProperty(ref _minimum, value))
-				recomputeValidation();
+				validateMinimumField();
 		}
 	}
 
@@ -295,7 +295,7 @@ public sealed class BindingEditor : ObservableValidationObject {
 		get => _maximum;
 		set {
 			if (setTextProperty(ref _maximum, value))
-				recomputeValidation();
+				validateMaximumField();
 		}
 	}
 
@@ -303,7 +303,7 @@ public sealed class BindingEditor : ObservableValidationObject {
 		get => _rangeMinimum;
 		set {
 			if (setTextProperty(ref _rangeMinimum, value))
-				recomputeValidation();
+				validateRangeMinimumField();
 		}
 	}
 
@@ -311,7 +311,7 @@ public sealed class BindingEditor : ObservableValidationObject {
 		get => _rangeMaximum;
 		set {
 			if (setTextProperty(ref _rangeMaximum, value))
-				recomputeValidation();
+				validateRangeMaximumField();
 		}
 	}
 
@@ -322,7 +322,7 @@ public sealed class BindingEditor : ObservableValidationObject {
 				return;
 			foreach (ControlActionEditor h in actions)
 				h.raiseFloatValueLabelChanged();
-			recomputeValidation();
+			validateUnit();
 		}
 	}
 
@@ -439,12 +439,7 @@ public sealed class BindingEditor : ObservableValidationObject {
 				ed.maximum = ContinuousFloatUtil.formatFloatForConfig(f.maximum, f.maximumFractionalDigits);
 				ed.unit = f.unit ?? "";
 				ed.type = BindingEditorType.LINEAR;
-				foreach (ControlAction ha in f.actions) {
-					var he = ControlActionEditor.fromAction(ha);
-					he.owner = ed;
-					he.refreshChoiceFromOwner();
-					ed.actions.Add(he);
-				}
+				ed.loadActions(f.actions);
 				break;
 			case BindingLinf lf:
 				ed.name = lf.name;
@@ -455,12 +450,7 @@ public sealed class BindingEditor : ObservableValidationObject {
 				ed.rangeMaximum = ContinuousFloatUtil.formatFloatForConfig(lf.rangeMaximum, ContinuousFloatUtil.fractionalDigitsForValue(lf.rangeMaximum));
 				ed.unit = lf.unit ?? "";
 				ed.type = BindingEditorType.LINF;
-				foreach (ControlAction ha in lf.actions) {
-					var he = ControlActionEditor.fromAction(ha);
-					he.owner = ed;
-					he.refreshChoiceFromOwner();
-					ed.actions.Add(he);
-				}
+				ed.loadActions(lf.actions);
 				break;
 			case BindingLogf lg:
 				ed.name = lg.name;
@@ -471,12 +461,7 @@ public sealed class BindingEditor : ObservableValidationObject {
 				ed.rangeMaximum = ContinuousFloatUtil.formatFloatForConfig(lg.rangeMaximum, ContinuousFloatUtil.fractionalDigitsForValue(lg.rangeMaximum));
 				ed.unit = lg.unit ?? "";
 				ed.type = BindingEditorType.LOGF;
-				foreach (ControlAction ha in lg.actions) {
-					var he = ControlActionEditor.fromAction(ha);
-					he.owner = ed;
-					he.refreshChoiceFromOwner();
-					ed.actions.Add(he);
-				}
+				ed.loadActions(lg.actions);
 				break;
 			case BindingLevel lv:
 				ed.name = lv.name;
@@ -484,28 +469,27 @@ public sealed class BindingEditor : ObservableValidationObject {
 				ed.minimum = ContinuousFloatUtil.formatFloatForConfig(lv.minimum, lv.minimumFractionalDigits);
 				ed.maximum = ContinuousFloatUtil.formatFloatForConfig(lv.maximum, lv.maximumFractionalDigits);
 				ed.type = BindingEditorType.LEVEL;
-				foreach (ControlAction ha in lv.actions) {
-					var he = ControlActionEditor.fromAction(ha);
-					he.owner = ed;
-					he.refreshChoiceFromOwner();
-					ed.actions.Add(he);
-				}
+				ed.loadActions(lv.actions);
 				break;
 			case BindingToggle t:
 				ed.name = t.name;
 				ed.address = t.address;
 				ed.type = BindingEditorType.TOGGLE;
-				foreach (ControlAction ha in t.actions) {
-					var he = ControlActionEditor.fromAction(ha);
-					he.owner = ed;
-					he.refreshChoiceFromOwner();
-					ed.actions.Add(he);
-				}
+				ed.loadActions(t.actions);
 				break;
 			default:
 				throw new InvalidOperationException("Unknown binding type.");
 		}
 		return ed;
+	}
+
+	void loadActions(IEnumerable<ControlAction> source) {
+		foreach (ControlAction ha in source) {
+			var he = ControlActionEditor.fromAction(ha);
+			he.owner = this;
+			he.refreshChoiceFromOwner();
+			actions.Add(he);
+		}
 	}
 
 	public ControlActionEditor createActionEditor() {
@@ -522,10 +506,8 @@ public sealed class BindingEditor : ObservableValidationObject {
 			return;
 		}
 
-		_nameResult = BindingManager.Config.parseBindingNameField(_name);
-		_addressResult = BindingManager.Config.parseOscAddressField(_address);
-		setValidationErrors(nameof(name), validationMessages(_nameResult));
-		setValidationErrors(nameof(address), validationMessages(_addressResult));
+		validateName();
+		validateAddress();
 
 		if (showsMinMax)
 			validateMinMaxFields();
@@ -541,21 +523,84 @@ public sealed class BindingEditor : ObservableValidationObject {
 			setValidationErrors(nameof(rangeMaximum), []);
 		}
 
+		validateUnit();
+	}
+
+	void validateName() {
+		if (_isDeleted)
+			return;
+		_nameResult = BindingManager.Config.parseBindingNameField(_name);
+		setValidationErrors(nameof(name), validationMessages(_nameResult));
+	}
+
+	void validateAddress() {
+		if (_isDeleted)
+			return;
+		_addressResult = BindingManager.Config.parseOscAddressField(_address);
+		setValidationErrors(nameof(address), validationMessages(_addressResult));
+	}
+
+	void validateUnit() {
+		if (_isDeleted)
+			return;
 		_unitResult = BindingManager.Config.parseUnitField(_unit);
 		setValidationErrors(nameof(unit), showsUnit ? validationMessages(_unitResult) : []);
 	}
 
+	void validateMinimumField() {
+		if (_isDeleted)
+			return;
+		if (!showsMinMax) {
+			setValidationErrors(nameof(minimum), []);
+			return;
+		}
+		_minimumResult = BindingManager.Config.parseContinuousFloatField(_minimum);
+		var minErrors = validationMessages(_minimumResult).ToList();
+		var maxErrors = validationMessages(_maximumResult).ToList();
+		applyMinMaxCrossFieldErrors(minErrors, maxErrors);
+		setValidationErrors(nameof(minimum), minErrors);
+		setValidationErrors(nameof(maximum), maxErrors);
+	}
+
+	void validateMaximumField() {
+		if (_isDeleted)
+			return;
+		if (!showsMinMax) {
+			setValidationErrors(nameof(maximum), []);
+			return;
+		}
+		_maximumResult = BindingManager.Config.parseContinuousFloatField(_maximum);
+		var minErrors = validationMessages(_minimumResult).ToList();
+		var maxErrors = validationMessages(_maximumResult).ToList();
+		applyMinMaxCrossFieldErrors(minErrors, maxErrors);
+		setValidationErrors(nameof(minimum), minErrors);
+		setValidationErrors(nameof(maximum), maxErrors);
+	}
+
 	void validateMinMaxFields() {
+		if (!showsMinMax) {
+			setValidationErrors(nameof(minimum), []);
+			setValidationErrors(nameof(maximum), []);
+			return;
+		}
 		_minimumResult = BindingManager.Config.parseContinuousFloatField(_minimum);
 		_maximumResult = BindingManager.Config.parseContinuousFloatField(_maximum);
 		var minErrors = validationMessages(_minimumResult).ToList();
 		var maxErrors = validationMessages(_maximumResult).ToList();
+		applyMinMaxCrossFieldErrors(minErrors, maxErrors);
+		setValidationErrors(nameof(minimum), minErrors);
+		setValidationErrors(nameof(maximum), maxErrors);
+	}
 
+	void applyMinMaxCrossFieldErrors(List<string> minErrors, List<string> maxErrors) {
 		if (_minimumResult.isSuccess && _maximumResult.isSuccess) {
 			float min = _minimumResult.value.value;
 			float max = _maximumResult.value.value;
-			if (min > max)
-				maxErrors.Add("Maximum must be greater than or equal to minimum.");
+			if (min > max) {
+				const string orderingMessage = "Minimum must be less than or equal to maximum.";
+				minErrors.Add(orderingMessage);
+				maxErrors.Add(orderingMessage);
+			}
 			if (type == BindingEditorType.LOGF) {
 				if (min <= 0f)
 					minErrors.Add("logf minimum must be positive.");
@@ -563,12 +608,21 @@ public sealed class BindingEditor : ObservableValidationObject {
 					maxErrors.Add("logf maximum must be positive.");
 			}
 		}
-
-		setValidationErrors(nameof(minimum), minErrors);
-		setValidationErrors(nameof(maximum), maxErrors);
 	}
 
-	void validateRangeFields() {
+	void validateRangeMinimumField() => applyRangePairValidation(parseMinimum: true, parseMaximum: false);
+
+	void validateRangeMaximumField() => applyRangePairValidation(parseMinimum: false, parseMaximum: true);
+
+	void validateRangeFields() => applyRangePairValidation(parseMinimum: true, parseMaximum: true);
+
+	void applyRangePairValidation(bool parseMinimum, bool parseMaximum) {
+		if (!showsRange) {
+			setValidationErrors(nameof(rangeMinimum), []);
+			setValidationErrors(nameof(rangeMaximum), []);
+			return;
+		}
+
 		bool rangeMinBlank = string.IsNullOrWhiteSpace(_rangeMinimum);
 		bool rangeMaxBlank = string.IsNullOrWhiteSpace(_rangeMaximum);
 		var rangeMinErrors = new List<string>();
@@ -587,8 +641,10 @@ public sealed class BindingEditor : ObservableValidationObject {
 				rangeMaxErrors.Add(message);
 		}
 
-		_rangeMinimumResult = BindingManager.Config.parseContinuousFloatField(_rangeMinimum);
-		_rangeMaximumResult = BindingManager.Config.parseContinuousFloatField(_rangeMaximum);
+		if (parseMinimum)
+			_rangeMinimumResult = BindingManager.Config.parseContinuousFloatField(_rangeMinimum);
+		if (parseMaximum)
+			_rangeMaximumResult = BindingManager.Config.parseContinuousFloatField(_rangeMaximum);
 		if (!rangeMinBlank)
 			rangeMinErrors.AddRange(validationMessages(_rangeMinimumResult));
 		if (!rangeMaxBlank)
@@ -597,8 +653,11 @@ public sealed class BindingEditor : ObservableValidationObject {
 		if (_rangeMinimumResult.isSuccess && _rangeMaximumResult.isSuccess) {
 			float rangeMin = _rangeMinimumResult.value.value;
 			float rangeMax = _rangeMaximumResult.value.value;
-			if (rangeMin > rangeMax)
-				rangeMaxErrors.Add("Range max must be greater than or equal to range min.");
+			if (rangeMin > rangeMax) {
+				const string orderingMessage = "Range min must be less than or equal to range max.";
+				rangeMinErrors.Add(orderingMessage);
+				rangeMaxErrors.Add(orderingMessage);
+			}
 			if (type == BindingEditorType.LOGF) {
 				if (rangeMin <= 0f)
 					rangeMinErrors.Add("logf range min must be positive.");
