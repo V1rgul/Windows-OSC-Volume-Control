@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
+using WindowsOscVolumeControl.Config;
 
 namespace WindowsOscVolumeControl.Mixer;
 
@@ -73,7 +74,7 @@ public static class X32Catalog {
 		// If any semicolon rows exist, prefer them and ignore legacy rows to avoid accidental mixing.
 		var legacyRows = new Dictionary<int, Row>();
 		if (semicolonRows.Count == 0) {
-			Dictionary<string, string> map = parseKeyValueLines(text);
+			Dictionary<string, string> map = ConfigParseUtil.parseKeyValueLines(text);
 			foreach ((string key, string value) in map) {
 				if (!tryParseEntryKey(key, out int idx, out string field))
 					continue;
@@ -229,23 +230,6 @@ public static class X32Catalog {
 			default:
 				return false;
 		}
-	}
-
-	static Dictionary<string, string> parseKeyValueLines(string text) {
-		var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-		foreach (string raw in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)) {
-			string line = raw.Trim();
-			if (line.Length == 0 || line[0] == '#')
-				continue;
-			int eq = line.IndexOf('=');
-			if (eq <= 0)
-				continue;
-			string k = line[..eq].Trim();
-			string v = line[(eq + 1)..].Trim();
-			if (k.Length > 0)
-				map[k] = v;
-		}
-		return map;
 	}
 
 	/// <summary>Turns <c>/ch/[01..32]/trim</c> into a regex; <c>[a..b]</c> expands to numeric runs.</summary>

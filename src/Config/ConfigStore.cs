@@ -72,7 +72,7 @@ public sealed class ConfigStore {
 			return;
 		}
 		try {
-			IReadOnlyDictionary<string, string> map = parseKeyValueLines(File.ReadAllText(path));
+			IReadOnlyDictionary<string, string> map = ConfigParseUtil.parseKeyValueLines(File.ReadAllText(path));
 			var repairNotes = new List<string>();
 			OscTransport.Config osc = buildOscConfigFromMap(map, repairNotes);
 			MixerController.Config mixer = buildMixerConfigFromMap(map, repairNotes);
@@ -315,23 +315,6 @@ public sealed class ConfigStore {
 				o.screenAnchor = parsed;
 		}
 		return o;
-	}
-
-	static Dictionary<string, string> parseKeyValueLines(string text) {
-		var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-		foreach (string raw in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)) {
-			string line = raw.Trim();
-			if (line.Length == 0 || line[0] == '#')
-				continue;
-			int eq = line.IndexOf('=');
-			if (eq <= 0)
-				continue;
-			string key = line[..eq].Trim();
-			string value = line[(eq + 1)..].Trim();
-			if (key.Length > 0)
-				map[key] = value;
-		}
-		return map;
 	}
 
 	sealed class OscBindingLoadRow {
@@ -592,7 +575,7 @@ public sealed class ConfigStore {
 
 	internal static AppConfig loadAppConfigFromKeyValueTextForTests(string raw, out List<string> repairNotes) {
 		repairNotes = new List<string>();
-		IReadOnlyDictionary<string, string> map = parseKeyValueLines(raw);
+		IReadOnlyDictionary<string, string> map = ConfigParseUtil.parseKeyValueLines(raw);
 		return new AppConfig {
 			oscTransport = buildOscConfigFromMap(map, repairNotes),
 			mixer = buildMixerConfigFromMap(map, repairNotes),

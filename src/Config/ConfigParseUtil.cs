@@ -6,6 +6,23 @@ namespace WindowsOscVolumeControl.Config;
 public readonly record struct ConfigFloatParseValue(float value, int fractionalDigits);
 
 internal static class ConfigParseUtil {
+	public static Dictionary<string, string> parseKeyValueLines(string text) {
+		var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+		foreach (string raw in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)) {
+			string line = raw.Trim();
+			if (line.Length == 0 || line[0] == '#')
+				continue;
+			int eq = line.IndexOf('=');
+			if (eq <= 0)
+				continue;
+			string key = line[..eq].Trim();
+			string value = line[(eq + 1)..].Trim();
+			if (key.Length > 0)
+				map[key] = value;
+		}
+		return map;
+	}
+
 	public static Result<string> parseRequiredText(string? text) {
 		string trimmed = (text ?? "").Trim();
 		if (trimmed.Length == 0)
