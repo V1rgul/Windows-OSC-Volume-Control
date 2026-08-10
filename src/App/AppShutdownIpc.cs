@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Security.Principal;
 using System.Threading;
 
 namespace WindowsOscVolumeControl.App;
@@ -7,18 +6,15 @@ namespace WindowsOscVolumeControl.App;
 enum AppShutdownCommandKind {
 	RUN_APP,
 	STOP_ALL,
-	STOP_PROCESS,
 	INVALID,
 }
 
-readonly record struct AppShutdownCommand(AppShutdownCommandKind kind, int processId);
+readonly record struct AppShutdownCommand(AppShutdownCommandKind kind);
 
 sealed class AppShutdownIpc : IDisposable {
-	const string EVENT_PREFIX = @"Local\WindowsOscVolumeControl";
-	const string EVENT_SUFFIX = "Stop";
+	internal const string STOP_EVENT_NAME = @"Local\WindowsOscVolumeControl.Stop";
 	const int STOP_TIMEOUT_MS = 5000;
 	public const int EXIT_OK = 0;
-	public const int EXIT_SIGNAL_FAILED = 1;
 	public const int EXIT_TIMEOUT = 2;
 	public const int EXIT_USAGE = 64;
 
@@ -33,8 +29,9 @@ sealed class AppShutdownIpc : IDisposable {
 
 	public static AppShutdownIpc startForCurrentProcess(Action onStopRequested) {
 		ArgumentNullException.ThrowIfNull(onStopRequested);
-		string eventName = stopEventNameForProcess(Environment.ProcessId);
-		var stopEvent = new EventWaitHandle(false, EventResetMode.AutoReset, eventName);
+		var stopEvent = new EventWaitHandle(false, EventResetMode.ManualReset, STOP_EVENT_NAME);
+		// A prior --stop-all may have left the event signaled if it exited before Reset.
+		_ = stopEvent.Reset();
 		RegisteredWaitHandle registeredWait = ThreadPool.RegisterWaitForSingleObject(
 			stopEvent,
 			(_, _) => onStopRequested(),
@@ -51,10 +48,7 @@ sealed class AppShutdownIpc : IDisposable {
 				exitCode = EXIT_OK;
 				return false;
 			case AppShutdownCommandKind.STOP_ALL:
-				exitCode = stopAll();
-				return true;
-			case AppShutdownCommandKind.STOP_PROCESS:
-				exitCode = stopProcess(command.processId);
+				exitCode = signalStopAndWaitForPeers();
 				return true;
 			default:
 				exitCode = EXIT_USAGE;
@@ -64,101 +58,49 @@ sealed class AppShutdownIpc : IDisposable {
 
 	internal static AppShutdownCommand parseCommand(IReadOnlyList<string> args) {
 		if (args.Count == 0)
-			return new AppShutdownCommand(AppShutdownCommandKind.RUN_APP, 0);
+			return new AppShutdownCommand(AppShutdownCommandKind.RUN_APP);
 		if (args.Count == 1 && string.Equals(args[0], "--stop-all", StringComparison.OrdinalIgnoreCase))
-			return new AppShutdownCommand(AppShutdownCommandKind.STOP_ALL, 0);
-		if (args.Count == 2 && string.Equals(args[0], "--stop", StringComparison.OrdinalIgnoreCase)) {
-			if (int.TryParse(args[1], out int pid) && pid > 0)
-				return new AppShutdownCommand(AppShutdownCommandKind.STOP_PROCESS, pid);
-			return new AppShutdownCommand(AppShutdownCommandKind.INVALID, 0);
-		}
-		return new AppShutdownCommand(AppShutdownCommandKind.INVALID, 0);
+			return new AppShutdownCommand(AppShutdownCommandKind.STOP_ALL);
+		return new AppShutdownCommand(AppShutdownCommandKind.INVALID);
 	}
 
-	static int stopAll() {
-		Process current = Process.GetCurrentProcess();
-		string processName = current.ProcessName;
-		string? currentPath = getProcessPath(current);
+	static int signalStopAndWaitForPeers() {
+		using EventWaitHandle? stopEvent = tryOpenAndSetStopEvent();
+		if (stopEvent is null)
+			return EXIT_OK;
+
+		int currentProcessId = Environment.ProcessId;
+		string processName = Process.GetCurrentProcess().ProcessName;
 		int worstExitCode = EXIT_OK;
+		var deadline = Environment.TickCount64 + STOP_TIMEOUT_MS;
 
 		foreach (Process process in Process.GetProcessesByName(processName)) {
 			using (process) {
-				if (!isStopAllTarget(process, current.Id, current.SessionId, currentPath))
+				if (process.Id == currentProcessId)
 					continue;
-				int exitCode = stopProcess(process);
-				if (exitCode == EXIT_TIMEOUT)
-					worstExitCode = EXIT_TIMEOUT;
-				else if (exitCode != EXIT_OK && worstExitCode == EXIT_OK)
-					worstExitCode = exitCode;
+				int remainingMs = (int)Math.Max(0, deadline - Environment.TickCount64);
+				try {
+					if (!process.WaitForExit(remainingMs))
+						worstExitCode = EXIT_TIMEOUT;
+				} catch (InvalidOperationException) {
+					// already exited
+				}
 			}
 		}
 
+		_ = stopEvent.Reset();
 		return worstExitCode;
 	}
 
-	static int stopProcess(int processId) {
+	static EventWaitHandle? tryOpenAndSetStopEvent() {
 		try {
-			using Process process = Process.GetProcessById(processId);
-			Process current = Process.GetCurrentProcess();
-			if (!isStopAllTarget(process, current.Id, current.SessionId, getProcessPath(current)))
-				return EXIT_SIGNAL_FAILED;
-			return stopProcess(process);
-		} catch (ArgumentException) {
-			return EXIT_OK;
-		}
-	}
-
-	static int stopProcess(Process process) {
-		if (process.HasExited)
-			return EXIT_OK;
-
-		try {
-			using EventWaitHandle stopEvent = EventWaitHandle.OpenExisting(stopEventNameForProcess(process.Id));
+			var stopEvent = EventWaitHandle.OpenExisting(STOP_EVENT_NAME);
 			_ = stopEvent.Set();
+			return stopEvent;
 		} catch (WaitHandleCannotBeOpenedException) {
-			process.Refresh();
-			return process.HasExited ? EXIT_OK : EXIT_SIGNAL_FAILED;
-		} catch (UnauthorizedAccessException) {
-			process.Refresh();
-			return process.HasExited ? EXIT_OK : EXIT_SIGNAL_FAILED;
-		}
-
-		try {
-			return process.WaitForExit(STOP_TIMEOUT_MS) ? EXIT_OK : EXIT_TIMEOUT;
-		} catch (InvalidOperationException) {
-			return EXIT_OK;
-		}
-	}
-
-	static bool isStopAllTarget(Process process, int currentProcessId, int currentSessionId, string? currentPath) {
-		try {
-			if (process.Id == currentProcessId || process.HasExited)
-				return false;
-			if (process.SessionId != currentSessionId)
-				return false;
-			string? processPath = getProcessPath(process);
-			return WindowsAutostart.pathsEqualForAutostart(processPath, currentPath);
-		} catch {
-			return false;
-		}
-	}
-
-	static string? getProcessPath(Process process) {
-		try {
-			return process.MainModule?.FileName;
-		} catch {
 			return null;
-		}
-	}
-
-	internal static string stopEventNameForProcess(int processId) =>
-		$"{EVENT_PREFIX}.{currentUserSidForName()}.{processId}.{EVENT_SUFFIX}";
-
-	static string currentUserSidForName() {
-		try {
-			return WindowsIdentity.GetCurrent().User?.Value ?? "UnknownUser";
-		} catch {
-			return "UnknownUser";
+		} catch (UnauthorizedAccessException) {
+			return null;
 		}
 	}
 
