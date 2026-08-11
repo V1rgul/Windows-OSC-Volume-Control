@@ -108,8 +108,8 @@ public sealed class ConfigStore {
 		KeyboardHook.Config hk = KeyboardHook.Config.Clamped(cfg.keyboardHook);
 		var lines = new List<string> {
 			"configVersion=1",
-			"ip=" + osc.endPoint.Address,
-			"port=" + osc.endPoint.Port.ToString(CultureInfo.InvariantCulture),
+			"ip=" + osc.address,
+			"port=" + osc.port.ToString(CultureInfo.InvariantCulture),
 			"timeoutMs=" + mixer.timeoutMs.ToString(CultureInfo.InvariantCulture),
 			"valueCacheTtlMs=" + mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture),
 			"osdHeightDip=" + osd.heightDip.ToString(CultureInfo.InvariantCulture),
@@ -270,7 +270,7 @@ public sealed class ConfigStore {
 		Result<IPAddress> ip = OscTransport.Config.parseIpField(ipStr);
 		Result<int> port = OscTransport.Config.parsePortField(portStr);
 		if (ip.isSuccess && port.isSuccess)
-			return new OscTransport.Config { endPoint = new IPEndPoint(ip.value, port.value) };
+			return new OscTransport.Config { address = ip.value, port = port.value };
 		repairNotes.Add("OSC IP/port missing or invalid; using connection defaults.");
 		return new OscTransport.Config();
 	}

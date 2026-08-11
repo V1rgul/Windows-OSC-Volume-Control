@@ -4,13 +4,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Net;
-using System.Runtime.CompilerServices;
 using System.Windows.Controls;
 using Result;
 using WindowsOscVolumeControl.Diagnostics;
 using WindowsOscVolumeControl.Input;
-using WindowsOscVolumeControl.Osc;
 using WindowsOscVolumeControl.UI.Osd;
 using AppCoordinator = WindowsOscVolumeControl.App.AppCoordinator;
 using Brush = System.Windows.Media.Brush;
@@ -26,33 +23,18 @@ public enum LatencyPanelUiStatus {
 }
 
 public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorInfo {
-	const string FOOTER_ERROR_SEPARATOR = "; ";
-	const string FOOTER_FIELD_SEPARATOR = "\n";
-	string _oscIpText = "";
-	string _oscPortText = "";
-	string _queryTimeoutText = "";
-	string _valueCacheTtlText = "";
+	internal const string FOOTER_ERROR_SEPARATOR = "; ";
+	internal const string FOOTER_FIELD_SEPARATOR = "\n";
 
-	string _osdHeightText = "";
-	string _osdDurationText = "";
 	OSDController.Config.OsdScreenAnchor _osdPosition = OSDController.Config.OsdScreenAnchor.BOTTOM_RIGHT;
 
-	string _hotkeyLongPressMsText = "";
 	bool _hotkeyOptimizeNonLongPress;
 	bool _hotkeySuppressLongPressOnly;
 	bool _hotkeyAcceptMacroChordKeyOrder;
 
-	bool _loadingScalars;
 	bool _applyInProgress;
 
-	Result<IPAddress> _oscIpResult = OscTransport.Config.parseIpField("");
-	Result<int> _oscPortResult = OscTransport.Config.parsePortField("");
-	Result<uint> _queryTimeoutResult = MixerController.Config.parseTimeoutMs("");
-	Result<uint> _valueCacheTtlResult = MixerController.Config.parseValueCacheTtlMs("");
-	Result<int> _osdHeightResult = OSDController.Config.parseHeightDip("");
-	Result<uint> _osdDurationResult = OSDController.Config.parseDisplayDurationMs("");
-	Result<uint> _hotkeyLongPressMsResult = KeyboardHook.Config.parseLongPressMs("");
-	Result<SettingsScalarsMaterialized> _scalarsResult = new ResultError.Generic.Parsing { message = "Invalid IP address." };
+	readonly ResultsRegistry _results = new();
 
 	string _configPathText = "";
 	string _traceLogPathText = "";
@@ -89,39 +71,40 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 	double _dragPlaceholderHeight;
 
 	public string oscIpText {
-		get => _oscIpText;
-		set => setScalarTextProperty(ref _oscIpText, value, ref _oscIpResult, OscTransport.Config.parseIpField);
+		get => _results.text(nameof(oscIpText));
+		set => setScalarText(nameof(oscIpText), value);
 	}
 
 	public string oscPortText {
-		get => _oscPortText;
-		set => setScalarTextProperty(ref _oscPortText, value, ref _oscPortResult, OscTransport.Config.parsePortField);
+		get => _results.text(nameof(oscPortText));
+		set => setScalarText(nameof(oscPortText), value);
 	}
 
 	public string queryTimeoutText {
-		get => _queryTimeoutText;
-		set => setScalarTextProperty(ref _queryTimeoutText, value, ref _queryTimeoutResult, MixerController.Config.parseTimeoutMs);
+		get => _results.text(nameof(queryTimeoutText));
+		set => setScalarText(nameof(queryTimeoutText), value);
 	}
 
 	public string valueCacheTtlText {
-		get => _valueCacheTtlText;
-		set => setScalarTextProperty(ref _valueCacheTtlText, value, ref _valueCacheTtlResult, MixerController.Config.parseValueCacheTtlMs);
+		get => _results.text(nameof(valueCacheTtlText));
+		set => setScalarText(nameof(valueCacheTtlText), value);
 	}
 
 	public string osdHeightText {
-		get => _osdHeightText;
-		set => setScalarTextProperty(ref _osdHeightText, value, ref _osdHeightResult, OSDController.Config.parseHeightDip);
+		get => _results.text(nameof(osdHeightText));
+		set => setScalarText(nameof(osdHeightText), value);
 	}
 
 	public string osdDurationText {
-		get => _osdDurationText;
-		set => setScalarTextProperty(ref _osdDurationText, value, ref _osdDurationResult, OSDController.Config.parseDisplayDurationMs);
+		get => _results.text(nameof(osdDurationText));
+		set => setScalarText(nameof(osdDurationText), value);
 	}
+
 	public OSDController.Config.OsdScreenAnchor osdPosition { get => _osdPosition; set => setProperty(ref _osdPosition, value); }
 
 	public string hotkeyLongPressMsText {
-		get => _hotkeyLongPressMsText;
-		set => setScalarTextProperty(ref _hotkeyLongPressMsText, value, ref _hotkeyLongPressMsResult, KeyboardHook.Config.parseLongPressMs);
+		get => _results.text(nameof(hotkeyLongPressMsText));
+		set => setScalarText(nameof(hotkeyLongPressMsText), value);
 	}
 	public bool hotkeyOptimizeNonLongPress { get => _hotkeyOptimizeNonLongPress; set => setProperty(ref _hotkeyOptimizeNonLongPress, value); }
 	public bool hotkeySuppressLongPressOnly { get => _hotkeySuppressLongPressOnly; set => setProperty(ref _hotkeySuppressLongPressOnly, value); }
@@ -162,12 +145,10 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 	public ItemsControl? dragOwnerList { get => _dragOwnerList; set => setProperty(ref _dragOwnerList, value); }
 	public double dragPlaceholderHeight { get => _dragPlaceholderHeight; set => setProperty(ref _dragPlaceholderHeight, value); }
 
-	// Binding editor collection (kept as-is; BindingEditor / ControlActionEditor own per-row state).
 	public ObservableCollection<BindingEditor> bindings { get; } = [];
 
-	public Result<uint> hotkeyLongPressMsResult => _hotkeyLongPressMsResult;
-	public Result<SettingsScalarsMaterialized> scalarsResult => _scalarsResult;
-	public bool hasScalarErrors => _scalarsResult.isError;
+	public uint appliedHotkeyLongPressDurationMs => _configStore.appConfig.keyboardHook.longPressDurationMs;
+	public bool hasScalarErrors => _results.anyError();
 	public bool applyInProgress { get => _applyInProgress; set => setProperty(ref _applyInProgress, value); }
 
 	public event EventHandler<DataErrorsChangedEventArgs>? ErrorsChanged;
@@ -175,29 +156,54 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 	public bool HasErrors => hasScalarErrors;
 
 	public System.Collections.IEnumerable GetErrors(string? propertyName) {
-		if (string.IsNullOrEmpty(propertyName))
-			return orderedScalarErrorMessages().ToArray();
+		if (string.IsNullOrEmpty(propertyName)) {
+			var all = new List<string>();
+			foreach (string name in _results.propertyNames)
+				all.AddRange(errorMessagesForProperty(name));
+			return all.ToArray();
+		}
 		return errorMessagesForProperty(propertyName).ToArray();
 	}
 
-	public bool tryGetMaterializedScalars(out SettingsScalarsMaterialized scalars, out string? errorsText) {
-		(bool ok, SettingsScalarsMaterialized materialized, string? error) = _scalarsResult.match(
-			v => (true, v, (string?)null),
-			errors => (false, default, string.Join(FOOTER_ERROR_SEPARATOR, errors)));
-		scalars = materialized;
-		errorsText = error;
-		return ok;
-	}
-
-	public string formatScalarErrorsForFooter() {
-		var lines = new List<string>();
-		foreach (string propertyName in ScalarPropertyNames.all) {
-			IResult scalarResult = scalarResultForProperty(propertyName);
-			if (!scalarResult.isError)
-				continue;
-			lines.Add($"{ScalarPropertyNames.humanLabels[propertyName]}: {string.Join(FOOTER_ERROR_SEPARATOR, scalarResult.errors)}");
+	public bool tryBuildAppConfig(out AppConfig config, out UiTextFeedback? error) {
+		if (hasScalarErrors) {
+			config = null!;
+			error = null;
+			return false;
 		}
-		return string.Join(FOOTER_FIELD_SEPARATOR, lines);
+
+		string bindingErrorsForFooter = formatBindingErrorsForFooter();
+		if (!string.IsNullOrEmpty(bindingErrorsForFooter)) {
+			config = null!;
+			error = new UiTextFeedback(bindingErrorsForFooter, UiTextFeedbackKind.ERROR);
+			return false;
+		}
+
+		var built = new List<BindingAbstract>();
+		for (int i = 0; i < bindings.Count; i++) {
+			BindingEditor editor = bindings[i];
+			if (editor.isDeleted || editor.isBlank)
+				continue;
+			if (!editor.tryBuildMaterialized(out BindingAbstract? binding, out string? bindErr)) {
+				config = null!;
+				error = new UiTextFeedback($"Binding {i + 1}: {bindErr}", UiTextFeedbackKind.ERROR);
+				return false;
+			}
+			built.Add(binding);
+		}
+
+		config = new AppConfig();
+		_results.put(config);
+		config.osd.screenAnchor = OSDController.Config.clampScreenAnchor(osdPosition);
+		config.keyboardHook = KeyboardHook.Config.Clamped(new KeyboardHook.Config {
+			longPressDurationMs = config.keyboardHook.longPressDurationMs,
+			optimizeNonLongPressKeyDown = hotkeyOptimizeNonLongPress,
+			suppressKeyForLongPressOnlyGestures = hotkeySuppressLongPressOnly,
+			acceptMacroChordKeyOrder = hotkeyAcceptMacroChordKeyOrder,
+		});
+		config.trayApp.bindings = built;
+		error = null;
+		return true;
 	}
 
 	public string formatBindingErrorsForFooter() {
@@ -247,35 +253,17 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 	public void loadFromConfigStore() {
 		AppConfig cfg = _configStore.appConfig;
 
-		_loadingScalars = true;
-		try {
-			_oscIpText = cfg.oscTransport.endPoint.Address.ToString();
-			raisePropertyChanged(nameof(oscIpText));
-			_oscPortText = cfg.oscTransport.endPoint.Port.ToString(CultureInfo.InvariantCulture);
-			raisePropertyChanged(nameof(oscPortText));
-			_queryTimeoutText = cfg.mixer.timeoutMs.ToString(CultureInfo.InvariantCulture);
-			raisePropertyChanged(nameof(queryTimeoutText));
-			_valueCacheTtlText = cfg.mixer.ValueCacheTtlMs.ToString(CultureInfo.InvariantCulture);
-			raisePropertyChanged(nameof(valueCacheTtlText));
+		_results.take(cfg);
+		foreach (string propertyName in _results.propertyNames)
+			raisePropertyChanged(propertyName);
 
-			_osdHeightText = cfg.osd.heightDip.ToString(CultureInfo.InvariantCulture);
-			raisePropertyChanged(nameof(osdHeightText));
-			_osdDurationText = cfg.osd.DisplayDurationMs.ToString(CultureInfo.InvariantCulture);
-			raisePropertyChanged(nameof(osdDurationText));
-			osdPosition = cfg.osd.screenAnchor;
+		osdPosition = cfg.osd.screenAnchor;
 
-			KeyboardHook.Config hk = cfg.keyboardHook;
-			_hotkeyLongPressMsText = hk.longPressDurationMs.ToString(CultureInfo.InvariantCulture);
-			raisePropertyChanged(nameof(hotkeyLongPressMsText));
-			hotkeyOptimizeNonLongPress = hk.optimizeNonLongPressKeyDown;
-			hotkeySuppressLongPressOnly = hk.suppressKeyForLongPressOnlyGestures;
-			hotkeyAcceptMacroChordKeyOrder = hk.acceptMacroChordKeyOrder;
-		} finally {
-			_loadingScalars = false;
-		}
+		KeyboardHook.Config hk = cfg.keyboardHook;
+		hotkeyOptimizeNonLongPress = hk.optimizeNonLongPressKeyDown;
+		hotkeySuppressLongPressOnly = hk.suppressKeyForLongPressOnlyGestures;
+		hotkeyAcceptMacroChordKeyOrder = hk.acceptMacroChordKeyOrder;
 
-		materializeScalarResultsFromConfig(cfg);
-		recomputeScalarsResult();
 		notifyScalarValidationChanged();
 
 		configPathText = _configStore.configPathForUi;
@@ -454,75 +442,24 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 		return LatencyPanelUiStatus.CRITICAL;
 	}
 
-	void materializeScalarResultsFromConfig(AppConfig cfg) {
-		_oscIpResult = cfg.oscTransport.endPoint.Address;
-		_oscPortResult = cfg.oscTransport.endPoint.Port;
-		_queryTimeoutResult = cfg.mixer.timeoutMs;
-		_valueCacheTtlResult = cfg.mixer.ValueCacheTtlMs;
-		_osdHeightResult = cfg.osd.heightDip;
-		_osdDurationResult = cfg.osd.DisplayDurationMs;
-		_hotkeyLongPressMsResult = cfg.keyboardHook.longPressDurationMs;
-	}
-
 	void notifyScalarValidationChanged() {
-		foreach (string propertyName in ScalarPropertyNames.all)
+		foreach (string propertyName in _results.propertyNames)
 			ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(propertyName));
-		raisePropertyChanged(nameof(hotkeyLongPressMsResult));
+		raisePropertyChanged(nameof(hasScalarErrors));
 	}
 
-	void setScalarTextProperty<T>(
-		ref string field,
-		string? value,
-		ref Result<T> result,
-		Func<string?, Result<T>> parse,
-		[CallerMemberName] string propertyName = "") {
-		if (!setTextProperty(ref field, value, propertyName))
+	void setScalarText(string propertyName, string? value) {
+		string text = value ?? "";
+		if (_results.text(propertyName) == text)
 			return;
-		if (!_loadingScalars) {
-			result = parse(field);
-			onScalarFieldParsed(propertyName);
-		}
+		_results.parse(propertyName, text);
+		onScalarFieldParsed(propertyName);
 	}
 
 	void onScalarFieldParsed(string propertyName) {
 		ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(propertyName));
-		if (propertyName == nameof(hotkeyLongPressMsText))
-			raisePropertyChanged(nameof(hotkeyLongPressMsResult));
-		recomputeScalarsResult();
-	}
-
-	void recomputeScalarsResult() {
-		foreach (string propertyName in ScalarPropertyNames.all) {
-			IResult scalarResult = scalarResultForProperty(propertyName);
-			if (scalarResult.isError) {
-				_scalarsResult = scalarResult.errors;
-				raisePropertyChanged(nameof(scalarsResult));
-				raisePropertyChanged(nameof(hasScalarErrors));
-				return;
-			}
-		}
-
-		_scalarsResult = new SettingsScalarsMaterialized(
-			new IPEndPoint(_oscIpResult.value, _oscPortResult.value),
-			_queryTimeoutResult.value,
-			_valueCacheTtlResult.value,
-			_osdHeightResult.value,
-			_osdDurationResult.value,
-			_hotkeyLongPressMsResult.value);
-		raisePropertyChanged(nameof(scalarsResult));
 		raisePropertyChanged(nameof(hasScalarErrors));
 	}
-
-	IResult scalarResultForProperty(string propertyName) => propertyName switch {
-		nameof(oscIpText) => _oscIpResult,
-		nameof(oscPortText) => _oscPortResult,
-		nameof(queryTimeoutText) => _queryTimeoutResult,
-		nameof(valueCacheTtlText) => _valueCacheTtlResult,
-		nameof(osdHeightText) => _osdHeightResult,
-		nameof(osdDurationText) => _osdDurationResult,
-		nameof(hotkeyLongPressMsText) => _hotkeyLongPressMsResult,
-		_ => _scalarsResult,
-	};
 
 	static void appendBindingFieldErrors(
 		List<string> lines,
@@ -542,21 +479,12 @@ public sealed class ConfigWindowViewModel : ObservableObject, INotifyDataErrorIn
 	static IEnumerable<string> validationErrorsFor(INotifyDataErrorInfo source, string propertyName) =>
 		source.GetErrors(propertyName).Cast<string>();
 
-	IEnumerable<string> errorMessagesForProperty(string propertyName) => propertyName switch {
-		nameof(oscIpText) => _oscIpResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
-		nameof(oscPortText) => _oscPortResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
-		nameof(queryTimeoutText) => _queryTimeoutResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
-		nameof(valueCacheTtlText) => _valueCacheTtlResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
-		nameof(osdHeightText) => _osdHeightResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
-		nameof(osdDurationText) => _osdDurationResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
-		nameof(hotkeyLongPressMsText) => _hotkeyLongPressMsResult.match(_ => Array.Empty<string>(), errors => Array.ConvertAll(errors, static e => e.ToString())),
-		_ => [],
-	};
-
-	IEnumerable<string> orderedScalarErrorMessages() {
-		var messages = new List<string>();
-		foreach (string propertyName in ScalarPropertyNames.all)
-			messages.AddRange(errorMessagesForProperty(propertyName));
-		return messages;
+	IEnumerable<string> errorMessagesForProperty(string propertyName) {
+		if (!_results.tryGet(propertyName, out ResultBridge? bridge))
+			return [];
+		IResult result = bridge.get();
+		if (!result.isError)
+			return [];
+		return Array.ConvertAll(result.errors, static e => e.ToString());
 	}
 }

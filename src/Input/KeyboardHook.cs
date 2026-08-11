@@ -22,7 +22,7 @@ public partial class KeyboardHook : IDisposable {
 		public const uint MIN_LONG_PRESS_MS = 50;
 		public const uint MAX_LONG_PRESS_MS = 5000;
 
-		public uint longPressDurationMs { get; set; } = DEFAULT_LONG_PRESS_MS;
+		public uint longPressDurationMs = DEFAULT_LONG_PRESS_MS;
 
 		/// <summary>When true, short-press rows fire on keydown (unless long-press rows exist for the same gesture).</summary>
 		public bool optimizeNonLongPressKeyDown { get; set; } = true;

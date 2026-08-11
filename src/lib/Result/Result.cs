@@ -52,6 +52,7 @@ public readonly record struct Result<TValue> : IResult<TValue>
 			return _value;
 		}
 	}
+
 	public Result.Error[] errors
 	{
 		get

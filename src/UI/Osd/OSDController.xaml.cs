@@ -79,8 +79,8 @@ public partial class OSDController {
 		public const uint MIN_DISPLAY_DURATION_MS = 200;
 		public const uint MAX_DISPLAY_DURATION_MS = 60_000;
 
-		public int heightDip { get; set; } = 80;
-		public uint DisplayDurationMs { get; set; } = 1000;
+		public int heightDip = 80;
+		public uint DisplayDurationMs = 1000;
 		public OsdScreenAnchor screenAnchor { get; set; } = OsdScreenAnchor.BOTTOM_CENTER;
 
 		public Config() { }

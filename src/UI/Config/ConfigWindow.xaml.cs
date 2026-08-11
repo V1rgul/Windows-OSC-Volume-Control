@@ -41,13 +41,13 @@ public partial class ConfigWindow {
 
 	public ConfigWindow(MixerController mixer, TrayController trayController, AppCoordinator appCoordinator, ConfigStore configStore) {
 		InitializeComponent();
-		DataContext = this;
 		_mixer = mixer;
 		_trayController = trayController;
 		_appCoordinator = appCoordinator;
 		_configStore = configStore;
 		vm = new ConfigWindowViewModel(_appCoordinator, _configStore);
 		vm.PropertyChanged += vm_PropertyChanged;
+		DataContext = this;
 		loadFromConfigStore();
 		syncTitlebarIconFromTray();
 		WindowStartupLocation = WindowStartupLocation.Manual;
@@ -212,20 +212,15 @@ public partial class ConfigWindow {
 		bool? flashSuccess = null;
 		bool lastInfoOk = false;
 		try {
-			(bool scalarOk, SettingsScalarsMaterialized scalars) = vm.scalarsResult.match(
-				v => (true, v),
-				_ => {
-					vm.statusFeedback = new UiTextFeedback(vm.formatScalarErrorsForFooter(), UiTextFeedbackKind.ERROR);
-					refreshStatusBar();
-					flashSuccess = false;
-					return (false, default);
-				});
-			if (!scalarOk)
+			if (vm.hasScalarErrors) {
+				vm.statusFeedback = new UiTextFeedback(SettingsPanel.formatScalarErrorsForFooter(vm), UiTextFeedbackKind.ERROR);
+				refreshStatusBar();
+				flashSuccess = false;
 				return;
+			}
 
-			string bindingErrorsForFooter = vm.formatBindingErrorsForFooter();
-			if (!string.IsNullOrEmpty(bindingErrorsForFooter)) {
-				vm.statusFeedback = new UiTextFeedback(bindingErrorsForFooter, UiTextFeedbackKind.ERROR);
+			if (!vm.tryBuildAppConfig(out AppConfig? newConfig, out UiTextFeedback? buildErr)) {
+				vm.statusFeedback = buildErr!.Value;
 				refreshStatusBar();
 				flashSuccess = false;
 				return;
@@ -233,20 +228,6 @@ public partial class ConfigWindow {
 
 			vm.statusFeedback = new UiTextFeedback("", UiTextFeedbackKind.DEFAULT);
 			refreshStatusBar();
-			(bool okBuild, AppConfig? newConfig, UiTextFeedback? buildErr) = SettingsFormDraft.tryBuild(
-				scalars,
-				vm.osdPosition,
-				vm.hotkeyOptimizeNonLongPress,
-				vm.hotkeySuppressLongPressOnly,
-				vm.hotkeyAcceptMacroChordKeyOrder,
-				vm.bindings);
-			if (!okBuild) {
-				vm.statusFeedback = buildErr!.Value;
-				refreshStatusBar();
-				flashSuccess = false;
-				return;
-			}
-
 			_appCoordinator.beginConfigValidation();
 			try {
 				await _appCoordinator.commitConfigFromSettingsFormAsync(newConfig!);

@@ -12,7 +12,8 @@ public class OscTransportBindConflictTests {
 		int port = ((IPEndPoint)portBlocker.Client.LocalEndPoint!).Port;
 
 		using var transport = new OscTransport(new OscTransport.Config {
-			endPoint = new IPEndPoint(IPAddress.Loopback, port),
+			address = IPAddress.Loopback,
+			port = port,
 		});
 
 		Assert.Contains(typeof(StatusError.OscTransport.BindFailed), transport.statusRegister.activeStatusErrorTypes);
@@ -26,13 +27,15 @@ public class OscTransportBindConflictTests {
 		int takenPort = ((IPEndPoint)portBlocker.Client.LocalEndPoint!).Port;
 
 		using var transport = new OscTransport(new OscTransport.Config {
-			endPoint = new IPEndPoint(IPAddress.Loopback, takenPort),
+			address = IPAddress.Loopback,
+			port = takenPort,
 		});
 		Assert.Contains(typeof(StatusError.OscTransport.BindFailed), transport.statusRegister.activeStatusErrorTypes);
 
 		portBlocker.Dispose();
 		await transport.applyConfigAsync(new OscTransport.Config {
-			endPoint = new IPEndPoint(IPAddress.Loopback, takenPort),
+			address = IPAddress.Loopback,
+			port = takenPort,
 		});
 
 		Assert.DoesNotContain(typeof(StatusError.OscTransport.BindFailed), transport.statusRegister.activeStatusErrorTypes);

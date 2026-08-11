@@ -16,6 +16,7 @@
 				<ColumnDefinition Width="*" MinWidth="820" />
 			</Grid.ColumnDefinitions>
 			<local:SettingsPanelView
+				x:Name="SettingsPanel"
 				Grid.Column="0"
 				DataContext="{Binding vm, ValidatesOnNotifyDataErrors=False}" />
 			<local:BindingsPanelView

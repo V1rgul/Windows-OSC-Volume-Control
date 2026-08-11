@@ -126,15 +126,14 @@
 							<RowDefinition Height="Auto" />
 							<RowDefinition Height="Auto" />
 						</Grid.RowDefinitions>
-						<TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="OSC IP" />
-						<TextBox x:Name="IpTextBox" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,4" Style="{DynamicResource ConfigTextBoxValidationStyle}" Text="{Binding oscIpText, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}">
+						<TextBlock x:Name="OscIpLabelTextBlock" Grid.Row="0" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="OSC IP" />
+						<TextBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,4" Style="{DynamicResource ConfigTextBoxValidationStyle}" Text="{Binding oscIpText, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}">
 							<TextBox.ToolTip>
 								<local:ScalarFieldToolTip helpText="IPv4 address of the OSC target, e.g. 127.0.0.1" />
 							</TextBox.ToolTip>
 						</TextBox>
-						<TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="OSC port" />
+						<TextBlock x:Name="OscPortLabelTextBlock" Grid.Row="1" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="OSC port" />
 						<TextBox
-							x:Name="PortTextBox"
 							Grid.Row="1"
 							Grid.Column="1"
 							Grid.ColumnSpan="2"
@@ -145,9 +144,8 @@
 								<local:ScalarFieldToolTip helpText="UDP port of the OSC target, 1–65535" />
 							</TextBox.ToolTip>
 						</TextBox>
-						<TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="Query timeout" />
+						<TextBlock x:Name="QueryTimeoutLabelTextBlock" Grid.Row="2" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="Query timeout" />
 						<TextBox
-							x:Name="TimeoutTextBox"
 							Grid.Row="2"
 							Grid.Column="1"
 							Margin="0,0,0,4"
@@ -158,9 +156,8 @@
 							</TextBox.ToolTip>
 						</TextBox>
 						<TextBlock Grid.Row="2" Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="ms" />
-						<TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="Value cache TTL" />
+						<TextBlock x:Name="ValueCacheTtlLabelTextBlock" Grid.Row="3" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="Value cache TTL" />
 						<TextBox
-							x:Name="CacheTtlTextBox"
 							Grid.Row="3"
 							Grid.Column="1"
 							Margin="0,0,0,4"
@@ -251,15 +248,15 @@
 							<RowDefinition Height="Auto" />
 							<RowDefinition Height="Auto" />
 						</Grid.RowDefinitions>
-						<TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="Height" />
-						<TextBox x:Name="OsdHeightTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding osdHeightText, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}">
+						<TextBlock x:Name="OsdHeightLabelTextBlock" Grid.Row="0" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="Height" />
+						<TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding osdHeightText, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}">
 							<TextBox.ToolTip>
 								<local:ScalarFieldToolTip helpText="On-screen display height in device-independent pixels (48–600)" />
 							</TextBox.ToolTip>
 						</TextBox>
 						<TextBlock Grid.Row="0" Grid.Column="2" Margin="4,0,0,4" VerticalAlignment="Center" HorizontalAlignment="Right" Text="DIP" />
-						<TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="Display duration" />
-						<TextBox x:Name="OsdDurationTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding osdDurationText, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}">
+						<TextBlock x:Name="OsdDurationLabelTextBlock" Grid.Row="1" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" Text="Display duration" />
+						<TextBox Grid.Row="1" Grid.Column="1" Margin="0,0,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding osdDurationText, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}">
 							<TextBox.ToolTip>
 								<local:ScalarFieldToolTip helpText="How long the OSD stays visible after a change, in milliseconds (200–60000)" />
 							</TextBox.ToolTip>
@@ -291,8 +288,8 @@
 							<RowDefinition Height="Auto" />
 							<RowDefinition Height="Auto" />
 						</Grid.RowDefinitions>
-						<TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" TextWrapping="Wrap" Text="Long-press duration" />
-						<TextBox x:Name="HotkeyLongPressMsTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding hotkeyLongPressMsText, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}">
+						<TextBlock x:Name="HotkeyLongPressMsLabelTextBlock" Grid.Row="0" Grid.Column="0" Margin="0,0,4,4" VerticalAlignment="Center" TextWrapping="Wrap" Text="Long-press duration" />
+						<TextBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,4" Style="{DynamicResource ConfigNumericTextBoxStyle}" Text="{Binding hotkeyLongPressMsText, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=True}">
 							<TextBox.ToolTip>
 								<local:ScalarFieldToolTip helpText="Minimum key hold time to count as a long press, in milliseconds (50–5000)" />
 							</TextBox.ToolTip>

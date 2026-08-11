@@ -18,13 +18,17 @@ namespace WindowsOscVolumeControl.Osc {
 
 public sealed class OscTransport : IDisposable {
 	public sealed class Config {
-		public IPEndPoint endPoint { get; set; } = new(IPAddress.Parse("127.0.0.1"), 10023);
+		public IPAddress address = IPAddress.Parse("127.0.0.1");
+		public int port = 10023;
+
+		public IPEndPoint endPoint => new(address, port);
 
 		public Config() { }
 
 		public Config(Config other) {
 			ArgumentNullException.ThrowIfNull(other);
-			endPoint = new IPEndPoint(other.endPoint.Address, other.endPoint.Port);
+			address = other.address;
+			port = other.port;
 		}
 
 		public static Result<IPAddress> parseIpField(string? text) {

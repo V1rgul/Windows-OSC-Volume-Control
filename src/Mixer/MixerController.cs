@@ -27,8 +27,8 @@ public sealed class MixerController {
 		public const uint MIN_VALUE_CACHE_TTL_MS = 0;
 		public const uint MAX_VALUE_CACHE_TTL_MS = 10_000;
 
-		public uint timeoutMs { get; set; } = 200;
-		public uint ValueCacheTtlMs { get; set; } = 1000;
+		public uint timeoutMs = 200;
+		public uint ValueCacheTtlMs = 1000;
 
 		public Config() { }
 

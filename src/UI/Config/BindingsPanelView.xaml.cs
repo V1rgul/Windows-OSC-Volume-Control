@@ -277,14 +277,6 @@ public partial class BindingsPanelView {
 		_hotkeyCaptureAwaitingRelease = false;
 	}
 
-	bool tryParseHotkeyLongPressMsForCapture(ConfigWindowViewModel m, out uint ms) {
-		(bool ok, uint parsedMs) = m.hotkeyLongPressMsResult.match(
-			v => (true, v),
-			_ => (false, KeyboardHook.Config.DEFAULT_LONG_PRESS_MS));
-		ms = parsedMs;
-		return ok;
-	}
-
 	void finalizeHotkeyCapture(ConfigWindowViewModel m, ControlActionEditor item, FrameworkElement focusMoveAnchor) {
 		if (!_hotkeyCaptureDownUtc.HasValue)
 			return;
@@ -298,7 +290,7 @@ public partial class BindingsPanelView {
 			return;
 		}
 		item.hotkey = g;
-		uint thresholdMs = tryParseHotkeyLongPressMsForCapture(m, out uint lp) ? lp : KeyboardHook.Config.DEFAULT_LONG_PRESS_MS;
+		uint thresholdMs = m.appliedHotkeyLongPressDurationMs;
 		double heldMs = (DateTime.UtcNow - _hotkeyCaptureDownUtc.Value).TotalMilliseconds;
 		item.longPress = heldMs >= thresholdMs;
 		m.statusFeedback = new UiTextFeedback("", UiTextFeedbackKind.DEFAULT);
